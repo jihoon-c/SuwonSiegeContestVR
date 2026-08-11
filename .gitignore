@@ -35,6 +35,7 @@
 *.xcodeproj
 *.xcworkspace
 *.sln
+*.slnx
 *.suo
 *.opensdf
 *.sdf
@@ -72,3 +73,21 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+###############################################################################
+# ThirdParty SDK 바이너리 예외
+#
+# 위의 "Compiled Dynamic/Static libraries" 규칙은 빌드 산출물을 무시하기 위한
+# 것이다. 하지만 외부에서 임포트하는 서드파티 SDK(예: 음성인식 모듈)의
+# 사전 빌드 바이너리는 반드시 커밋되어야 한다.
+#
+# 따라서 ThirdParty 디렉토리 아래의 바이너리는 무시 대상에서 제외한다.
+# 이 파일들은 .gitattributes에 의해 Git LFS로 관리된다.
+###############################################################################
+!Source/**/ThirdParty/**
+!Plugins/**/Source/ThirdParty/**
+!**/ThirdParty/**/*.so
+!**/ThirdParty/**/*.a
+!**/ThirdParty/**/*.lib
+!**/ThirdParty/**/*.dll
+!**/ThirdParty/**/*.dylib
