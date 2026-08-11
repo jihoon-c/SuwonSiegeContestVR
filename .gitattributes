@@ -4,16 +4,23 @@
 ###############################################################################
 # Git LFS — Unreal Engine binary assets
 #
-# 주의: LFS 규칙은 "이 설정 이후에 add/commit 되는 파일"에만 적용된다.
-#       이미 커밋된 기존 에셋은 일반 Git 오브젝트로 남아 있다.
-#       과거 이력까지 LFS로 옮기려면 `git lfs migrate import`가 필요하며,
-#       이는 이력 재작성 + force push를 수반하므로 팀 합의 후 별도로 진행한다.
-#       자세한 내용은 docs/COLLABORATION.md 참조.
+# 2026-08-12: `git lfs migrate import --everything`로 **과거 이력 전체를
+#             LFS로 전환 완료**했다. main / develop / feature/PawnSetting
+#             모든 브랜치가 재작성되었고 force push되었다.
+#
+#             따라서 clone/pull 전에 각자 `git lfs install`을 실행해야 한다.
+#             실행하지 않으면 .uasset/.umap이 실제 에셋이 아니라
+#             몇 줄짜리 포인터 파일로 받아진다.
+#
+#             자세한 내용은 docs/COLLABORATION.md §6.5 참조.
+###############################################################################
+
 # --- Unreal Engine ---
 *.uasset  filter=lfs diff=lfs merge=lfs -text
 *.umap    filter=lfs diff=lfs merge=lfs -text
 *.upk     filter=lfs diff=lfs merge=lfs -text
 *.udk     filter=lfs diff=lfs merge=lfs -text
+
 # --- 3D / DCC 원본 ---
 *.fbx     filter=lfs diff=lfs merge=lfs -text
 *.FBX     filter=lfs diff=lfs merge=lfs -text
@@ -23,6 +30,7 @@
 *.mb      filter=lfs diff=lfs merge=lfs -text
 *.max     filter=lfs diff=lfs merge=lfs -text
 *.3ds     filter=lfs diff=lfs merge=lfs -text
+
 # --- 텍스처 / 이미지 ---
 *.png     filter=lfs diff=lfs merge=lfs -text
 *.jpg     filter=lfs diff=lfs merge=lfs -text
@@ -36,6 +44,7 @@
 *.hdr     filter=lfs diff=lfs merge=lfs -text
 *.dds     filter=lfs diff=lfs merge=lfs -text
 *.ico     filter=lfs diff=lfs merge=lfs -text
+
 # --- 오디오 ---
 *.wav     filter=lfs diff=lfs merge=lfs -text
 *.mp3     filter=lfs diff=lfs merge=lfs -text
@@ -43,13 +52,16 @@
 *.flac    filter=lfs diff=lfs merge=lfs -text
 *.aif     filter=lfs diff=lfs merge=lfs -text
 *.aiff    filter=lfs diff=lfs merge=lfs -text
+
 # --- 비디오 ---
 *.mp4     filter=lfs diff=lfs merge=lfs -text
 *.mov     filter=lfs diff=lfs merge=lfs -text
 *.webm    filter=lfs diff=lfs merge=lfs -text
+
 # --- 폰트 ---
 *.ttf     filter=lfs diff=lfs merge=lfs -text
 *.otf     filter=lfs diff=lfs merge=lfs -text
+
 # --- 서드파티 모듈 바이너리 (음성인식 SDK 등) ---
 *.so      filter=lfs diff=lfs merge=lfs -text
 *.a       filter=lfs diff=lfs merge=lfs -text
@@ -57,7 +69,10 @@
 *.jar     filter=lfs diff=lfs merge=lfs -text
 *.dylib   filter=lfs diff=lfs merge=lfs -text
 *.framework filter=lfs diff=lfs merge=lfs -text
+
+###############################################################################
 # 텍스트로 유지 (LFS 대상 아님)
+###############################################################################
 *.cpp     text
 *.h       text
 *.cs      text
@@ -65,5 +80,3 @@
 *.md      text
 *.uproject  text
 *.uplugin   text
-*.uasset filter=lfs diff=lfs merge=lfs -text
-*.umap filter=lfs diff=lfs merge=lfs -text

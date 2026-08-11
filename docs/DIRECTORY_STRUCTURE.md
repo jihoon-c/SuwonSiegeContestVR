@@ -272,16 +272,15 @@ Config/
 
 `git lfs install --local` 실행 완료 (post-checkout / post-commit / post-merge / pre-push hook 생성됨).
 
-> ⚠️ **LFS의 적용 범위 — 반드시 이해할 것**
+> ✅ **과거 이력 마이그레이션 완료 (2026-08-12)**
 >
-> LFS 규칙은 **설정 이후 add/commit 되는 파일에만** 적용된다.
-> 이미 커밋된 기존 템플릿 에셋(약 180개)은 **일반 Git 오브젝트로 이력에 남아 있다.**
-> 다만 앞으로 그 파일들을 **수정해서 커밋하면 그 시점부터 LFS로 전환**된다.
+> `git lfs migrate import --everything --include="*.uasset,*.umap"` 실행 완료.
+> **187개 에셋 전부가 이력 전체에 걸쳐 LFS 포인터로 전환**되었다.
+> 검증 결과 로컬 브랜치 이력에 남은 non-LFS `.uasset`/`.umap` blob은 **0개**다.
 >
-> 과거 이력까지 LFS로 옮기려면 `git lfs migrate import --everything`이 필요하며,
-> 이는 **이력 재작성 + force push**를 수반해 다른 개발자의 clone을 무효화한다.
-> 지금은 커밋이 2개뿐이라 마이그레이션 비용이 가장 낮은 시점이지만,
-> **팀 합의 없이 실행하지 않는다.**
+> 이력이 재작성되어 **모든 커밋 SHA가 변경**되었고 `main` / `develop` / `feature/PawnSetting`
+> 전 브랜치가 force push되었다.
+> **다른 개발자는 반드시 재클론해야 한다.** 절차는 `docs/COLLABORATION.md` §6.5 참조.
 
 **`.gitignore` 갱신 사항 (2026-08-12)**
 
@@ -413,9 +412,10 @@ ProjectRoot/
 
 ### 해결됨 (2026-08-12)
 
-* ~~Git LFS 도입 여부~~ → **도입 완료.** §4.2 참조 (단, 과거 이력 마이그레이션은 미실행)
+* ~~Git LFS 도입 여부~~ → **도입 완료 + 과거 이력 마이그레이션 완료.** §4.2 참조
 * ~~`*.slnx`가 ignore되지 않음~~ → **`.gitignore`에 추가 완료**
 * ~~타깃 HMD 불명확~~ → **Android 스탠드얼론으로 확정.** 개발 중에는 PC에서 진행
+* ~~Game Feature Plugin 사용 여부~~ → **사용 확정.** `.uplugin` 4개 생성 완료
 
 ### 미해결
 
@@ -428,5 +428,5 @@ ProjectRoot/
   단, 서드파티 음성인식 모듈 임포트가 예정되어 있으므로 **C++ 모듈은 결국 필요할 가능성이 높다.**
 * `Content/Weapons/`(권총·소총·유탄발사기 아트)는 이 프로젝트 콘텐츠와 무관하다.
   Android 타깃에서는 패키지 용량이 곧 성능이므로 **제거를 권장**한다. 사용 계획 확인 필요.
-* Game Feature Plugin 실사용 여부 — `Plugins/GameFeatures/README.md` 참조.
-* LFS 과거 이력 마이그레이션(`git lfs migrate import`) 실행 여부 — 커밋이 적은 지금이 최적 시점.
+* **`UGameFeatureData` 에셋 4개 생성** (에디터 작업). 없으면 Game Feature가 동작하지 않는다 — `Plugins/GameFeatures/README.md` 참조.
+* 손으로 작성한 `.uplugin`의 에디터 인식 여부 검증.
