@@ -1,0 +1,29 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "GF_OngseongCrossbow",
+	"Description": "웅성·쇠뇌 체험 Game Feature. 쇠뇌, 충차, 적 Wave 연출, 관련 PlayerPhone 확장을 포함한다. 적 병사·Damage·Faction 등 공통 전투 요소는 Shared Gameplay(Content/Gameplay)에 둔다.",
+	"Category": "Game Features",
+	"CreatedBy": "SuwonSiegeContestVR Team",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"ExplicitlyLoaded": true,
+	"BuiltInInitialFeatureState": "Registered",
+	"Plugins": [
+		{
+			"Name": "ModularGameplay",
+			"Enabled": true
+		},
+		{
+			"Name": "GameFeatures",
+			"Enabled": true
+		}
+	]
+}

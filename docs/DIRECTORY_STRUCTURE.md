@@ -20,8 +20,8 @@
 | 항목 | 현재 상태 |
 |---|---|
 | `Content/Core`, `Content/Gameplay`, `Content/Maps` | **골격 생성 완료** (빈 디렉토리 + `.gitkeep`) |
-| `Plugins/GameFeatures/GF_*` | **골격 생성 완료.** 단 `.uplugin` 미생성 → 엔진이 플러그인으로 인식하지 않음 |
-| Game Feature Plugin 실사용 여부 | **미결정** (`Plugins/GameFeatures/README.md` 참조) |
+| `Plugins/GameFeatures/GF_*` | **`.uplugin` 4개 생성 완료.** 단 `UGameFeatureData` 에셋 미생성 (에디터 작업 필요) |
+| Game Feature Plugin 실사용 여부 | **사용 확정** — `.uproject`에 `GameFeatures` / `ModularGameplay` 활성화 완료 |
 | `docs/` | 구축 완료 |
 | Git LFS | **설정 완료** (신규 커밋부터 적용 — §4.2 참조) |
 | C++ 게임플레이 코드 | **없음** (템플릿 스텁만 존재) |
@@ -170,17 +170,29 @@ Content/
 ```text
 Plugins/
 └─ GameFeatures/
-   ├─ README.md                        ← 현재 상태 및 미결정 사항 기록
-   ├─ GF_Geojunggi/Content/            Gameplay / Phone / UI / Maps / Data
-   ├─ GF_OngseongCrossbow/Content/     Gameplay(Crossbow, SiegeRam, Waves, Experience) / Phone / UI / Maps / Data
-   ├─ GF_Gongsimdon/Content/           Gameplay / Phone / UI / Maps / Data
-   └─ GF_Singijeon/Content/            Gameplay / Phone / UI / Maps / Data
+   ├─ README.md                        ← 현재 상태 및 남은 작업 기록
+   ├─ GF_Geojunggi/
+   │  ├─ GF_Geojunggi.uplugin
+   │  └─ Content/                      Gameplay / Phone / UI / Maps / Data
+   ├─ GF_OngseongCrossbow/
+   │  ├─ GF_OngseongCrossbow.uplugin
+   │  └─ Content/                      Gameplay(Crossbow, SiegeRam, Waves, Experience) / Phone / UI / Maps / Data
+   ├─ GF_Gongsimdon/
+   │  ├─ GF_Gongsimdon.uplugin
+   │  └─ Content/                      Gameplay / Phone / UI / Maps / Data
+   └─ GF_Singijeon/
+      ├─ GF_Singijeon.uplugin
+      └─ Content/                      Gameplay / Phone / UI / Maps / Data
 ```
 
-> **중요**: `.uplugin` 파일이 **없다.** 따라서 엔진은 이 디렉토리를 플러그인으로 인식하지 않으며,
-> 여기에 에셋을 넣어도 마운트되지 않는다.
-> Game Feature Plugin 실사용 여부가 확정될 때까지 **실제 에셋을 배치하지 않는다.**
-> 자세한 내용은 `Plugins/GameFeatures/README.md` 참조.
+공통 `.uplugin` 설정: `"CanContainContent": true`, `"ExplicitlyLoaded": true`, `"BuiltInInitialFeatureState": "Registered"`
+
+> ⚠️ **남은 필수 작업**: 각 플러그인에 **플러그인과 같은 이름의 `UGameFeatureData` 에셋**을
+> Content 루트에 생성해야 한다. 바이너리 `.uasset`이라 **에디터에서만 만들 수 있다.**
+> 없으면 Game Features Subsystem이 해당 플러그인을 건너뛴다.
+> 생성 절차와 검증 항목은 `Plugins/GameFeatures/README.md` 참조.
+>
+> 그전까지는 이 디렉토리에 **실제 에셋을 배치하지 않는다.**
 
 ---
 

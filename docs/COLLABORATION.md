@@ -358,17 +358,17 @@ docs/<Feature>/specs/<기능명>.md
 | 3 | `.gitignore`에 `*.slnx` 추가 | **완료.** ThirdParty 바이너리 예외 규칙도 함께 추가 |
 | 4 | 타깃 기기 확정 | **Android 스탠드얼론.** 개발 중에는 PC |
 | 5 | 음성 인식 방식 | **온디바이스 + 외부 서드파티 모듈 임포트** |
+| 6 | Game Feature Plugin 사용 여부 | **사용 확정.** `.uplugin` 4개 생성 + `.uproject` 활성화 완료 |
+| 7 | LFS 과거 이력 마이그레이션 | **실행 완료.** 전 브랜치 force push됨 — §6.5 참조 |
 
 ### 미해결
 
 | # | 항목 | 이유 |
 |---|---|---|
-| 1 | `L_Main` 및 체험 Level 4종 생성 | **사용자가 직접 생성 예정.** 생성 전까지 템플릿 맵 공동 편집으로 인한 `.umap` 충돌 위험이 남는다 |
-| 2 | Game Feature Plugin 사용 여부 | 사용한다면 디렉토리·모듈 구조가 완전히 달라진다. `Plugins/GameFeatures/README.md` 참조 |
+| 1 | **`UGameFeatureData` 에셋 4개 생성** | 에디터 작업. 없으면 Game Feature가 동작하지 않는다. `Plugins/GameFeatures/README.md` 참조 |
+| 2 | `L_Main` 및 체험 Level 4종 생성 | **사용자가 직접 생성 예정.** 생성 전까지 템플릿 맵 공동 편집으로 인한 `.umap` 충돌 위험이 남는다 |
 | 3 | Core / Shared 시스템별 담당자 지정 | 공통 클래스 동시 수정 방지. 특히 **Shared 전투 시스템은 담당자 1명 지정 필수** |
 | 4 | PR 규칙 및 `develop` → `main` 승격 기준 확정 | 통합 브랜치가 `develop`이라는 점은 확정됨. 나머지 세부 규칙은 §2 참조 |
-| 5 | `.uproject`의 `Modules` 블록 커밋 여부 | 서드파티 음성인식 모듈 임포트가 확정된 이상 C++ 모듈은 결국 필요해진다 |
-| 6 | 음성 인식 서드파티 모듈 선정 | arm64-v8a 지원 · 한국어 정확도 · 라이선스 · 오프라인 모델 크기 기준 평가 |
-| 7 | Android 성능 예산 정의 | 동시 적 수 / 동시 투사체 수 / 드로우콜 상한 |
-| 8 | `r.RayTracing` / `r.Substrate` 정리 | Android 타깃에 부적절한 설정 |
-| 9 | LFS 과거 이력 마이그레이션 실행 여부 | 커밋이 2개뿐인 지금이 최적 시점 |
+| 5 | 음성 인식 서드파티 모듈 선정 | arm64-v8a 지원 · 한국어 정확도 · 라이선스 · 오프라인 모델 크기 기준 평가 |
+| 6 | Android 성능 예산 정의 | 동시 적 수 / 동시 투사체 수 / 드로우콜 상한 |
+| 7 | `r.RayTracing` / `r.Substrate` 정리 | Android 타깃에 부적절한 설정 |

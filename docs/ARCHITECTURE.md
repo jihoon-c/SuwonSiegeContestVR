@@ -12,7 +12,8 @@
 | **음성 인식** | **스탠드얼론(온디바이스)에서 동작.** 향후 **외부 서드파티 모듈을 임포트**해 사용 | 2026-08-12 |
 | **Level 생성** | 사용자가 직접 생성 (이 문서 작업 범위 밖) | 2026-08-12 |
 | **계층 골격** | `Content/Core`, `Content/Gameplay`, `Plugins/GameFeatures` 디렉토리 생성 완료 | 2026-08-12 |
-| **Git LFS** | 도입 완료 (신규 커밋부터 적용) | 2026-08-12 |
+| **Game Feature Plugin** | **사용 확정.** `.uplugin` 4개 생성, `.uproject`에 `GameFeatures`/`ModularGameplay` 활성화 | 2026-08-12 |
+| **Git LFS** | 도입 완료. **과거 이력까지 마이그레이션 완료** | 2026-08-12 |
 | **GAS 사용 여부** | 사용하지 않음 (`CLAUDE.md` 11절) | — |
 
 ---
@@ -396,26 +397,35 @@ Faction, Damage 정책, Experience 상태, Quiz 상태를 태그로 표현할 �
 
 ## 5. Game Feature 시스템
 
-`Status: Planned` — **4개 모두 존재하지 않는다.**
+`Status: Partial` — **플러그인 껍데기는 생성되었고 내용은 비어 있다.**
 
-* `Plugins/` 디렉토리 자체가 없다.
-* `.uproject`에 `GameFeatures` / `ModularGameplay` 플러그인이 활성화되어 있지 않다.
-* 활성 플러그인은 OpenXR, OpenXREyeTracker, OpenXRHandTracking, PICOController 4개뿐이다.
+* `Plugins/GameFeatures/` 아래에 `.uplugin` 4개 생성 완료 (2026-08-12)
+* `.uproject`에 `ModularGameplay`, `GameFeatures` 활성화 완료
+* 활성 플러그인: ModularGameplay, GameFeatures, OpenXR, OpenXREyeTracker, OpenXRHandTracking, PICOController
+* 공통 설정: `"CanContainContent": true`, `"ExplicitlyLoaded": true`, `"BuiltInInitialFeatureState": "Registered"`
+
+> ⚠️ **미완**: 각 플러그인의 `UGameFeatureData` 에셋이 **아직 없다.** 바이너리 `.uasset`이라 에디터에서 생성해야 한다.
+> 없으면 Game Features Subsystem이 해당 플러그인을 건너뛴다.
+> 또한 손으로 작성한 `.uplugin`이므로 **에디터에서 실제 인식 여부 검증이 필요하다.**
+> 절차와 검증 항목은 `Plugins/GameFeatures/README.md` 참조.
+
+Feature 상태 전이는 `Registered → Loaded → Active` 순이다.
+체험 진입 시 `Active`로 올리고 복귀 시 내리는 흐름은 `ExperienceSubsystem` 설계와 함께 확정한다. (`TODO`)
 
 목표 Feature 및 담당 범위:
 
 | Game Feature | 범위 | 상태 |
 |---|---|---|
-| `GF_Geojunggi` | 거중기 조작, 성벽 건축 체험, Geojunggi Phone 기능 | Planned |
-| `GF_OngseongCrossbow` | 웅성, 쇠뇌, 충차, 적 Wave 연출, Crossbow Phone 기능 | Planned |
-| `GF_Gongsimdon` | 공심돈, 침입 적 탐색/탐지, Gongsimdon Phone 기능 | Planned |
-| `GF_Singijeon` | 신기전 발사, Target, Singijeon Phone 기능 | Planned |
+| `GF_Geojunggi` | 거중기 조작, 성벽 건축 체험, Geojunggi Phone 기능 | 플러그인 생성됨 / 내용 Planned |
+| `GF_OngseongCrossbow` | 웅성, 쇠뇌, 충차, 적 Wave 연출, Crossbow Phone 기능 | 플러그인 생성됨 / 내용 Planned |
+| `GF_Gongsimdon` | 공심돈, 침입 적 탐색/탐지, Gongsimdon Phone 기능 | 플러그인 생성됨 / 내용 Planned |
+| `GF_Singijeon` | 신기전 발사, Target, Singijeon Phone 기능 | 플러그인 생성됨 / 내용 Planned |
 
 **주의**: 적 병사·데미지·체력·투사체 기반은 여러 Feature가 공유하므로 Shared Gameplay에 둔다.
 Feature에는 **그 체험에서만 쓰이는 것**(쇠뇌, 충차, 거중기, 신기전 발사대, 공심돈 탐지 로직)만 넣는다.
 
-**도입 전 결정 필요 (TODO)**: Game Feature Plugin(모듈러 게임플레이)을 실제로 쓸지, 아니면 단순 Content 폴더 분리로 갈지.
-GFP는 로딩/활성화 관리와 Data Asset 액션 설계가 추가로 필요하므로 팀 규모와 일정에 따라 판단해야 한다.
+**결정 완료 (2026-08-12)**: Game Feature Plugin(모듈러 게임플레이)을 사용한다.
+남은 작업은 `UGameFeatureData` 에셋 생성과 로딩/활성화 흐름 설계다.
 
 ---
 
@@ -519,10 +529,10 @@ graph TD
 | Projectile (전투용) | Shared | `Planned` | 템플릿 `BP_Projectile`은 데미지 없음 |
 | 공통 UI Widget | Shared | `Planned` | `WBP_Menu`(템플릿 메뉴)만 존재 |
 | Gameplay Tags | Shared | `Planned` | — |
-| GF_Geojunggi | Feature | `Planned` | — |
-| GF_OngseongCrossbow | Feature | `Planned` | — |
-| GF_Gongsimdon | Feature | `Planned` | — |
-| GF_Singijeon | Feature | `Planned` | — |
+| GF_Geojunggi | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
+| GF_OngseongCrossbow | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
+| GF_Gongsimdon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
+| GF_Singijeon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | L_Main 및 체험 Level 4종 | — | `Planned` | `L_XRTemplate`만 존재 |
 | C++ 게임플레이 코드 | — | `Planned` | 모듈 스텁만 존재 |
 
@@ -548,7 +558,7 @@ graph TD
 | 3 | `BP_XRPawn`이 `Pawn` 파생 (`Character` 아님) | CharacterMovement / Capsule 기반 이동·충돌·NavMesh 상호작용이 없음. 이동 방식이 텔레포트로 고정 | 체험별 이동 요구(고정 위치, 레일, 자유 이동)를 먼저 정리한 뒤 Pawn 설계 확정 |
 | 4 | 5개 IMC가 Priority 0으로 전역 상시 활성 | 체험 중 입력 격리 불가 (예: 쇠뇌 조준 중 텔레포트 발동) | Experience 전환에 맞춰 IMC를 Add/Remove 하는 Input 관리 계층 도입 |
 | 5 | 음성 인식 **서드파티 모듈 미선정** | Quiz가 전체 콘텐츠의 핵심. 방식(온디바이스 + 서드파티)은 확정됐으나 실제 모듈이 정해지지 않음 | **최우선 기술 검증(Spike) 대상.** arm64-v8a 지원 · 한국어 정확도 · 라이선스 기준으로 평가 |
-| 6 | ~~Git LFS 미설정~~ | — | **해결됨 (2026-08-12).** 단 **과거 이력은 마이그레이션되지 않았다** — `docs/DIRECTORY_STRUCTURE.md` §4.2 참조 |
+| 6 | ~~Git LFS 미설정~~ | — | **해결됨 (2026-08-12).** 과거 이력까지 `git lfs migrate import`로 전환 완료 — `docs/DIRECTORY_STRUCTURE.md` §4.2 참조 |
 | 7 | **`r.RayTracing=True`, `r.Substrate=True`** + Forward/MobileMultiView + Android 패키징 | **타깃이 Android로 확정된 이상 명확한 오설정.** RayTracing은 모바일에서 동작하지 않고, Substrate는 모바일 지원이 제한적이다. 셰이더 컴파일 시간과 패키지 용량만 증가 | `Config/DefaultEngine.ini` 정리 필요. 렌더링 결과 영향이 크므로 **별도 작업으로 분리** |
 | 8 | `PICOController` 활성 + Android는 Quest 계열(quest2/questpro/quest3/quest3s) 명시 | 두 기기군을 모두 노리는 것인지, 한쪽이 잔재인지 불명확 | 실제 타깃 HMD 확정 필요 |
 | 9 | `Content/Weapons/`(권총·소총·유탄) 잔존 | **Android 타깃에서는 패키지 용량이 곧 로딩·메모리 비용** | 사용 계획 없으면 제거 권장 |
@@ -563,12 +573,15 @@ graph TD
 
 * ~~최종 타깃 기기~~ → **Android 스탠드얼론** (개발 중에는 PC)
 * ~~음성 인식 방식 및 오프라인 동작 요구 여부~~ → **온디바이스 + 외부 서드파티 모듈 임포트**
+* ~~Game Feature Plugin 사용 여부~~ → **사용 확정.** `.uplugin` 4개 생성 완료
 
 ### 미해결
 
+* **`UGameFeatureData` 에셋 4개 생성** (에디터 작업) — 이것 없이는 Game Feature가 동작하지 않는다
+* 손으로 작성한 `.uplugin`의 **에디터 인식 여부 검증**
+* Game Feature 활성화 흐름 (`Registered → Loaded → Active` 전이를 누가 언제 트리거하는가)
 * 음성 인식 **서드파티 모듈 선정** (arm64-v8a 지원 · 한국어 정확도 · 라이선스 · 모델 크기)
 * 실제 타깃 HMD — PICO / Meta Quest / 양쪽 모두
-* Game Feature Plugin을 실제로 사용할지, Content 폴더 분리로 대체할지
 * Level 전환 방식 (`OpenLevel` / Level Streaming / World Partition)
 * 진행도 영속화 필요 여부 (`SaveGame` 사용 여부)
 * 각 체험의 플레이어 이동 방식 (고정 / 텔레포트 / 자유 이동)
