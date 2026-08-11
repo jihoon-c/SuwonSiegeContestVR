@@ -6,7 +6,8 @@
 #
 # 2026-08-12: `git lfs migrate import --everything`로 **과거 이력 전체를
 #             LFS로 전환 완료**했다. main / develop / feature/PawnSetting
-#             모든 브랜치가 재작성되었고 force push되었다.
+#             모든 브랜치의 커밋 SHA가 재작성되었으며, 원격에는 force push로
+#             반영된다.
 #
 #             따라서 clone/pull 전에 각자 `git lfs install`을 실행해야 한다.
 #             실행하지 않으면 .uasset/.umap이 실제 에셋이 아니라

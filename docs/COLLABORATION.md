@@ -193,13 +193,19 @@ git lfs pull
 `git lfs migrate import --everything --include="*.uasset,*.umap"`을 실행해
 **과거 이력 전체를 LFS로 전환**했다. 커밋 187개 에셋 전부가 LFS 포인터로 바뀌었다.
 
-**이력이 재작성되어 모든 커밋 SHA가 변경되었고, 전 브랜치가 force push되었다.**
+**이력이 재작성되어 모든 커밋 SHA가 변경되었다.** 원격에는 force push로 반영된다.
 
 | 브랜치 | 이전 SHA | 이후 SHA |
 |---|---|---|
 | `main` | `57dd875` | `0d63b55` |
-| `develop` | `520b44f` | `f90c20c` |
+| `develop` | `520b44f` | `a3cd291` |
 | `feature/PawnSetting` | `57dd875` | `0d63b55` |
+
+반영 명령 (마이그레이션 수행자가 1회 실행):
+
+```bash
+git push --force-with-lease origin develop main feature/PawnSetting
+```
 
 #### 다른 개발자가 해야 할 일 (필수)
 

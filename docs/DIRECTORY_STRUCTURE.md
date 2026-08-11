@@ -278,8 +278,8 @@ Config/
 > **187개 에셋 전부가 이력 전체에 걸쳐 LFS 포인터로 전환**되었다.
 > 검증 결과 로컬 브랜치 이력에 남은 non-LFS `.uasset`/`.umap` blob은 **0개**다.
 >
-> 이력이 재작성되어 **모든 커밋 SHA가 변경**되었고 `main` / `develop` / `feature/PawnSetting`
-> 전 브랜치가 force push되었다.
+> 이력이 재작성되어 **모든 커밋 SHA가 변경**되었다.
+> `main` / `develop` / `feature/PawnSetting` 전 브랜치가 force push로 원격에 반영된다.
 > **다른 개발자는 반드시 재클론해야 한다.** 절차는 `docs/COLLABORATION.md` §6.5 참조.
 
 **`.gitignore` 갱신 사항 (2026-08-12)**
