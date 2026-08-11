@@ -4,15 +4,30 @@
 
 ## 현재 상태 (2026-08-12)
 
-`Status: Partial` — `.uplugin` 생성 완료. **`UGameFeatureData` 에셋 미생성.**
+`Status: Partial` — 구성 완료. 에셋 이름 1건 수정 필요.
 
 | 항목 | 상태 |
 |---|---|
 | `.uplugin` 4개 | ✅ 생성 완료 |
 | `.uproject`에 `GameFeatures` / `ModularGameplay` 활성화 | ✅ 완료 |
 | 디렉토리 골격 (`Content/Gameplay`, `Phone`, `UI`, `Maps`, `Data`) | ✅ 완료 |
-| **`UGameFeatureData` 에셋 4개** | ❌ **미생성 — 에디터에서 직접 만들어야 한다** |
+| `UGameFeatureData` 에셋 4개 | ⚠️ 생성됨. **`GF_Geojunggi` 1건 이름 불일치** (아래 참조) |
+| **Asset Manager `PrimaryAssetTypesToScan` 등록** | ✅ `Config/DefaultGame.ini`에 추가 완료 |
 | 실제 게임플레이 에셋 | ❌ 없음 |
+
+### ⚠️ Asset Manager 등록은 필수다
+
+`GameFeatureData`를 Primary Asset 타입으로 등록하지 않으면 시작 시 다음 경고가 나고
+Game Feature가 동작하지 않는다.
+
+```text
+Asset Manager settings do not include an entry for assets of type
+GameFeatureData, which is required for game feature plugins to function.
+Add entry to PrimaryAssetTypesToScan?
+```
+
+`Config/DefaultGame.ini`의 `[/Script/Engine.AssetManagerSettings]` 항목이 이를 해결한다.
+**이 항목을 지우면 4개 플러그인이 전부 무력화된다.**
 
 ### 생성된 플러그인
 
@@ -36,9 +51,11 @@ GF_Singijeon           신기전 체험
 
 ---
 
-## ⚠️ 남은 필수 작업 — `UGameFeatureData` 에셋 생성
+## `UGameFeatureData` 에셋 — 이름이 플러그인과 정확히 같아야 한다
 
 **각 플러그인에는 플러그인과 같은 이름의 `UGameFeatureData` 에셋이 Content 루트에 있어야 한다.**
+이름이 한 글자라도 다르면 Game Features Subsystem이 해당 플러그인을 찾지 못한다.
+**에러 없이 조용히 누락되므로 발견하기 어렵다.**
 
 ```text
 Plugins/GameFeatures/GF_Geojunggi/Content/GF_Geojunggi.uasset
@@ -47,21 +64,27 @@ Plugins/GameFeatures/GF_Gongsimdon/Content/GF_Gongsimdon.uasset
 Plugins/GameFeatures/GF_Singijeon/Content/GF_Singijeon.uasset
 ```
 
-이 에셋은 **바이너리 `.uasset`이라 에디터에서만 생성할 수 있다.**
-없으면 Game Features Subsystem이 시작 시 해당 플러그인을 건너뛰며 로그에 에러를 남긴다.
+### 현재 확인된 상태 (2026-08-12 파일 검증)
 
-### 생성 절차
+| 플러그인 | 에셋 내부 경로 | 판정 |
+|---|---|---|
+| `GF_Geojunggi` | `/GF_Geojunggi/GF_Geojung**gg**i` | ❌ **g가 하나 많음. 이름 불일치** |
+| `GF_OngseongCrossbow` | `/GF_OngseongCrossbow/GF_OngseongCrossbow` | ✅ |
+| `GF_Gongsimdon` | `/GF_Gongsimdon/GF_Gongsimdon` | ✅ |
+| `GF_Singijeon` | `/GF_Singijeon/GF_Singijeon` | ✅ |
 
-1. 에디터를 켜고 Content Browser 우측 상단 **Settings → Show Plugin Content** 활성화
-2. 각 플러그인 Content 루트로 이동
+4개 모두 부모 클래스는 `/Script/GameFeatures.GameFeatureData`로 정상이다.
+
+**수정 방법**: 에디터에서 `GF_Geojungggi` 에셋을 우클릭 → **Rename** → `GF_Geojunggi`.
+참조가 없는 신규 에셋이므로 리다이렉터 정리는 불필요하다.
+
+### 생성 절차 (신규 Feature 추가 시)
+
+1. Content Browser 우측 상단 **Settings → Show Plugin Content** 활성화
+2. 해당 플러그인 Content 루트로 이동
 3. 우클릭 → **Miscellaneous → Data Asset** → 부모 클래스 **`GameFeatureData`** 선택
-4. 플러그인과 **정확히 같은 이름**으로 저장 (예: `GF_Geojunggi`)
-5. 4개 플러그인 모두 반복
-6. 에디터 재시작 후 로그에 Game Feature 관련 에러가 없는지 확인
-
-> 대안: UE 에디터의 **New Plugin → Game Feature (Content Only)** 마법사를 쓰면
-> `.uplugin`과 `GameFeatureData`가 함께 생성된다. 다만 이미 `.uplugin`이 있으므로
-> 이름 충돌을 피하려면 위 수동 절차를 권장한다.
+4. 플러그인과 **정확히 같은 이름**으로 저장
+5. 에디터 재시작 후 로그 확인
 
 ---
 

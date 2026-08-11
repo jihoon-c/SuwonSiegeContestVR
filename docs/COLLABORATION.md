@@ -159,6 +159,24 @@ Unreal의 `.uasset`은 **바이너리이며 Git이 자동 병합할 수 없다.*
 * 여러 명이 한 Level을 동시에 다뤄야 하면 **Level Streaming(서브레벨)** 또는 **World Partition + Data Layer**로 담당 구역을 분리한다.
 * `*_BuiltData.uasset`은 `.gitignore` 대상이므로 라이팅 빌드 결과는 공유되지 않는다. 각자 로컬에서 빌드한다.
 
+### `_BuiltData` 경고는 정상이다 (무시해도 됨)
+
+클론 직후 에디터를 열면 다음과 같은 경고가 나온다. **버그가 아니라 의도된 결과다.**
+
+```text
+While trying to load package /Game/XRFramework/Levels/L_XRTemplate, a dependent
+package /Game/XRFramework/Levels/L_XRTemplate_BuiltData was not available.
+... Perhaps it has been deleted or was not synced?
+```
+
+원인: `.gitignore`의 `*_BuiltData.uasset` 규칙 때문에 라이팅 빌드 데이터가 리포지토리에 없다.
+`_BuiltData`는 용량이 크고 라이팅을 빌드할 때마다 통째로 바뀌는 바이너리라, 커밋하면
+리포지토리가 급격히 커지고 충돌도 잦아진다. 그래서 의도적으로 제외한다.
+
+* 조명이 어색해 보이면 **Build → Build Lighting Only**를 로컬에서 한 번 실행한다.
+* 프로토타이핑 단계에서는 그냥 무시해도 무방하다.
+* 이 경고를 없애려고 `.gitignore`에서 `*_BuiltData.uasset`을 빼지 않는다.
+
 ---
 
 ## 6.5 Git LFS 운영 규칙
