@@ -130,7 +130,7 @@ Content/
 │  ├─ Audio/          Fire01, Fire_Cue
 │  ├─ Blueprints/
 │  │  ├─ BP_XRPawn              VR Pawn (Camera / MotionController / Grab / Teleport)
-│  │  ├─ BP_XRGameMode          DefaultPawnClass = BP_XRPawn
+│  │  ├─ BP_XRGameMode          DefaultPawnClass = BP_VRPlayerPawn
 │  │  ├─ BP_GrabComponent       SceneComponent 파생, 잡기 컴포넌트
 │  │  ├─ BP_Grabbable_SmallCube 잡을 수 있는 샘플 큐브
 │  │  ├─ BP_Pistol              샘플 총기 (BP_Projectile 발사)
@@ -182,17 +182,15 @@ Plugins/
    │  └─ Content/                      Gameplay / Phone / UI / Maps / Data
    └─ GF_Singijeon/
       ├─ GF_Singijeon.uplugin
+      ├─ Config/                       기존 모듈 클래스 Core Redirect
+      ├─ Source/GF_Singijeon/          장전 / 점화 / 발사 / 양손 운반 Runtime 모듈
       └─ Content/                      Gameplay / Phone / UI / Maps / Data
 ```
 
 공통 `.uplugin` 설정: `"CanContainContent": true`, `"ExplicitlyLoaded": true`, `"BuiltInInitialFeatureState": "Registered"`
 
-> ⚠️ **남은 필수 작업**: 각 플러그인에 **플러그인과 같은 이름의 `UGameFeatureData` 에셋**을
-> Content 루트에 생성해야 한다. 바이너리 `.uasset`이라 **에디터에서만 만들 수 있다.**
-> 없으면 Game Features Subsystem이 해당 플러그인을 건너뛴다.
-> 생성 절차와 검증 항목은 `Plugins/GameFeatures/README.md` 참조.
->
-> 그전까지는 이 디렉토리에 **실제 에셋을 배치하지 않는다.**
+> `UGameFeatureData` 4개는 생성되어 있다. `GF_Geojunggi`의 이름 불일치 1건과
+> Feature 활성화 흐름은 `Plugins/GameFeatures/README.md`의 남은 작업을 따른다.
 
 ---
 
@@ -346,10 +344,10 @@ ProjectRoot/
 
 | 기능 | 현재 위치 | 권장 위치 | 차이 | 향후 조치 |
 |---|---|---|---|---|
-| VR Pawn | `Content/XRFramework/Blueprints/BP_XRPawn` | `Content/Core/VR/Pawn/` | 템플릿 위치 그대로. 프로젝트 명명 규칙(`BP_VRPlayerPawn` 등) 미적용 | 프로젝트 전용 Pawn을 `Core/VR/Pawn`에 만들고 `BP_XRPawn`을 부모로 두거나 복제해 파생. **템플릿 원본 이동은 참조 파손 위험이 크므로 금지** |
+| VR Pawn | 템플릿 `BP_XRPawn` + Core `BP_VRPlayerPawn` | `Content/Core/VR/Pawn/` | Core Pawn에 Narration, Grab, Teleport, Snap Turn 구현 | 템플릿 원본은 참조용으로 유지 |
 | VR Input (IMC/IA) | `Content/XRFramework/Input/` | `Content/Core/VR/Input/` | 템플릿 위치. `DefaultInput.ini`가 이 경로를 직접 참조 | 이동 시 `DefaultInput.ini`의 `DefaultMappingContexts` 5줄을 반드시 함께 수정 |
 | Grab / Interaction | `Content/XRFramework/Blueprints/BP_GrabComponent`, `E_GrabType` | `Content/Core/VR/Interaction/` | Grab만 존재. 공통 Interaction Interface 없음 | 공통 `BPI_Interactable` 정의 후 확장 |
-| Teleport 이동 | `BP_XRPawn` 내부 + `BP_TeleportVisualizer` | `Content/Core/VR/Pawn/` | Pawn에 직접 구현되어 분리 안 됨 | 체험별 이동 방식이 갈리면 Component로 분리 검토 |
+| Teleport 이동 | `BP_VRPlayerPawn` + `BP_TeleportVisualizer` | `Content/Core/VR/Pawn/` | Core Pawn에 직접 구현됨 | 체험별 이동 방식이 갈리면 Component로 분리 검토 |
 | GameMode | `Content/XRFramework/Blueprints/BP_XRGameMode` | `Content/Core/` | 템플릿 위치. `DefaultEngine.ini`가 직접 참조 | 프로젝트 전용 GameMode 신설 시 ini 동시 수정 필요 |
 | Level | `Content/XRFramework/Levels/L_XRTemplate` | `Content/Maps/Main/L_Main` + 각 GF의 `Maps/` | 프로젝트 Level 전무 | `L_Main` 생성 후 `GameDefaultMap` 교체 |
 | PlayerPhone | **없음** | `Content/Core/PlayerPhone/` | 미구현 | 신규 구현 |
@@ -360,6 +358,20 @@ ProjectRoot/
 | Projectile | `BP_Projectile` (템플릿, 데미지 없음) | `Content/Gameplay/Combat/Projectiles/` | 데미지/Faction 연동 없는 샘플 | 공통 Projectile 신규 설계 |
 | 공통 UI | `WBP_Menu` (템플릿 메뉴만) | `Content/Gameplay/UI/Common/` | 프로젝트 공통 위젯 없음 | 신규 구현 |
 | Gameplay Tags | **없음** | `Content/Gameplay/Tags/` + ini | 미구현 | 태그 체계 사전 설계 권장 |
+
+### Core C++ 추가 구조 (2026-08-12)
+
+```text
+Source/SuwonSiegeContestVR/
+├─ Public/Core/
+│  ├─ Narration/    NarrationTypes, NarrationSequenceComponent, SubtitleWidget
+│  ├─ Scenario/     Scenario Data Assets, Manager, Interactable, Observation, Narration Bridge
+│  └─ VR/           VRPlayerPawn
+└─ Private/Core/
+   ├─ Narration/
+   ├─ Scenario/
+   └─ VR/
+```
 | Game Feature Plugin | **없음** (`Plugins/` 디렉토리 자체 없음) | `Plugins/GameFeatures/GF_*` | 4개 전부 미생성 | `GameFeatures` / `ModularGameplay` 플러그인 활성화 후 생성 |
 
 ---

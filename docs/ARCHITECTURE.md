@@ -93,12 +93,13 @@ Core / Shared Gameplay / Game Feature를 구분하는 폴더도 모듈도 없다
 
 ### 3.1 VR Player (VR Pawn)
 
-`Status: Partial` — UE VR 템플릿의 `BP_XRPawn`이 그대로 사용 중이다.
+`Status: Implemented` — 프로젝트 전용 `BP_VRPlayerPawn`이 나레이션 HUD와 핵심 VR 입력을 제공한다.
 
-* 경로: `Content/XRFramework/Blueprints/BP_XRPawn`
-* 부모 클래스: `Pawn` (**`Character`가 아님** — CharacterMovement / Capsule 없음)
-* `BP_XRGameMode`의 `DefaultPawnClass`로 지정됨
-* `BPI_PawnAnim` 인터페이스 구현
+* 현재 사용 Pawn: `Content/Core/VR/Pawn/BP_VRPlayerPawn`
+* 참조 템플릿 Pawn: `Content/XRFramework/Blueprints/BP_XRPawn`
+* 둘 다 `Pawn` 계열이며 CharacterMovement / Capsule은 없다.
+* `BP_XRGameMode`의 `DefaultPawnClass`는 `BP_VRPlayerPawn`이다.
+* `LV_Singijeon`은 World Settings에서 `BP_XRGameMode`를 명시적으로 사용한다.
 
 확인된 컴포넌트 구성:
 
@@ -129,15 +130,40 @@ BP_XRPawn (Pawn)
 **차이 기록**
 
 ```text
-현재 위치: Content/XRFramework/Blueprints/BP_XRPawn
+현재 위치: Content/XRFramework/Blueprints/BP_XRPawn + Content/Core/VR/Pawn/BP_VRPlayerPawn
 권장 위치: Content/Core/VR/Pawn/
-차이:      템플릿 원본을 그대로 사용 중. 프로젝트 전용 VR Player 없음.
-           이동 방식이 텔레포트로 고정되어 있고 Pawn 내부에 직접 구현되어 분리 불가.
-           PlayerPhone / Experience / Quiz 연동 지점 없음.
-향후 조치: Content/Core/VR/Pawn 에 프로젝트 전용 Pawn을 만들고
-           BP_XRPawn을 부모로 상속하거나 필요한 기능만 이식한다.
+차이:      프로젝트 전용 Pawn에 Narration, Grab, NavMesh Teleport,
+           HMD 중심 Snap Turn 입력이 구현됨.
+향후 조치: 체험별 이동 제한이 필요하면 입력 Context 관리 계층을 추가한다.
            템플릿 원본은 이동하지 않는다(참조 파손 위험).
 ```
+
+**2026-08-12 구현 추가**
+
+- `BP_VRPlayerPawn`: Camera, Grip/Aim Controller, Widget Interaction, 나레이션 Audio/HUD 구성
+- `UNarrationSequenceComponent`: DT 기반 음성·자막·후속 이벤트 흐름
+- `DT_Narration`: `NarrationSequenceRow` 기반 데이터
+
+**2026-08-13 구현 추가**
+
+- `BP_VRPlayerPawn`: `IA_Move`, `IA_Turn`, 좌우 Grab Press/Release 바인딩
+- `BP_GrabComponent`의 기존 `TryGrab` / `TryRelease` 계약 재사용
+- 투사체 경로 충돌과 NavMesh 투영 기반 Teleport, `BP_TeleportVisualizer` 재사용
+- HMD 위치를 피벗으로 유지하는 45도 Snap Turn
+- `LV_Singijeon`: `BP_XRGameMode` 명시, 기본 Pawn은 `BP_VRPlayerPawn`
+
+### 3.1.1 Core Scenario System
+
+`Status: Implemented` — Level 내부 교육 흐름을 `Interaction → Scene → Scenario`로 관리한다.
+
+- `UScenarioManagerComponent`: ID 기반 순서·성공/실패 분기·상태·지연·디버그 이동
+- `UScenarioDefinition`, `UScenarioSceneData`: Primary Data Asset 기반 콘텐츠 정의
+- `UScenarioInteractableComponent`: Feature Actor의 TargetID 기반 사건 보고
+- `UScenarioObservationComponent`: HMD 응시 판정
+- `UScenarioNarrationBridgeComponent`: 기존 `UNarrationSequenceComponent` 재사용
+- `BP_ScenarioManager`: Level 배치용 Core Blueprint
+
+책임 경계상 Scenario는 Level Travel이나 Level 간 진행도를 소유하지 않는다. 해당 책임은 향후 `ExperienceSubsystem`에 유지하며, 신기전 등 체험별 Gameplay는 Core Scenario를 호출할 수 있지만 Core는 Game Feature를 참조하지 않는다.
 
 ### 3.2 VR Input
 
@@ -404,10 +430,8 @@ Faction, Damage 정책, Experience 상태, Quiz 상태를 태그로 표현할 �
 * 활성 플러그인: ModularGameplay, GameFeatures, OpenXR, OpenXREyeTracker, OpenXRHandTracking, PICOController
 * 공통 설정: `"CanContainContent": true`, `"ExplicitlyLoaded": true`, `"BuiltInInitialFeatureState": "Registered"`
 
-> ⚠️ **미완**: 각 플러그인의 `UGameFeatureData` 에셋이 **아직 없다.** 바이너리 `.uasset`이라 에디터에서 생성해야 한다.
-> 없으면 Game Features Subsystem이 해당 플러그인을 건너뛴다.
-> 또한 손으로 작성한 `.uplugin`이므로 **에디터에서 실제 인식 여부 검증이 필요하다.**
-> 절차와 검증 항목은 `Plugins/GameFeatures/README.md` 참조.
+> `UGameFeatureData` 에셋 4개는 생성되어 있다. `GF_Geojunggi` 에셋 이름 불일치 1건은
+> `Plugins/GameFeatures/README.md`의 절차에 따라 에디터에서 수정해야 한다.
 
 Feature 상태 전이는 `Registered → Loaded → Active` 순이다.
 체험 진입 시 `Active`로 올리고 복귀 시 내리는 흐름은 `ExperienceSubsystem` 설계와 함께 확정한다. (`TODO`)
@@ -419,7 +443,7 @@ Feature 상태 전이는 `Registered → Loaded → Active` 순이다.
 | `GF_Geojunggi` | 거중기 조작, 성벽 건축 체험, Geojunggi Phone 기능 | 플러그인 생성됨 / 내용 Planned |
 | `GF_OngseongCrossbow` | 웅성, 쇠뇌, 충차, 적 Wave 연출, Crossbow Phone 기능 | 플러그인 생성됨 / 내용 Planned |
 | `GF_Gongsimdon` | 공심돈, 침입 적 탐색/탐지, Gongsimdon Phone 기능 | 플러그인 생성됨 / 내용 Planned |
-| `GF_Singijeon` | 신기전 발사, Target, Singijeon Phone 기능 | 플러그인 생성됨 / 내용 Planned |
+| `GF_Singijeon` | 장전, 점화, 연속 발사, 양손 화차 운반 | C++ 핵심 상호작용 구현 / 콘텐츠 Partial |
 
 **주의**: 적 병사·데미지·체력·투사체 기반은 여러 Feature가 공유하므로 Shared Gameplay에 둔다.
 Feature에는 **그 체험에서만 쓰이는 것**(쇠뇌, 충차, 거중기, 신기전 발사대, 공심돈 탐지 로직)만 넣는다.
@@ -507,15 +531,16 @@ graph TD
 
 | 시스템 | 계층 | 상태 | 실제 위치 |
 |---|---|---|---|
-| VR Pawn | Core | `Partial` | `Content/XRFramework/Blueprints/BP_XRPawn` (템플릿) |
+| VR Pawn | Core | `Implemented` | `Content/Core/VR/Pawn/BP_VRPlayerPawn` |
 | VR Input (Enhanced Input) | Core | `Partial` | `Content/XRFramework/Input/` (템플릿) |
 | VR Interaction (Grab만) | Core | `Partial` | `Content/XRFramework/Blueprints/BP_GrabComponent` (템플릿) |
-| Teleport 이동 | Core | `Partial` | `BP_XRPawn` 내부 (템플릿) |
-| GameMode | Core | `Partial` | `Content/XRFramework/Blueprints/BP_XRGameMode` (템플릿) |
+| Teleport 이동 | Core | `Implemented` | `BP_VRPlayerPawn` + `BP_TeleportVisualizer` |
+| GameMode | Core | `Partial` | `BP_XRGameMode`가 `BP_VRPlayerPawn` 사용, `LV_Singijeon`에 명시됨 |
 | 손 표시 / 애니메이션 | Core | `Partial` | `Content/XRMannequins/` + `BPI_PawnAnim` (템플릿) |
 | VR 관전자 | Core | `Partial` | `Content/VRSpectator/` (템플릿) |
 | PlayerPhone | Core | `Planned` | — |
 | ExperienceSubsystem | Core | `Planned` | — |
+| Scenario System | Core | `Implemented` | `Source/SuwonSiegeContestVR/*/Core/Scenario/` + `Content/Core/Scenario/Managers/BP_ScenarioManager` |
 | 진행도 관리 | Core | `Planned` | — |
 | 초성 퀴즈 | Core | `Planned` | — |
 | 음성 인식 | Core | `Planned` | — (수단 미정) |
@@ -532,9 +557,9 @@ graph TD
 | GF_Geojunggi | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | GF_OngseongCrossbow | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | GF_Gongsimdon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
-| GF_Singijeon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
+| GF_Singijeon | Feature | `Partial` | Runtime C++ 모듈과 GameFeatureData 있음 / Blueprint·레벨 미완료 |
 | L_Main 및 체험 Level 4종 | — | `Planned` | `L_XRTemplate`만 존재 |
-| C++ 게임플레이 코드 | — | `Planned` | 모듈 스텁만 존재 |
+| C++ 게임플레이 코드 | — | `Partial` | `GF_Singijeon` 핵심 VR 상호작용 구현 |
 
 ---
 

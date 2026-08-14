@@ -2,7 +2,7 @@
 
 **조사 기준일**: 2026-08-11 · **조사 기준 커밋**: `57dd875`
 **계층**: Core (Game Feature Plugin 없음)
-**전체 상태**: `Status: Planned` — **구현된 것이 없다.**
+**전체 상태**: `Status: Partial` — 프로젝트 전용 VR Pawn 기반과 DT 기반 나레이션·자막 시스템 구현
 
 ---
 
@@ -24,17 +24,32 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 | 요소 | 상태 | 실제 확인 내용 |
 |---|---|---|
 | `L_Main` Level | `Planned` | 존재하지 않는다. **사용자가 직접 생성 예정.** 배치 위치는 `Content/Maps/Main/`(골격 생성 완료) |
-| Tutorial Flow | `Planned` | 관련 Blueprint / Manager 없음 |
-| NPC | `Planned` | NPC Actor, 대사 데이터, 애니메이션 전무. `BP_MannequinsXR`는 플레이어 손 표시용이며 NPC 아님 |
+| Tutorial Flow | `Partial` | Core Scenario/Scene/Interaction Manager는 구현. 실제 Tutorial Data Asset과 연출 콘텐츠는 미작성 |
+| NPC | `Partial` | NPC Actor/애니메이션은 없으나 DT 기반 음성·자막 진행 구조 구현 |
 | 초성 퀴즈 | `Planned` | Quiz Blueprint / Widget / Data Table 없음 |
 | 음성 인식 | `Planned` | **관련 플러그인·SDK·C++ 모듈이 전혀 없다.** 기술 선정 자체가 미완 |
 | Experience 전환 | `Planned` | `ExperienceSubsystem` 없음. Level Travel 로직 없음 |
 | 진행도 관리 | `Planned` | 진행도 저장 구조, SaveGame 없음 |
-| 공통 UI (진행도/안내) | `Planned` | 템플릿 `WBP_Menu` 외 위젯 없음 |
+| 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD와 후속 World Widget 표시 영역 구현 |
+
+### 새로 구현된 Core 요소
+
+- `Content/Core/VR/Pawn/BP_VRPlayerPawn`
+- `Content/Core/Experience/Definitions/DT_Narration`
+- `UNarrationSequenceComponent`
+- `FNarrationSequenceRow`
+- `USubtitleWidget`
+- Grab / NavMesh Teleport / HMD 중심 Snap Turn 입력
+- `UScenarioManagerComponent`, Scenario/Scene Primary Data Asset
+- `UScenarioInteractableComponent`, `UScenarioObservationComponent`
+- 기존 나레이션을 연결하는 `UScenarioNarrationBridgeComponent`
+- `Content/Core/Scenario/Managers/BP_ScenarioManager`
+
+나레이션은 `docs/Main/specs/NARRATION_SYSTEM.md`, Scenario 제작은 `docs/Main/specs/SCENARIO_SYSTEM.md`를 참고한다. `BP_XRGameMode`는 `BP_VRPlayerPawn`을 기본 Pawn으로 사용하며 `LV_Singijeon`에도 명시적으로 지정되어 있다.
 
 ### 유일하게 존재하는 관련 요소
 
-* `BP_XRGameMode` — `DefaultPawnClass = BP_XRPawn`만 설정된 템플릿 GameMode
+* `BP_XRGameMode` — `DefaultPawnClass = BP_VRPlayerPawn`
 * `Config/DefaultEngine.ini`의 `GameDefaultMap = L_XRTemplate`
   → `L_Main` 생성 시 이 값을 교체해야 한다.
 
@@ -113,7 +128,8 @@ PC에서만 검증하면 arm64 빌드 단계에서 문제가 드러날 수 있�
 
 * NPC 수, 대사 분량, 음성(TTS/녹음) 사용 여부
 * 립싱크 / 애니메이션 요구 수준
-* 대사 데이터 형식 및 자막 표시 방식
+* 대사 데이터와 자막 흐름은 `DT_Narration` + `NarrationSequenceRow`로 확정
+* NPC 애니메이션은 `CompletionEvents`를 Manager가 받아 실행하는 방식으로 연동
 
 ---
 
