@@ -1,6 +1,7 @@
 #include "Core/Scenario/ScenarioManagerActor.h"
 
 #include "Components/SceneComponent.h"
+#include "Core/Scenario/ScenarioExperienceBridgeComponent.h"
 #include "Core/Scenario/ScenarioDefinition.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Core/Scenario/ScenarioNarrationBridgeComponent.h"
@@ -12,6 +13,7 @@ AScenarioManagerActor::AScenarioManagerActor()
 	SetRootComponent(SceneRoot);
 	ScenarioManager = CreateDefaultSubobject<UScenarioManagerComponent>(TEXT("ScenarioManager"));
 	NarrationBridge = CreateDefaultSubobject<UScenarioNarrationBridgeComponent>(TEXT("NarrationBridge"));
+	ExperienceBridge = CreateDefaultSubobject<UScenarioExperienceBridgeComponent>(TEXT("ExperienceBridge"));
 }
 
 void AScenarioManagerActor::OnConstruction(const FTransform& Transform)
@@ -62,5 +64,11 @@ void AScenarioManagerActor::ApplyConfiguration()
 	if (NarrationBridge)
 	{
 		NarrationBridge->NarrationTable = NarrationTable;
+	}
+	if (ExperienceBridge)
+	{
+		ExperienceBridge->ExperienceDefinition = ExperienceDefinition;
+		ExperienceBridge->bActivateExperienceWhenOpenedDirectly = bActivateExperienceWhenOpenedDirectly;
+		ExperienceBridge->bCompleteExperienceOnScenarioFinished = bCompleteExperienceOnScenarioFinished;
 	}
 }

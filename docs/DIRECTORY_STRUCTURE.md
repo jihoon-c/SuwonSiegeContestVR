@@ -351,7 +351,7 @@ ProjectRoot/
 | GameMode | `Content/XRFramework/Blueprints/BP_XRGameMode` | `Content/Core/` | 템플릿 위치. `DefaultEngine.ini`가 직접 참조 | 프로젝트 전용 GameMode 신설 시 ini 동시 수정 필요 |
 | Level | `Content/XRFramework/Levels/L_XRTemplate` | `Content/Maps/Main/L_Main` + 각 GF의 `Maps/` | 프로젝트 Level 전무 | `L_Main` 생성 후 `GameDefaultMap` 교체 |
 | PlayerPhone | **없음** | `Content/Core/PlayerPhone/` | 미구현 | 신규 구현 |
-| Experience / 진행도 | **없음** | `Content/Core/Experience/` + C++ Subsystem | 미구현 | 신규 구현 |
+| Experience / 진행도 | `Source/SuwonSiegeContestVR/*/Core/Experience/` + `DA_Experience_Singijeon` | `Content/Core/Experience/` + C++ Subsystem | OpenLevel·세션 메모리 진행도 구현, SaveGame 미구현 | `L_Main` 생성 후 ReturnLevel 지정 |
 | Quiz / 음성 인식 | **없음** | `Content/Core/Quiz/` | 미구현 | 신규 구현. 음성 인식은 외부 플러그인/SDK 선정 필요 |
 | Character / Health / Damage / Faction | **없음** | `Content/Gameplay/` + C++ Component | 미구현 | 신규 구현 |
 | AI | **없음** | `Content/Gameplay/AI/` | 미구현. `AIModule` Build.cs 미포함 | 신규 구현 |
@@ -364,10 +364,12 @@ ProjectRoot/
 ```text
 Source/SuwonSiegeContestVR/
 ├─ Public/Core/
+│  ├─ Experience/   ExperienceDefinition, ExperienceSubsystem, ExperienceTypes
 │  ├─ Narration/    NarrationTypes, NarrationSequenceComponent, SubtitleWidget
-│  ├─ Scenario/     Scenario Data Assets, Manager, Interactable, Observation, Narration Bridge
+│  ├─ Scenario/     Scenario Data Assets, Manager, Interactable, Observation, Narration/Experience Bridge
 │  └─ VR/           VRPlayerPawn
 └─ Private/Core/
+   ├─ Experience/
    ├─ Narration/
    ├─ Scenario/
    └─ VR/

@@ -8,7 +8,7 @@
 
 이 문서는 현재 구현된 VR 플레이어와 Scenario 시스템을 이어서 작업하기 위한 실무 인수인계서다.
 
-이 프로젝트에서 현재 "게임 매니저" 역할을 하는 것은 `BP_ScenarioManager`다. 단, 책임은 **현재 Level 안의 Scenario → Scene → Interaction 진행**까지다. Level 이동과 여러 체험의 전역 진행을 담당할 `ExperienceSubsystem`은 아직 구현되지 않았다.
+이 프로젝트에서 `BP_ScenarioManager`는 **현재 Level 안의 Scenario → Scene → Interaction 진행**을 담당한다. Level 이동과 여러 체험의 전역 진행은 `UExperienceSubsystem`이 담당하며, 두 계층은 `UScenarioExperienceBridgeComponent`로 연결된다.
 
 PlayerPhone은 이번 인수인계 범위가 아니다. 핵심은 `BP_VRPlayerPawn`이다.
 
@@ -31,9 +31,12 @@ flowchart TD
     Narration -->|"자막·음성"| Pawn
     Narration -->|"OnSequenceFinished"| Bridge
     Bridge -->|"Interaction 완료"| Runtime
+    Runtime -->|"OnScenarioFinished"| ExpBridge["UScenarioExperienceBridgeComponent"]
+    ExpDef["DA_Experience_*<br/>체험/복귀 Level"] --> ExpBridge
+    ExpBridge --> Exp["UExperienceSubsystem<br/>Level 이동·세션 진행도"]
 
     Feature["GF_* Actor / Component"] --> Target
-    FeatureManager["BP_*ExperienceManager<br/>미구현"] -.->|"체험별 연출·완료 중계"| Manager
+    FeatureManager["BP_*ExperienceManager<br/>선택 사항"] -.->|"체험별 연출"| Manager
 ```
 
 ### 의존성 원칙
@@ -68,7 +71,8 @@ GF_A -X→ GF_B
 | Scenario Data Asset | 구현 | `DA_Scenario_*`, `DA_Scene_*` |
 | Actor 결과 보고 | 구현 | `UScenarioInteractableComponent` |
 | Scene 간 이동 | 구현 | 같은 Scenario 내부 `NextSceneID` 기반 |
-| Level 간 이동 | 미구현 | 향후 `ExperienceSubsystem` 책임 |
+| Level 간 이동 | 구현 | `UExperienceSubsystem`, `UExperienceDefinition` |
+| 세션 진행도 | 구현 | `UGameInstanceSubsystem` 메모리 완료 목록 |
 | Feature Experience Manager | 미구현 | `BP_*ExperienceManager` 예정 |
 | 신기전 전체 진행 | 부분 구현 | 조준·횃불 점화 완료 보고가 없음 |
 
@@ -293,7 +297,24 @@ SuccessInteractionID가 있으면 → SuccessInteractionID
 
 ### 다른 Level로 넘어가기
 
-현재 미구현이다. `BP_ScenarioManager`에 `OpenLevel`을 넣지 않는다. 향후 `ExperienceSubsystem`이 `OnScenarioFinished`를 받아 Level 이동을 담당해야 한다.
+`BP_ScenarioManager`에 `OpenLevel`을 직접 넣지 않는다.
+
+진입하는 Blueprint에서 다음 순서로 호출한다.
+
+```text
+Get Game Instance Subsystem (ExperienceSubsystem)
+→ Start Experience(DA_Experience_*)
+```
+
+체험 Level의 `BP_ScenarioManager`에는 다음을 지정한다.
+
+```text
+Experience Definition = DA_Experience_*
+Activate Experience When Opened Directly = true
+Complete Experience On Scenario Finished = true
+```
+
+Scenario가 끝나면 Bridge가 완료를 기록하고, Definition의 `Return Level`이 설정돼 있으면 자동 복귀한다. 현재 `DA_Experience_Singijeon`은 `LV_Singijeon` 진입까지 설정됐고 `L_Main`이 없어서 `Return Level`은 비어 있다.
 
 ## 8. Narration 설정법
 

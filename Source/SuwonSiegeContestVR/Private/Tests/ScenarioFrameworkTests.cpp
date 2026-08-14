@@ -3,12 +3,15 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Animation/AnimInstance.h"
+#include "Core/Experience/ExperienceDefinition.h"
+#include "Core/Experience/ExperienceSubsystem.h"
 #include "Core/Scenario/ScenarioDefinition.h"
 #include "Core/Scenario/ScenarioManagerActor.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Core/Scenario/ScenarioSceneData.h"
 #include "Engine/DataTable.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "InputAction.h"
@@ -59,6 +62,46 @@ bool FVRPawnInputAndHandAnimationConfigurationTest::RunTest(const FString& Param
 	TestNotNull(
 		TEXT("Startup-registered left trigger action exists"),
 		LoadObject<UInputAction>(nullptr, TEXT("/Game/XRFramework/Input/Actions/Hands/IA_Hand_IndexCurl_Left.IA_Hand_IndexCurl_Left")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FExperienceDefinitionAndProgressTest,
+	"SuwonSiegeContestVR.Core.Experience.DefinitionAndProgress",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FExperienceDefinitionAndProgressTest::RunTest(const FString& Parameters)
+{
+	UExperienceDefinition* Definition = NewObject<UExperienceDefinition>();
+	FString ValidationError;
+	TestFalse(TEXT("Experience without an ID is rejected"), Definition->ValidateDefinition(ValidationError));
+
+	Definition->ExperienceID = TEXT("EXP_Test");
+	Definition->ExperienceLevel = TSoftObjectPtr<UWorld>(
+		FSoftObjectPath(TEXT("/Game/Tests/L_ExperienceTest.L_ExperienceTest")));
+	TestTrue(TEXT("Experience with ID and level is valid"), Definition->ValidateDefinition(ValidationError));
+
+	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
+	GameInstance->Init();
+	UExperienceSubsystem* ExperienceSubsystem = GameInstance->GetSubsystem<UExperienceSubsystem>();
+	if (TestNotNull(TEXT("Experience subsystem is created for the game instance"), ExperienceSubsystem))
+	{
+		TestTrue(TEXT("Direct-level experience activation succeeds"),
+			ExperienceSubsystem->ActivateExperienceForCurrentLevel(Definition));
+		TestEqual(TEXT("Experience becomes active"),
+			ExperienceSubsystem->GetExperienceState(), EExperienceState::Active);
+		TestTrue(TEXT("Experience completion succeeds"),
+			ExperienceSubsystem->CompleteCurrentExperience(false));
+		TestTrue(TEXT("Completed experience is retained for the session"),
+			ExperienceSubsystem->IsExperienceCompleted(Definition->ExperienceID));
+		TestEqual(TEXT("Experience becomes completed"),
+			ExperienceSubsystem->GetExperienceState(), EExperienceState::Completed);
+
+		ExperienceSubsystem->ResetSessionProgress();
+		TestFalse(TEXT("Reset clears session progress"),
+			ExperienceSubsystem->IsExperienceCompleted(Definition->ExperienceID));
+	}
+	GameInstance->Shutdown();
 	return true;
 }
 
@@ -156,10 +199,14 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 		nullptr, TEXT("/Game/Data/DA_Scene_Singijeon.DA_Scene_Singijeon"));
 	UDataTable* NarrationTable = LoadObject<UDataTable>(
 		nullptr, TEXT("/Game/Data/DT_Narration.DT_Narration"));
+	UExperienceDefinition* ExperienceDefinition = LoadObject<UExperienceDefinition>(
+		nullptr,
+		TEXT("/Game/Core/Experience/Definitions/DA_Experience_Singijeon.DA_Experience_Singijeon"));
 
 	if (!TestNotNull(TEXT("Singijeon Scenario Definition exists"), Scenario) ||
 		!TestNotNull(TEXT("Singijeon Scene exists"), Scene) ||
-		!TestNotNull(TEXT("Narration Data Table exists"), NarrationTable))
+		!TestNotNull(TEXT("Narration Data Table exists"), NarrationTable) ||
+		!TestNotNull(TEXT("Singijeon Experience Definition exists"), ExperienceDefinition))
 	{
 		return false;
 	}
@@ -171,8 +218,16 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 		AddError(ValidationError);
 	}
 	TestEqual(TEXT("Scenario starts from the configured Scene"), Scenario->StartSceneID, Scene->SceneID);
-	TestTrue(TEXT("Narration row referenced by the Scene exists"),
-		NarrationTable->GetRowMap().Contains(TEXT("NewRow")));
+	for (const FScenarioInteraction& Interaction : Scene->Interactions)
+	{
+		if (Interaction.InteractionType == EScenarioInteractionType::Narration && !Interaction.NarrationID.IsNone())
+		{
+			TestTrue(
+				*FString::Printf(TEXT("Narration row %s referenced by the Scene exists"),
+					*Interaction.NarrationID.ToString()),
+				NarrationTable->GetRowMap().Contains(Interaction.NarrationID));
+		}
+	}
 
 	UWorld* LevelWorld = LoadObject<UWorld>(
 		nullptr, TEXT("/GF_Singijeon/Maps/LV_Singijeon.LV_Singijeon"));
@@ -197,7 +252,11 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 			PlacedManager->ScenarioDefinition.Get(), Scenario);
 		TestEqual(TEXT("Placed Manager references DT_Narration"),
 			PlacedManager->NarrationTable.Get(), NarrationTable);
+		TestEqual(TEXT("Placed Manager references DA_Experience_Singijeon"),
+			PlacedManager->ExperienceDefinition.Get(), ExperienceDefinition);
 		TestTrue(TEXT("Placed Manager auto-start is enabled"), PlacedManager->bAutoStartScenario);
+		TestTrue(TEXT("Placed Manager completes Experience after Scenario"),
+			PlacedManager->bCompleteExperienceOnScenarioFinished);
 	}
 	return true;
 }

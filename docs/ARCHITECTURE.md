@@ -163,7 +163,7 @@ BP_XRPawn (Pawn)
 - `UScenarioNarrationBridgeComponent`: 기존 `UNarrationSequenceComponent` 재사용
 - `BP_ScenarioManager`: Level 배치용 Core Blueprint
 
-책임 경계상 Scenario는 Level Travel이나 Level 간 진행도를 소유하지 않는다. 해당 책임은 향후 `ExperienceSubsystem`에 유지하며, 신기전 등 체험별 Gameplay는 Core Scenario를 호출할 수 있지만 Core는 Game Feature를 참조하지 않는다.
+책임 경계상 Scenario는 Level Travel이나 Level 간 진행도를 소유하지 않는다. 해당 책임은 `UExperienceSubsystem`이 가지며, `UScenarioExperienceBridgeComponent`가 `OnScenarioFinished`를 Experience 완료로 중계한다. 신기전 등 체험별 Gameplay는 Core Scenario를 호출할 수 있지만 Core는 Game Feature를 참조하지 않는다.
 
 ### 3.2 VR Input
 
@@ -239,9 +239,13 @@ PlayerPhone 본체는 Core에 두고, 체험별 기능은 각 Game Feature가 �
 
 ### 3.5 Experience 관리 / 진행도
 
-`Status: Planned` — **존재하지 않는다.**
+`Status: Implemented` — `UGameInstanceSubsystem` 기반 Level Travel과 세션 진행도를 구현했다.
 
-목표: `UGameInstanceSubsystem` 기반 `ExperienceSubsystem`이 Level Travel을 넘어 진행도를 유지한다.
+- `UExperienceDefinition`: 체험 ID, 체험 Level, 선택형 복귀 Level, Travel Options
+- `UExperienceSubsystem`: `StartExperience`, `CompleteCurrentExperience`, `ReturnToMain`, 세션 완료 목록
+- `UScenarioExperienceBridgeComponent`: Scenario 종료 시 Experience 완료 및 설정된 복귀 Level 이동
+- `DA_Experience_Singijeon`: `/GF_Singijeon/Maps/LV_Singijeon` 연결
+- 상태: `Inactive → Traveling → Active → Completed` 또는 `Failed`
 
 ```mermaid
 graph LR
@@ -258,11 +262,12 @@ graph LR
     SUB -->|"복귀"| MAIN
 ```
 
-**설계 결정 필요 (TODO)**
+**현재 결정 및 남은 TODO**
 
-* Level 전환 방식: `OpenLevel` vs Level Streaming vs World Partition Data Layer
-* 진행도 저장: 메모리만(10분 세션) vs `SaveGame`
-* 체험 완료 판정 주체: 각 Feature의 `BP_*ExperienceManager` → Subsystem 보고
+* Level 전환 방식은 `OpenLevelBySoftObjectPtr`로 확정했다.
+* 진행도는 Level Travel 동안 유지되는 메모리 방식이다. 앱 재시작 후 영속화가 필요하면 `SaveGame`을 추가한다.
+* Scenario 기반 체험은 `OnScenarioFinished`가 완료 판정이다. 별도 체험은 `CompleteCurrentExperience`를 직접 호출할 수 있다.
+* `L_Main`이 아직 없으므로 신기전 Definition의 `ReturnLevel`은 비어 있다. 생성 후 반드시 지정한다.
 
 ### 3.6 초성 퀴즈 / 음성 인식
 
@@ -455,9 +460,9 @@ Feature에는 **그 체험에서만 쓰이는 것**(쇠뇌, 충차, 거중기, �
 
 ## 6. Experience Flow / Level Flow
 
-`Status: Planned` — 아래는 전부 목표 설계이며 구현되어 있지 않다.
+`Status: Partial` — Core 전환 기반과 `LV_Singijeon` 연결은 구현됐고, `L_Main` 및 나머지 체험 Level은 미구현이다.
 
-**현재 실제 Level Flow**: `L_XRTemplate` 하나만 존재하고 전환이 없다.
+**현재 실제 Level Flow**: `UExperienceSubsystem.StartExperience(DA_Experience_Singijeon)`으로 `LV_Singijeon`에 진입할 수 있다. Scenario 완료는 세션 진행도에 기록된다. 복귀는 `L_Main` 생성 및 `ReturnLevel` 지정 후 동작한다.
 
 목표 Flow:
 
@@ -494,9 +499,9 @@ Level Blueprint의 역할은 Level 초기화, 배치 객체 연결, 단순 이�
 
 ---
 
-## 7. 주요 Data Flow (목표)
+## 7. 주요 Data Flow
 
-`Status: Planned`
+`Status: Partial` — Experience/Scenario 경로는 구현, Phone/Quiz/Voice/Shared Combat 경로는 목표 설계다.
 
 ```mermaid
 graph TD
@@ -539,9 +544,9 @@ graph TD
 | 손 표시 / 애니메이션 | Core | `Partial` | `Content/XRMannequins/` + `BPI_PawnAnim` (템플릿) |
 | VR 관전자 | Core | `Partial` | `Content/VRSpectator/` (템플릿) |
 | PlayerPhone | Core | `Planned` | — |
-| ExperienceSubsystem | Core | `Planned` | — |
+| ExperienceSubsystem | Core | `Implemented` | `Source/SuwonSiegeContestVR/*/Core/Experience/` |
 | Scenario System | Core | `Implemented` | `Source/SuwonSiegeContestVR/*/Core/Scenario/` + `Content/Core/Scenario/Managers/BP_ScenarioManager` |
-| 진행도 관리 | Core | `Planned` | — |
+| 진행도 관리 | Core | `Partial` | Level Travel 간 세션 메모리 완료 목록 구현, SaveGame 미구현 |
 | 초성 퀴즈 | Core | `Planned` | — |
 | 음성 인식 | Core | `Planned` | — (수단 미정) |
 | 공통 Interface | Core | `Planned` | — |
@@ -558,7 +563,7 @@ graph TD
 | GF_OngseongCrossbow | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | GF_Gongsimdon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | GF_Singijeon | Feature | `Partial` | Runtime C++ 모듈과 GameFeatureData 있음 / Blueprint·레벨 미완료 |
-| L_Main 및 체험 Level 4종 | — | `Planned` | `L_XRTemplate`만 존재 |
+| L_Main 및 체험 Level 4종 | — | `Partial` | `LV_Singijeon` 존재 및 Experience 연결, `L_Main`·나머지 체험 미구현 |
 | C++ 게임플레이 코드 | — | `Partial` | `GF_Singijeon` 핵심 VR 상호작용 구현 |
 
 ---

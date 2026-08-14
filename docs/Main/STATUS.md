@@ -28,8 +28,8 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 | NPC | `Partial` | NPC Actor/애니메이션은 없으나 DT 기반 음성·자막 진행 구조 구현 |
 | 초성 퀴즈 | `Planned` | Quiz Blueprint / Widget / Data Table 없음 |
 | 음성 인식 | `Planned` | **관련 플러그인·SDK·C++ 모듈이 전혀 없다.** 기술 선정 자체가 미완 |
-| Experience 전환 | `Planned` | `ExperienceSubsystem` 없음. Level Travel 로직 없음 |
-| 진행도 관리 | `Planned` | 진행도 저장 구조, SaveGame 없음 |
+| Experience 전환 | `Implemented` | `UExperienceSubsystem`의 Soft Level `OpenLevel`, 상태 전이, Scenario 완료 Bridge 구현 |
+| 진행도 관리 | `Partial` | Level Travel 간 세션 메모리 완료 목록 구현. SaveGame 영속화는 없음 |
 | 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD와 후속 World Widget 표시 영역 구현 |
 
 ### 새로 구현된 Core 요소
@@ -44,6 +44,8 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 - `UScenarioInteractableComponent`, `UScenarioObservationComponent`
 - 기존 나레이션을 연결하는 `UScenarioNarrationBridgeComponent`
 - `Content/Core/Scenario/Managers/BP_ScenarioManager`
+- `UExperienceDefinition`, `UExperienceSubsystem`, `UScenarioExperienceBridgeComponent`
+- `Content/Core/Experience/Definitions/DA_Experience_Singijeon`
 
 나레이션은 `docs/Main/specs/NARRATION_SYSTEM.md`, Scenario 제작은 `docs/Main/specs/SCENARIO_SYSTEM.md`를 참고한다. `BP_XRGameMode`는 `BP_VRPlayerPawn`을 기본 Pawn으로 사용하며 `LV_Singijeon`에도 명시적으로 지정되어 있다.
 
@@ -55,7 +57,7 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 
 ---
 
-## 3. 목표 Flow (설계 초안 — 미구현)
+## 3. 목표 Flow (Core 전환 기반 구현 / Main 콘텐츠 미구현)
 
 ```mermaid
 stateDiagram-v2
@@ -115,14 +117,14 @@ PC에서만 검증하면 arm64 빌드 단계에서 문제가 드러날 수 있�
 
 ### 4.3 Experience 전환
 
-* `OpenLevel` vs Level Streaming vs World Partition Data Layer
+* 전환 방식은 `OpenLevelBySoftObjectPtr`로 구현 완료
 * 전환 중 로딩 화면 / 페이드 처리 (VR에서 급격한 전환은 멀미 유발)
-* 진행도가 Level Travel을 넘어 유지되어야 하므로 `UGameInstanceSubsystem` 사용이 적절
+* `L_Main` 생성 후 각 `DA_Experience_*`의 `ReturnLevel` 지정 필요
 
 ### 4.4 진행도 관리
 
-* 메모리만 유지(10분 단발 세션) vs `SaveGame` 영속화
-* 체험 완료 판정을 각 Feature가 보고하는 인터페이스 정의 필요
+* 현재 메모리만 유지한다. 앱 재시작 후 유지가 필요하면 `SaveGame` 영속화 추가
+* Scenario 기반 체험은 `OnScenarioFinished` Bridge, 별도 체험은 `CompleteCurrentExperience` 직접 호출
 
 ### 4.5 NPC
 
@@ -152,6 +154,6 @@ Main의 다음 요소는 **네 체험 전부가 의존**하므로 우선 확정�
 1. ~~`Content/Core/` 골격 디렉토리 생성 및 커밋~~ → **완료 (2026-08-12)**
 2. 음성 인식 **서드파티 모듈 선정 + Android 실기 Spike** (**최우선**)
 3. `L_Main` 생성 + `GameDefaultMap` / `EditorStartupMap` 교체 (사용자 직접 진행)
-4. `ExperienceSubsystem` 인터페이스 설계 (C++ 권장) — 구현보다 인터페이스 확정이 먼저
+4. ~~`ExperienceSubsystem` 인터페이스 및 신기전 연결~~ → **완료 (2026-08-15)**
 5. 초성 분해 Function Library 구현 (**서드파티 선정과 무관하게 지금 착수 가능**)
 6. PlayerPhone 역할 정의 및 기본 구조 설계
