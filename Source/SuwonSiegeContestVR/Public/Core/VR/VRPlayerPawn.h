@@ -205,7 +205,7 @@ protected:
 
 	/** Distance and height can be tuned per Blueprint for headset comfort. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
-	FVector SubtitleHUDOffset = FVector(165.0f, 0.0f, -38.0f);
+	FVector SubtitleHUDOffset = FVector(180.0f, 0.0f, -40.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
 	FVector EventHUDOffset = FVector(180.0f, 0.0f, -5.0f);

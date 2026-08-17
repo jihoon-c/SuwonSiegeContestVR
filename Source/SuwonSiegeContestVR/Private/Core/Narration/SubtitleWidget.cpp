@@ -11,8 +11,9 @@ TSharedRef<SWidget> USubtitleWidget::RebuildWidget()
 	if (WidgetTree && !WidgetTree->RootWidget)
 	{
 		UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("SubtitleBackground"));
-		Background->SetBrushColor(FLinearColor(0.01f, 0.015f, 0.025f, 0.82f));
+		Background->SetBrushColor(FLinearColor::Transparent);
 		Background->SetPadding(FMargin(28.0f, 18.0f));
+		Background->SetVisibility(ESlateVisibility::HitTestInvisible);
 		WidgetTree->RootWidget = Background;
 
 		UVerticalBox* TextLayout = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("SubtitleTextLayout"));
@@ -21,6 +22,8 @@ TSharedRef<SWidget> USubtitleWidget::RebuildWidget()
 		SpeakerText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpeakerText"));
 		SpeakerText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.72f, 0.18f, 1.0f)));
 		SpeakerText->SetJustification(ETextJustify::Center);
+		SpeakerText->SetShadowOffset(FVector2D(1.5f, 1.5f));
+		SpeakerText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.9f));
 		FSlateFontInfo SpeakerFont = SpeakerText->GetFont();
 		SpeakerFont.Size = 24;
 		SpeakerText->SetFont(SpeakerFont);
@@ -30,6 +33,8 @@ TSharedRef<SWidget> USubtitleWidget::RebuildWidget()
 		SubtitleText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 		SubtitleText->SetJustification(ETextJustify::Center);
 		SubtitleText->SetAutoWrapText(true);
+		SubtitleText->SetShadowOffset(FVector2D(2.0f, 2.0f));
+		SubtitleText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.95f));
 		FSlateFontInfo SubtitleFont = SubtitleText->GetFont();
 		SubtitleFont.Size = 32;
 		SubtitleText->SetFont(SubtitleFont);

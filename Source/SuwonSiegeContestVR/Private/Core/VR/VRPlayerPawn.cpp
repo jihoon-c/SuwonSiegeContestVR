@@ -114,7 +114,9 @@ AVRPlayerPawn::AVRPlayerPawn()
 	SubtitleHUD->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	SubtitleHUD->SetWidgetSpace(EWidgetSpace::World);
 	SubtitleHUD->SetDrawSize(FVector2D(900.0f, 180.0f));
+	SubtitleHUD->SetRelativeScale3D(FVector(0.07f));
 	SubtitleHUD->SetPivot(FVector2D(0.5f, 0.5f));
+	SubtitleHUD->SetBlendMode(EWidgetBlendMode::Transparent);
 	SubtitleHUD->SetTwoSided(true);
 	SubtitleHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SubtitleHUD->SetWidgetClass(USubtitleWidget::StaticClass());

@@ -8,6 +8,11 @@
 			"Name": "SuwonSiegeContestVR",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "SuwonSiegeContestVREditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	],
 	"Plugins": [
