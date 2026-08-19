@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.1",
+	"VersionName": "0.2",
 	"FriendlyName": "GF_Singijeon",
-	"Description": "신기전 체험 Game Feature. 신기전 화차·발사대, 발사 연출, Target 배치, 관련 PlayerPhone 확장을 포함한다. Projectile 기반과 Damage는 Shared Gameplay(Content/Gameplay)의 것을 사용한다.",
+	"Description": "신기전 체험 Game Feature. 화살 장전, 도화선 점화, 연속 발사, 양손 화차 운반과 관련 콘텐츠를 포함한다.",
 	"Category": "Game Features",
 	"CreatedBy": "SuwonSiegeContestVR Team",
 	"CreatedByURL": "",
@@ -16,6 +16,13 @@
 	"Installed": false,
 	"ExplicitlyLoaded": true,
 	"BuiltInInitialFeatureState": "Registered",
+	"Modules": [
+		{
+			"Name": "GF_Singijeon",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "ModularGameplay",

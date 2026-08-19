@@ -8,6 +8,11 @@
 			"Name": "SuwonSiegeContestVR",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "SuwonSiegeContestVREditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	],
 	"Plugins": [
@@ -46,6 +51,10 @@
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
+		},
+		{
+			"Name": "HDRIBackdrop",
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [

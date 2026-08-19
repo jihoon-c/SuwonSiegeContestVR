@@ -4,7 +4,7 @@
 
 ## 현재 상태 (2026-08-12)
 
-`Status: Partial` — 구성 완료. 에셋 이름 1건 수정 필요.
+`Status: Partial` — 구성 완료. `GF_Singijeon` C++ 핵심 상호작용 구현, 에셋 이름 1건 수정 필요.
 
 | 항목 | 상태 |
 |---|---|
@@ -13,7 +13,8 @@
 | 디렉토리 골격 (`Content/Gameplay`, `Phone`, `UI`, `Maps`, `Data`) | ✅ 완료 |
 | `UGameFeatureData` 에셋 4개 | ⚠️ 생성됨. **`GF_Geojunggi` 1건 이름 불일치** (아래 참조) |
 | **Asset Manager `PrimaryAssetTypesToScan` 등록** | ✅ `Config/DefaultGame.ini`에 추가 완료 |
-| 실제 게임플레이 에셋 | ❌ 없음 |
+| `GF_Singijeon` Runtime C++ 모듈 | ✅ 장전·점화·연속 발사·양손 운반 구현 |
+| 실제 Blueprint/Level 게임플레이 에셋 | ❌ 없음 |
 
 ### ⚠️ Asset Manager 등록은 필수다
 
@@ -48,6 +49,9 @@ GF_Singijeon           신기전 체험
 
 `ExplicitlyLoaded: true`는 Game Feature Plugin의 필수 설정이다.
 엔진이 시작 시 콘텐츠를 자동 마운트하지 않고, Game Features Subsystem이 상태를 제어하게 한다.
+
+`GF_Singijeon`은 추가로 `Source/GF_Singijeon` Runtime 모듈을 가진다. 별도
+`SingijeonInteraction` 플러그인은 이 모듈로 통합되어 더 이상 사용하지 않는다.
 
 ---
 
