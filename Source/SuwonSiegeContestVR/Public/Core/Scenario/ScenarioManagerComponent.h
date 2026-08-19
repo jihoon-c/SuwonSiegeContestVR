@@ -78,6 +78,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Debug")
 	bool GoToInteraction(FName InteractionID);
 
+	/** Restores a linear authored Scene at an interaction and marks earlier entries complete. */
+	UFUNCTION(BlueprintCallable, Category = "Scenario|Progress")
+	bool RestoreProgressAtInteraction(FName SceneID, FName InteractionID);
+
 	UFUNCTION(BlueprintPure, Category = "Scenario")
 	FScenarioInteraction GetCurrentInteraction() const;
 

@@ -19,6 +19,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Experience")
 	bool InitializeBridge();
 
+	/** Restores and consumes the session checkpoint for the configured Scenario. */
+	UFUNCTION(BlueprintCallable, Category = "Scenario|Experience")
+	bool RestoreScenarioCheckpoint();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Experience")
 	TObjectPtr<UExperienceDefinition> ExperienceDefinition;
 
@@ -31,6 +35,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Experience")
 	bool bCompleteExperienceOnScenarioFinished = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Experience")
+	bool bRestoreScenarioCheckpoint = true;
 
 protected:
 	virtual void BeginPlay() override;

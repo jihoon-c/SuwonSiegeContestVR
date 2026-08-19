@@ -8,15 +8,17 @@ def log_property(asset, property_name):
         unreal.log_warning(f"Could not read {property_name}: {error}")
 
 
-scene = unreal.load_asset("/Game/Data/DA_Scene_Singijeon")
+scenario = unreal.load_asset("/Game/Data/DA_Scenario_Singijeon")
 table = unreal.load_asset("/Game/Data/DT_Narration")
 manager_bp = unreal.load_asset("/Game/Core/Scenario/Managers/BP_ScenarioManager")
 
-unreal.log(f"SCENARIO_INSPECT scene={scene} class={scene.get_class() if scene else None}")
-if scene:
-    for name in ("scene_id", "scene_name", "start_interaction_id", "next_scene_id", "interactions"):
-        log_property(scene, name)
-    for index, interaction in enumerate(scene.get_editor_property("interactions")):
+unreal.log(f"SCENARIO_INSPECT scenario={scenario} class={scenario.get_class() if scenario else None}")
+if scenario:
+    for name in ("scenario_id", "start_stage_id", "stages", "narration_table"):
+        log_property(scenario, name)
+    stages = list(scenario.get_editor_property("stages"))
+    stage = stages[0] if stages else None
+    for index, interaction in enumerate(stage.get_editor_property("interactions") if stage else []):
         unreal.log(
             "SCENARIO_INTERACTION "
             f"{index}: id={interaction.get_editor_property('interaction_id')} "

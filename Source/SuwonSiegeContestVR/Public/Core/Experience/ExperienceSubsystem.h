@@ -58,6 +58,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Experience")
 	FExperienceProgressSnapshot GetProgressSnapshot() const;
 
+	/** Stores where a Scenario should continue when its level is loaded again in this session. */
+	UFUNCTION(BlueprintCallable, Category = "Experience|Scenario")
+	bool SetScenarioResumeCheckpoint(FName ScenarioID, FName SceneID, FName InteractionID);
+
+	UFUNCTION(BlueprintPure, Category = "Experience|Scenario")
+	bool GetScenarioResumeCheckpoint(FName ScenarioID, FScenarioResumeCheckpoint& OutCheckpoint) const;
+
+	/** Returns and removes a checkpoint so it is restored only once. */
+	UFUNCTION(BlueprintCallable, Category = "Experience|Scenario")
+	bool ConsumeScenarioResumeCheckpoint(FName ScenarioID, FScenarioResumeCheckpoint& OutCheckpoint);
+
+	UFUNCTION(BlueprintCallable, Category = "Experience|Scenario")
+	void ClearScenarioResumeCheckpoint(FName ScenarioID);
+
 	UFUNCTION(BlueprintCallable, Category = "Experience")
 	void ResetSessionProgress();
 
@@ -93,6 +107,9 @@ private:
 
 	UPROPERTY(Transient)
 	TSet<FName> CompletedExperienceIDs;
+
+	UPROPERTY(Transient)
+	TMap<FName, FScenarioResumeCheckpoint> ScenarioResumeCheckpoints;
 
 	EExperienceState State = EExperienceState::Inactive;
 	FName PendingDestinationLevelName;

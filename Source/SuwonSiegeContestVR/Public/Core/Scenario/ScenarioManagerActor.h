@@ -28,6 +28,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Scenario")
 	void SetScenarioDefinition(UScenarioDefinition* NewScenarioDefinition);
 
+	/** Re-resolves Scenario, Narration, and policies from the assigned Experience. */
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Scenario|Configuration")
+	void RefreshResolvedConfiguration();
+
 	UFUNCTION(BlueprintPure, Category = "Scenario")
 	UScenarioManagerComponent* GetScenarioManager() const { return ScenarioManager; }
 
@@ -37,26 +41,33 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Scenario|Experience")
 	UScenarioExperienceBridgeComponent* GetExperienceBridge() const { return ExperienceBridge; }
 
-	/** Scenario-level asset. A ScenarioSceneData asset cannot be assigned here directly. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Configuration")
+	/** Resolved automatically from ExperienceDefinition. Do not configure twice. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
 	TObjectPtr<UScenarioDefinition> ScenarioDefinition;
 
-	/** Optional bridge table. Row names must match Narration interaction NarrationID values. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Configuration")
+	/** Resolved automatically from ScenarioDefinition. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
 	TObjectPtr<UDataTable> NarrationTable;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Configuration")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
 	bool bAutoStartScenario = false;
 
-	/** Optional cross-level definition. Leave empty for scenarios that are not standalone experiences. */
+	/** The only required Level authoring assignment for an Experience. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Configuration")
 	TObjectPtr<UExperienceDefinition> ExperienceDefinition;
+
+	/** Only for a level-local Scenario that deliberately has no Experience. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Advanced", meta = (AdvancedDisplay))
+	TObjectPtr<UScenarioDefinition> StandaloneScenarioDefinition;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Configuration")
 	bool bActivateExperienceWhenOpenedDirectly = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Configuration")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
 	bool bCompleteExperienceOnScenarioFinished = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Configuration")
+	bool bRestoreScenarioCheckpoint = true;
 
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;

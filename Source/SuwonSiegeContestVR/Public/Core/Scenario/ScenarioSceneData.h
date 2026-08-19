@@ -5,7 +5,7 @@
 #include "Engine/DataAsset.h"
 #include "ScenarioSceneData.generated.h"
 
-UCLASS(BlueprintType)
+UCLASS(BlueprintType, meta = (DisplayName = "DEPRECATED - Scenario Scene Data (Use Scenario Definition Stages)"))
 class SUWONSIEGECONTESTVR_API UScenarioSceneData : public UPrimaryDataAsset
 {
 	GENERATED_BODY()

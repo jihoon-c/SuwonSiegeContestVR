@@ -1,5 +1,7 @@
 # Player Pawn · Scenario Manager 인수인계
 
+> **2026-08-18 구조 변경:** 별도 `DA_Scene_*` 제작 방식은 폐기됐다. 현재는 `DA_Scenario_*.Stages[]` 안에서 Interaction 전체를 편집하고, Level Manager에는 `DA_Experience_*` 하나만 지정한다. 아래의 Scene/직접 Scenario 지정 설명은 과거 API 호환 참고용이며 신규 제작 절차는 `docs/Main/specs/SCENARIO_SYSTEM.md`를 우선한다.
+
 > 기준일: 2026-08-15  
 > 대상: VR Pawn, Grab, Scenario, Narration 작업을 처음 맡는 작업자  
 > 엔진: Unreal Engine 5.8
@@ -348,17 +350,15 @@ NarrationSequenceRow
 
 ### 나레이션 연속 재생
 
+Scenario가 전체 순서를 소유하는 현재 신기전 구성에서는 각 Row를 다음처럼 둔다.
+
 ```text
 NA_01
-├─ NextRow = NA_02
-└─ AdvanceMode = Auto
-
-NA_02
 ├─ NextRow = None
-└─ AdvanceMode = Auto 또는 Stop
+└─ AdvanceMode = Stop
 ```
 
-`Auto`이면 음성이 끝난 뒤 `NextRow`로 자동 이동한다. Sound가 없으면 `PreviewDuration`이 지난 뒤 이동한다.
+다음 나레이션은 `DA_Scene_*`의 다음 Narration Interaction이 요청한다. `NextRow + Auto`는 Scenario와 무관한 독립 대사 묶음에서만 사용한다. 두 곳에서 순서를 동시에 연결하면 DA 흐름을 건너뛰고 DT가 연속 재생된다.
 
 `WaitForContinue`이면 `ContinueSequence()`가 호출될 때까지 멈춘다. Pawn의 후속 Widget을 닫으면서 진행하려면 `DismissNarrationWidget(true)`를 사용한다.
 
@@ -374,7 +374,7 @@ NextInteractionID = 나레이션 전체 종료 후 갈 Interaction
 FailInteractionID = 재시도할 ID 또는 실패 분기 ID
 ```
 
-`NarrationID`는 Sequence의 첫 Row만 가리킨다. Row 내부 `NextRow` 체인이 모두 끝나 `OnSequenceFinished`가 발생하면 Narration Bridge가 Scenario Interaction을 완료한다.
+`NarrationID`가 가리키는 Row의 재생이 끝나 `OnSequenceFinished`가 발생하면 Narration Bridge가 Scenario Interaction을 완료한다.
 
 ### CompletionEvents 연결
 
@@ -445,20 +445,19 @@ BP_SingijeonTorch
 
 ```mermaid
 flowchart LR
-    NA1["Singijeon<br/>NA_01"] --> NA2["Singijeon2<br/>NA_02"]
-    NA2 --> I1["INT_01<br/>탄약 Grab"]
-    I1 --> I2["INT_02<br/>화차 장전"]
-    I2 --> I3["INT_03<br/>화차 조준"]
-    I3 --> I4["INT_04<br/>횃불 Grab"]
-    I4 --> I5["INT_05<br/>횃불 점화"]
-    I5 --> I6["INT_06<br/>도화선 점화"]
-    I6 --> I7["INT_07<br/>신기전 발사 완료"]
+    Intro["NAR_01~05"] --> I1["INT_01<br/>탄약 Grab"]
+    I1 --> LoadGuide["NAR_06~08"] --> I2["INT_02<br/>화차 장전"]
+    I2 --> AimGuide["NAR_09~10"] --> I3["INT_03<br/>화차 조준"]
+    I3 --> TorchGuide["NAR_11~12"] --> I4["INT_04<br/>횃불 Grab"]
+    I4 --> N13["NAR_13"] --> I5["INT_05<br/>횃불 점화"]
+    I5 --> FuseGuide["NAR_14~15"] --> I6["INT_06<br/>도화선 점화"]
+    I6 --> N16["NAR_16"] --> I7["INT_07<br/>신기전 발사 완료"]
+    I7 --> Outro["NAR_17~21"]
 ```
 
 | ID | Type / Target | 현재 완료 보고 | 상태 |
 |---|---|---|---|
-| `Singijeon` | Narration / `NA_01` | Narration Bridge | 동작 |
-| `Singijeon2` | Narration / `NA_02` | Narration Bridge | 동작 |
+| `NAR_01~NAR_21` | Narration / `NA_01~NA_21` | Narration Bridge | DA 순서로 동작 |
 | `INT_01` | Grab / `Singijeon_Ammo` | `ASingijeonProjectileActor` + Pawn | 동작 |
 | `INT_02` | Custom / `Hwacha_Load` | 화차 Slot의 `HandleSlotChanged` | 동작 |
 | `INT_03` | Custom / `Hwacha_Aim` | 없음 | **여기서 진행 정지** |

@@ -5,6 +5,7 @@
 #include "ExperienceDefinition.generated.h"
 
 class UWorld;
+class UScenarioDefinition;
 
 /** Data-only definition for one level-based educational experience. */
 UCLASS(BlueprintType)
@@ -18,6 +19,16 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience")
 	FText DisplayName;
+
+	/** Single source of Scenario flow for this Experience. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Scenario")
+	TObjectPtr<UScenarioDefinition> ScenarioDefinition;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Scenario")
+	bool bAutoStartScenario = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Scenario")
+	bool bCompleteOnScenarioFinished = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Travel")
 	TSoftObjectPtr<UWorld> ExperienceLevel;

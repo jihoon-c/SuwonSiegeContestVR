@@ -27,7 +27,7 @@ if definition:
         "ExperienceLevel references LV_Singijeon",
     )
 
-unreal.EditorLoadingAndSavingUtils.load_map("/GF_Singijeon/Maps/LV_Singijeon")
+unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/LV_Singijeon")
 managers = [
     actor
     for actor in unreal.EditorLevelLibrary.get_all_level_actors()

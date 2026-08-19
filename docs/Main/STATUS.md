@@ -2,7 +2,7 @@
 
 **조사 기준일**: 2026-08-11 · **조사 기준 커밋**: `57dd875`
 **계층**: Core (Game Feature Plugin 없음)
-**전체 상태**: `Status: Partial` — 프로젝트 전용 VR Pawn 기반과 DT 기반 나레이션·자막 시스템 구현
+**전체 상태**: `Status: Partial` — VR Pawn, Scenario, Main↔신기전 왕복과 세션 진행 복원 구현
 
 ---
 
@@ -23,13 +23,13 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 
 | 요소 | 상태 | 실제 확인 내용 |
 |---|---|---|
-| `L_Main` Level | `Planned` | 존재하지 않는다. **사용자가 직접 생성 예정.** 배치 위치는 `Content/Maps/Main/`(골격 생성 완료) |
-| Tutorial Flow | `Partial` | Core Scenario/Scene/Interaction Manager는 구현. 실제 Tutorial Data Asset과 연출 콘텐츠는 미작성 |
+| `L_Main` Level | `Implemented` | `/Game/Maps/Main/L_Main`. Main Manager, PlayerStart, 신기전 이동 예시 Trigger 배치 |
+| Tutorial Flow | `Partial` | `DA_Scenario_Main` 인라인 Stage 예시 흐름 구현. 전체 NPC/퀴즈 콘텐츠는 미작성 |
 | NPC | `Partial` | NPC Actor/애니메이션은 없으나 DT 기반 음성·자막 진행 구조 구현 |
 | 초성 퀴즈 | `Planned` | Quiz Blueprint / Widget / Data Table 없음 |
 | 음성 인식 | `Planned` | **관련 플러그인·SDK·C++ 모듈이 전혀 없다.** 기술 선정 자체가 미완 |
 | Experience 전환 | `Implemented` | `UExperienceSubsystem`의 Soft Level `OpenLevel`, 상태 전이, Scenario 완료 Bridge 구현 |
-| 진행도 관리 | `Partial` | Level Travel 간 세션 메모리 완료 목록 구현. SaveGame 영속화는 없음 |
+| 진행도 관리 | `Partial` | Experience 완료 목록과 Main Scenario 복귀 체크포인트를 세션 동안 복원. SaveGame 영속화는 없음 |
 | 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD와 후속 World Widget 표시 영역 구현 |
 
 ### 새로 구현된 Core 요소
@@ -46,14 +46,17 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 - `Content/Core/Scenario/Managers/BP_ScenarioManager`
 - `UExperienceDefinition`, `UExperienceSubsystem`, `UScenarioExperienceBridgeComponent`
 - `Content/Core/Experience/Definitions/DA_Experience_Singijeon`
+- `Content/Data/DA_Scenario_Main` 인라인 Stage/Interaction
+- `Content/Core/Experience/Definitions/DA_Experience_Main`
+- `AExperienceTravelTriggerActor`, Main Scenario 체크포인트 복원
+- Experience 하나만 Level Manager에 지정하는 자동 Scenario/Narration 해석
 
 나레이션은 `docs/Main/specs/NARRATION_SYSTEM.md`, Scenario 제작은 `docs/Main/specs/SCENARIO_SYSTEM.md`를 참고한다. `BP_XRGameMode`는 `BP_VRPlayerPawn`을 기본 Pawn으로 사용하며 `LV_Singijeon`에도 명시적으로 지정되어 있다.
 
 ### 유일하게 존재하는 관련 요소
 
 * `BP_XRGameMode` — `DefaultPawnClass = BP_VRPlayerPawn`
-* `Config/DefaultEngine.ini`의 `GameDefaultMap = L_XRTemplate`
-  → `L_Main` 생성 시 이 값을 교체해야 한다.
+* `Config/DefaultEngine.ini`의 `GameDefaultMap`, `EditorStartupMap`은 `L_Main`이다.
 
 ---
 
@@ -119,7 +122,7 @@ PC에서만 검증하면 arm64 빌드 단계에서 문제가 드러날 수 있�
 
 * 전환 방식은 `OpenLevelBySoftObjectPtr`로 구현 완료
 * 전환 중 로딩 화면 / 페이드 처리 (VR에서 급격한 전환은 멀미 유발)
-* `L_Main` 생성 후 각 `DA_Experience_*`의 `ReturnLevel` 지정 필요
+* 신기전 `ReturnLevel=L_Main` 연결 완료. 다른 체험 Definition 생성 시 동일하게 연결 필요
 
 ### 4.4 진행도 관리
 
@@ -153,7 +156,7 @@ Main의 다음 요소는 **네 체험 전부가 의존**하므로 우선 확정�
 
 1. ~~`Content/Core/` 골격 디렉토리 생성 및 커밋~~ → **완료 (2026-08-12)**
 2. 음성 인식 **서드파티 모듈 선정 + Android 실기 Spike** (**최우선**)
-3. `L_Main` 생성 + `GameDefaultMap` / `EditorStartupMap` 교체 (사용자 직접 진행)
+3. ~~`L_Main` + Main↔신기전 왕복 + 기본 Map 교체~~ → **완료 (2026-08-18)**
 4. ~~`ExperienceSubsystem` 인터페이스 및 신기전 연결~~ → **완료 (2026-08-15)**
 5. 초성 분해 Function Library 구현 (**서드파티 선정과 무관하게 지금 착수 가능**)
 6. PlayerPhone 역할 정의 및 기본 구조 설계

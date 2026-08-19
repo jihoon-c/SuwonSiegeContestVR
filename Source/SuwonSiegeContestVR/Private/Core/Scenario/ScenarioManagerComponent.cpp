@@ -30,7 +30,7 @@ bool UScenarioManagerComponent::StartScenario(UScenarioDefinition* Scenario)
 	CurrentInteractionID = NAME_None;
 	InteractionStates.Reset();
 	SetScenarioState(EScenarioState::Running);
-	return StartScene(ScenarioDefinition->StartSceneID);
+	return StartScene(ScenarioDefinition->GetStartStageID());
 }
 
 void UScenarioManagerComponent::EndScenario()
@@ -49,11 +49,12 @@ bool UScenarioManagerComponent::StartScene(const FName SceneID)
 		return false;
 	}
 
-	UScenarioSceneData* Scene = ScenarioDefinition->FindScene(SceneID);
+	FScenarioStageDefinition Stage;
+	const bool bResolvedStage = ScenarioDefinition->ResolveStage(SceneID, Stage);
 	FString ValidationError;
-	if (!IsValid(Scene) || !Scene->ValidateScene(ValidationError))
+	if (!bResolvedStage || !Stage.ValidateStage(ValidationError))
 	{
-		FailScenario(IsValid(Scene) ? ValidationError : FString::Printf(TEXT("Scene %s was not found."), *SceneID.ToString()));
+		FailScenario(bResolvedStage ? ValidationError : FString::Printf(TEXT("Stage %s was not found."), *SceneID.ToString()));
 		return false;
 	}
 
@@ -62,16 +63,21 @@ bool UScenarioManagerComponent::StartScene(const FName SceneID)
 	{
 		SetSceneState(EScenarioSceneState::Inactive);
 	}
-	CurrentScene = Scene;
+	CurrentScene = NewObject<UScenarioSceneData>(this);
+	CurrentScene->SceneID = Stage.StageID;
+	CurrentScene->SceneName = Stage.StageName;
+	CurrentScene->Interactions = Stage.Interactions;
+	CurrentScene->StartInteractionID = Stage.StartInteractionID;
+	CurrentScene->NextSceneID = Stage.NextStageID;
 	CurrentSceneID = SceneID;
 	CurrentInteractionID = NAME_None;
 	InteractionStates.Reset();
-	for (const FScenarioInteraction& Interaction : Scene->Interactions)
+	for (const FScenarioInteraction& Interaction : CurrentScene->Interactions)
 	{
 		InteractionStates.Add(Interaction.InteractionID, EScenarioInteractionState::Inactive);
 	}
 	SetSceneState(EScenarioSceneState::Running);
-	return StartInteraction(Scene->StartInteractionID);
+	return StartInteraction(CurrentScene->StartInteractionID);
 }
 
 bool UScenarioManagerComponent::CompleteScene()
@@ -316,6 +322,60 @@ bool UScenarioManagerComponent::GoToScene(const FName SceneID)
 
 bool UScenarioManagerComponent::GoToInteraction(const FName InteractionID)
 {
+	return StartInteraction(InteractionID);
+}
+
+bool UScenarioManagerComponent::RestoreProgressAtInteraction(
+	const FName SceneID, const FName InteractionID)
+{
+	if (ScenarioState != EScenarioState::Running || !IsValid(ScenarioDefinition))
+	{
+		return false;
+	}
+
+	FScenarioStageDefinition Stage;
+	const bool bResolvedStage = ScenarioDefinition->ResolveStage(SceneID, Stage);
+	FString ValidationError;
+	if (!bResolvedStage || !Stage.ValidateStage(ValidationError))
+	{
+		return false;
+	}
+
+	const int32 ResumeIndex = Stage.Interactions.IndexOfByPredicate(
+		[InteractionID](const FScenarioInteraction& Interaction)
+		{
+			return Interaction.InteractionID == InteractionID;
+		});
+	if (ResumeIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	ClearTimers();
+	CurrentScene = NewObject<UScenarioSceneData>(this);
+	CurrentScene->SceneID = Stage.StageID;
+	CurrentScene->SceneName = Stage.StageName;
+	CurrentScene->Interactions = Stage.Interactions;
+	CurrentScene->StartInteractionID = Stage.StartInteractionID;
+	CurrentScene->NextSceneID = Stage.NextStageID;
+	CurrentSceneID = SceneID;
+	CurrentInteractionID = NAME_None;
+	PendingInteractionID = NAME_None;
+	PendingNextInteractionID = NAME_None;
+	InteractionStates.Reset();
+	for (int32 Index = 0; Index < Stage.Interactions.Num(); ++Index)
+	{
+		InteractionStates.Add(
+			Stage.Interactions[Index].InteractionID,
+			Index < ResumeIndex
+				? EScenarioInteractionState::Completed
+				: EScenarioInteractionState::Inactive);
+	}
+	if (SceneState != EScenarioSceneState::Inactive)
+	{
+		SetSceneState(EScenarioSceneState::Inactive);
+	}
+	SetSceneState(EScenarioSceneState::Running);
 	return StartInteraction(InteractionID);
 }
 

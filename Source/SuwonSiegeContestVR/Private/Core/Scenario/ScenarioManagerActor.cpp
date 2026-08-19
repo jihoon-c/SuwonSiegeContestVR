@@ -1,6 +1,7 @@
 #include "Core/Scenario/ScenarioManagerActor.h"
 
 #include "Components/SceneComponent.h"
+#include "Core/Experience/ExperienceDefinition.h"
 #include "Core/Scenario/ScenarioExperienceBridgeComponent.h"
 #include "Core/Scenario/ScenarioDefinition.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
@@ -34,7 +35,10 @@ void AScenarioManagerActor::BeginPlay()
 	ApplyConfiguration();
 	if (bAutoStartScenario)
 	{
-		StartConfiguredScenario();
+		if (StartConfiguredScenario() && ExperienceBridge)
+		{
+			ExperienceBridge->RestoreScenarioCheckpoint();
+		}
 	}
 }
 
@@ -51,12 +55,32 @@ bool AScenarioManagerActor::StartConfiguredScenario()
 
 void AScenarioManagerActor::SetScenarioDefinition(UScenarioDefinition* NewScenarioDefinition)
 {
-	ScenarioDefinition = NewScenarioDefinition;
+	StandaloneScenarioDefinition = NewScenarioDefinition;
+	ApplyConfiguration();
+}
+
+void AScenarioManagerActor::RefreshResolvedConfiguration()
+{
 	ApplyConfiguration();
 }
 
 void AScenarioManagerActor::ApplyConfiguration()
 {
+	ScenarioDefinition = ExperienceDefinition && ExperienceDefinition->ScenarioDefinition
+		? ExperienceDefinition->ScenarioDefinition.Get()
+		: StandaloneScenarioDefinition.Get();
+	NarrationTable = ScenarioDefinition ? ScenarioDefinition->NarrationTable.Get() : nullptr;
+	if (ExperienceDefinition)
+	{
+		bAutoStartScenario = ExperienceDefinition->bAutoStartScenario;
+		bCompleteExperienceOnScenarioFinished = ExperienceDefinition->bCompleteOnScenarioFinished;
+	}
+	else
+	{
+		bAutoStartScenario = ScenarioDefinition != nullptr;
+		bCompleteExperienceOnScenarioFinished = false;
+	}
+
 	if (ScenarioManager)
 	{
 		ScenarioManager->ScenarioDefinition = ScenarioDefinition;
@@ -70,5 +94,6 @@ void AScenarioManagerActor::ApplyConfiguration()
 		ExperienceBridge->ExperienceDefinition = ExperienceDefinition;
 		ExperienceBridge->bActivateExperienceWhenOpenedDirectly = bActivateExperienceWhenOpenedDirectly;
 		ExperienceBridge->bCompleteExperienceOnScenarioFinished = bCompleteExperienceOnScenarioFinished;
+		ExperienceBridge->bRestoreScenarioCheckpoint = bRestoreScenarioCheckpoint;
 	}
 }

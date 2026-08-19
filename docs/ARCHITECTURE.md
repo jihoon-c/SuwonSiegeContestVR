@@ -1,7 +1,7 @@
 # ARCHITECTURE
 
 **대상 프로젝트**: SuwonSiegeContestVR (Unreal Engine 5.8, VR 교육 콘텐츠)
-**조사 기준일**: 2026-08-11 (최초 조사) / **갱신일**: 2026-08-12
+**조사 기준일**: 2026-08-11 (최초 조사) / **갱신일**: 2026-08-18
 **조사 기준 커밋**: `57dd875`
 
 ## 확정된 프로젝트 결정 사항
@@ -157,7 +157,7 @@ BP_XRPawn (Pawn)
 `Status: Implemented` — Level 내부 교육 흐름을 `Interaction → Scene → Scenario`로 관리한다.
 
 - `UScenarioManagerComponent`: ID 기반 순서·성공/실패 분기·상태·지연·디버그 이동
-- `UScenarioDefinition`, `UScenarioSceneData`: Primary Data Asset 기반 콘텐츠 정의
+- `UScenarioDefinition`: 인라인 Stage/Interaction과 Narration Table을 한 Asset에서 정의
 - `UScenarioInteractableComponent`: Feature Actor의 TargetID 기반 사건 보고
 - `UScenarioObservationComponent`: HMD 응시 판정
 - `UScenarioNarrationBridgeComponent`: 기존 `UNarrationSequenceComponent` 재사용
@@ -244,7 +244,10 @@ PlayerPhone 본체는 Core에 두고, 체험별 기능은 각 Game Feature가 �
 - `UExperienceDefinition`: 체험 ID, 체험 Level, 선택형 복귀 Level, Travel Options
 - `UExperienceSubsystem`: `StartExperience`, `CompleteCurrentExperience`, `ReturnToMain`, 세션 완료 목록
 - `UScenarioExperienceBridgeComponent`: Scenario 종료 시 Experience 완료 및 설정된 복귀 Level 이동
-- `DA_Experience_Singijeon`: `/GF_Singijeon/Maps/LV_Singijeon` 연결
+- `DA_Experience_Singijeon`: `/Game/Maps/LV_Singijeon` 연결
+- `DA_Experience_Main`, `DA_Scenario_Main`: Main Level과 인라인 Stage 흐름 정의
+- `AExperienceTravelTriggerActor`: 이벤트 기반 체험 진입과 Main 복귀 체크포인트 저장
+- Main 재진입 시 Scenario/Scene/Interaction 체크포인트와 이전 단계 완료 상태 복원
 - 상태: `Inactive → Traveling → Active → Completed` 또는 `Failed`
 
 ```mermaid
@@ -267,7 +270,7 @@ graph LR
 * Level 전환 방식은 `OpenLevelBySoftObjectPtr`로 확정했다.
 * 진행도는 Level Travel 동안 유지되는 메모리 방식이다. 앱 재시작 후 영속화가 필요하면 `SaveGame`을 추가한다.
 * Scenario 기반 체험은 `OnScenarioFinished`가 완료 판정이다. 별도 체험은 `CompleteCurrentExperience`를 직접 호출할 수 있다.
-* `L_Main`이 아직 없으므로 신기전 Definition의 `ReturnLevel`은 비어 있다. 생성 후 반드시 지정한다.
+* `L_Main`과 신기전 Definition의 `ReturnLevel` 연결은 완료됐다.
 
 ### 3.6 초성 퀴즈 / 음성 인식
 

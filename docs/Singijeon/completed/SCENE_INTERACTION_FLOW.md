@@ -2,6 +2,8 @@
 
 `DA_Scene_Singijeon` 신기전 체험 Interaction 흐름 구성
 
+> 2026-08-18 후속 마이그레이션으로 Interaction은 `DA_Scenario_Singijeon.Stages[Singijeon]`에 인라인 저장된다.
+
 # 구현 내용
 
 - 기존 `NA_01 -> NA_02` 나레이션 흐름 뒤에 `INT_01 -> INT_07` 체험 흐름을 연결했다.

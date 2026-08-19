@@ -3,7 +3,7 @@ import unreal
 
 ASSET_TOOLS = unreal.AssetToolsHelpers.get_asset_tools()
 DEFINITION_PATH = "/Game/Core/Experience/Definitions/DA_Experience_Singijeon"
-LEVEL_PATH = "/GF_Singijeon/Maps/LV_Singijeon"
+LEVEL_PATH = "/Game/Maps/LV_Singijeon"
 
 
 def create_or_load_definition():
@@ -38,6 +38,11 @@ definition = create_or_load_definition()
 definition.set_editor_property("experience_id", "EXP_Singijeon")
 definition.set_editor_property("display_name", "신기전")
 definition.set_editor_property("experience_level", experience_level)
+definition.set_editor_property(
+    "scenario_definition", unreal.load_asset("/Game/Data/DA_Scenario_Singijeon")
+)
+definition.set_editor_property("auto_start_scenario", True)
+definition.set_editor_property("complete_on_scenario_finished", True)
 definition.set_editor_property("return_on_completion", True)
 definition.set_editor_property("travel_options", "")
 unreal.EditorAssetLibrary.save_loaded_asset(definition, only_if_is_dirty=False)
@@ -55,8 +60,9 @@ if len(managers) != 1:
 
 manager = managers[0]
 manager.set_editor_property("experience_definition", definition)
+manager.set_editor_property("standalone_scenario_definition", None)
 manager.set_editor_property("activate_experience_when_opened_directly", True)
-manager.set_editor_property("complete_experience_on_scenario_finished", True)
+manager.refresh_resolved_configuration()
 unreal.EditorLoadingAndSavingUtils.save_dirty_packages(
     save_map_packages=True, save_content_packages=True
 )

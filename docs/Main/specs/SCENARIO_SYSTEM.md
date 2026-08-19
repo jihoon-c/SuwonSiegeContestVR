@@ -5,31 +5,40 @@
 Core Scenario System은 **한 Level 안에서** `Interaction → Scene → Scenario` 진행을 관리한다.
 
 - `UScenarioManagerComponent`: 현재 Scene/Interaction, 상태, 분기, 지연, 재시작과 디버그 이동
-- `UScenarioSceneData`: 한 Scene의 Interaction 목록
-- `UScenarioDefinition`: Scene 목록과 시작 Scene
+- `FScenarioStageDefinition`: Scenario 내부에 인라인으로 저장되는 Stage와 Interaction 목록
+- `UScenarioDefinition`: 전체 Stage 흐름, 시작 Stage, Narration Table
 - `UScenarioInteractableComponent`: Actor가 `TargetID + InteractionType` 사건을 보고하는 통로
 - `UScenarioObservationComponent`: HMD 시야각·거리·시선 유지 시간·가시선 판정
 - `UScenarioNarrationBridgeComponent`: 기존 `UNarrationSequenceComponent`와 Scenario를 연결
 
 다음 책임은 Scenario System에 넣지 않는다.
 
-- Level Travel과 Level을 넘어 유지되는 진행도: 향후 `ExperienceSubsystem`
+- Level Travel과 Level을 넘어 유지되는 진행도: `ExperienceSubsystem`
 - 음성·자막 재생: 기존 `UNarrationSequenceComponent`
 - 신기전 발사·장전·점화 등 체험 고유 동작: `GF_Singijeon`
 
 ## 콘텐츠 생성 순서
 
-1. Content Browser에서 `Miscellaneous > Data Asset`을 선택하고 `ScenarioSceneData`로 `DA_Scene_*`를 만든다.
-2. 각 Scene에 고유 `SceneID`, `StartInteractionID`, `Interactions`를 입력한다.
-3. `ScenarioDefinition`으로 `DA_Scenario_*`를 만들고 Scene 배열, `StartSceneID`를 지정한다.
-4. Level에 `/Game/Core/Scenario/Managers/BP_ScenarioManager`를 배치한다.
-5. 배치 Actor의 최상위 `Scenario > Configuration > Scenario Definition`에 `DA_Scenario_*`를 지정한다.
-6. 같은 영역의 `Narration Table`에 기존 `DT_Narration`을 지정한다.
-7. 자동 시작이면 `Auto Start Scenario`를 켠다. 수동 시작이면 `Start Configured Scenario`를 호출한다.
+1. `ScenarioDefinition` Data Asset `DA_Scenario_*`를 만든다.
+2. `Stages` 배열에 Stage를 추가하고 `StageID`, `StartInteractionID`, `Interactions`를 입력한다.
+3. `StartStageID`를 지정하고 Narration 사용 시 같은 Asset의 `NarrationTable`을 지정한다.
+4. `DA_Experience_*`의 `ScenarioDefinition`에 `DA_Scenario_*`를 지정한다.
+5. Level의 `BP_ScenarioManager`에는 `ExperienceDefinition` 하나만 지정한다.
 
-> `DA_Scene_*`는 Scene 하나이고 `Scenario Definition` 슬롯에 직접 연결할 수 없다. 반드시 `ScenarioDefinition` 타입의 `DA_Scenario_*`를 만들고 그 `Scenes` 배열에 `DA_Scene_*`를 넣는다.
+별도 `DA_Scene_*`를 만들거나 Level Manager에 Scenario/Narration을 다시 지정하지 않는다. Manager의 `Resolved Configuration`은 Experience와 Scenario에서 자동으로 계산되는 읽기 전용 결과다.
 
-배열 인덱스는 흐름을 결정하지 않는다. `StartInteractionID`, `NextInteractionID`, `SuccessInteractionID`, `FailInteractionID`가 실제 흐름을 결정한다. 모든 ID는 해당 Data Asset 안에서 유일해야 한다.
+Stage 배열 순서는 편집 가독성과 복귀 시 이전 단계 완료 상태에 사용한다. 실제 분기는 `StartInteractionID`, `NextInteractionID`, `SuccessInteractionID`, `FailInteractionID`, `NextStageID`가 결정한다.
+
+### Interaction 배열 편집 화면
+
+배열 항목 제목에는 `InteractionID`가 표시된다. `InteractionType`에 따라 관련 필드만 노출된다.
+
+- `Narration`: `NarrationID` 표시, `TargetID`와 성공/실패 분기 숨김
+- `Objective`: `ObjectiveText`와 즉시 완료 옵션 표시
+- `Wait`: `Duration` 표시
+- Grab 등 실제 Interaction: `TargetID`와 성공/실패 분기 표시
+
+이는 Details 패널 표시만 변경하며 기존 Scenario 데이터와 런타임 흐름에는 영향을 주지 않는다.
 
 ## Interaction 타입 연결
 
@@ -80,16 +89,14 @@ Bridge의 `NarrationTable`을 비워 두면 아무 동작도 하지 않으므로
 ```text
 LV_Singijeon
 └─ BP_ScenarioManager
-   ├─ Scenario Definition = DA_Scenario_Singijeon
-   ├─ Narration Table = DT_Narration
-   └─ Auto Start Scenario = true
+   └─ Experience Definition = DA_Experience_Singijeon
 
-DA_Scenario_Singijeon
-└─ StartSceneID = Singijeon
-   └─ DA_Scene_Singijeon
-      └─ Interaction "singijeon"
-         ├─ Type = Narration
-         └─ NarrationID = NewRow
+DA_Experience_Singijeon
+└─ Scenario Definition = DA_Scenario_Singijeon
+   └─ Stages[Singijeon]
+      └─ Interactions[NAR_01 ... NAR_21, INT_01 ... INT_07]
+
+DA_Scenario_Singijeon.NarrationTable = DT_Narration
 ```
 
 ### 나레이션 후 이벤트 연결
@@ -112,7 +119,7 @@ Get Player Pawn
 
 ## 디버그
 
-`RestartScenario`, `RestartScene`, `RestartInteraction`, `SkipCurrentInteraction`, `CompleteCurrentInteraction`, `GoToScene`, `GoToInteraction`, `PrintDebugState`를 Blueprint에서 호출할 수 있다. `GetDebugSnapshot`은 Scenario/Scene/Interaction ID, Type, Target, 상태를 반환한다.
+`RestartScenario`, `RestartScene`, `RestartInteraction`, `SkipCurrentInteraction`, `CompleteCurrentInteraction`, `GoToScene`, `GoToInteraction`, `PrintDebugState`를 Blueprint에서 호출할 수 있다. 기존 API의 `Scene` 명칭은 Blueprint 호환 때문에 유지하지만 신규 제작 UI와 문서에서는 `Stage`로 표시한다.
 
 Data Asset은 Scenario 시작 시 다음 항목을 검증한다.
 
@@ -122,3 +129,20 @@ Data Asset은 Scenario 시작 시 다음 항목을 검증한다.
 - 존재하지 않는 Next Scene ID
 
 검증 실패 시 `OnValidationFailed`가 발생하고 Scenario는 `Failed`가 된다.
+
+## Experience 왕복과 진행 복원
+
+`ExperienceTravelTriggerActor.TriggerExperienceTravel`은 이동 전에 복귀할 `ScenarioID`, `SceneID`, `InteractionID`를 세션 체크포인트로 저장한다. 목적지 Scenario가 완료되면 Experience의 `ReturnLevel`로 이동하고, Main Manager의 Experience Bridge가 체크포인트 이전 Interaction을 완료 상태로 복원한 뒤 지정 Interaction부터 재개한다.
+
+현재 예시는 다음과 같다.
+
+```text
+L_Main / DA_Scenario_Main.Stages[MAIN_SCENE]
+MAIN_INTRO → MAIN_TRAVEL_SINGIJEON
+                    ↓ TriggerExperienceTravel
+               LV_Singijeon
+                    ↓ Scenario 완료
+L_Main / MAIN_RETURNED (이전 단계 완료 상태 복원)
+```
+
+배치 Trigger는 Pawn Overlap과 Player Camera(HMD) 위치 진입을 모두 지원한다. 충돌 Primitive가 없는 VR Pawn은 HMD 위치 판정을 사용한다. 버튼, 퀴즈 완료, 나레이션 Completion Event 등 특정 이벤트에서 Trigger Actor의 `TriggerExperienceTravel(PlayerPawn)`을 호출해도 같은 흐름을 사용한다.

@@ -6,8 +6,8 @@ SUBOBJECTS = unreal.get_engine_subsystem(unreal.SubobjectDataSubsystem)
 SUBOBJECT_BFL = unreal.SubobjectDataBlueprintFunctionLibrary
 
 BP_DIR = "/GF_Singijeon/Gameplay"
-LEVEL_PATH = "/GF_Singijeon/Maps/LV_Singijeon"
-SCENE_PATH = "/Game/Data/DA_Scene_Singijeon"
+LEVEL_PATH = "/Game/Maps/LV_Singijeon"
+SCENARIO_PATH = "/Game/Data/DA_Scenario_Singijeon"
 
 
 def create_or_load_blueprint(name, parent_path):
@@ -118,11 +118,15 @@ def make_interaction(interaction_id, interaction_type, target_id="", next_id="")
     return interaction
 
 
-scene = unreal.load_asset(SCENE_PATH)
-if not scene:
-    raise RuntimeError(f"Scene not found: {SCENE_PATH}")
+scenario = unreal.load_asset(SCENARIO_PATH)
+if not scenario:
+    raise RuntimeError(f"Scenario not found: {SCENARIO_PATH}")
+stages = list(scenario.get_editor_property("stages"))
+if len(stages) != 1:
+    raise RuntimeError("DA_Scenario_Singijeon must contain one inline Stage")
+stage = stages[0]
 
-interactions = list(scene.get_editor_property("interactions"))
+interactions = list(stage.get_editor_property("interactions"))
 by_id = {
     str(interaction.get_editor_property("interaction_id")): interaction
     for interaction in interactions
@@ -164,8 +168,9 @@ if "Singijeon2" in by_id:
         "next_interaction_id", "INT_GrabAmmo"
     )
 
-scene.set_editor_property("interactions", interactions)
-unreal.EditorAssetLibrary.save_loaded_asset(scene)
+stage.set_editor_property("interactions", interactions)
+scenario.set_editor_property("stages", [stage])
+unreal.EditorAssetLibrary.save_loaded_asset(scenario)
 
 
 unreal.EditorLoadingAndSavingUtils.load_map(LEVEL_PATH)

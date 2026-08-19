@@ -3,6 +3,7 @@
 #include "Core/Experience/ExperienceDefinition.h"
 #include "Core/Experience/ExperienceSubsystem.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
+#include "Core/Scenario/ScenarioDefinition.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 
@@ -42,6 +43,43 @@ bool UScenarioExperienceBridgeComponent::InitializeBridge()
 	{
 		ExperienceSubsystem->ActivateExperienceForCurrentLevel(ExperienceDefinition);
 	}
+	return true;
+}
+
+bool UScenarioExperienceBridgeComponent::RestoreScenarioCheckpoint()
+{
+	if (!bRestoreScenarioCheckpoint || !ScenarioManager || !ScenarioManager->ScenarioDefinition)
+	{
+		return false;
+	}
+
+	UWorld* World = GetWorld();
+	UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
+	UExperienceSubsystem* ExperienceSubsystem = GameInstance
+		? GameInstance->GetSubsystem<UExperienceSubsystem>()
+		: nullptr;
+	if (!ExperienceSubsystem)
+	{
+		return false;
+	}
+
+	FScenarioResumeCheckpoint Checkpoint;
+	const FName ScenarioID = ScenarioManager->ScenarioDefinition->ScenarioID;
+	if (!ExperienceSubsystem->GetScenarioResumeCheckpoint(ScenarioID, Checkpoint))
+	{
+		return false;
+	}
+
+	if (!ScenarioManager->RestoreProgressAtInteraction(
+		Checkpoint.SceneID, Checkpoint.InteractionID))
+	{
+		UE_LOG(LogTemp, Error, TEXT("ScenarioExperienceBridge failed to restore %s/%s/%s."),
+			*Checkpoint.ScenarioID.ToString(), *Checkpoint.SceneID.ToString(),
+			*Checkpoint.InteractionID.ToString());
+		return false;
+	}
+
+	ExperienceSubsystem->ClearScenarioResumeCheckpoint(ScenarioID);
 	return true;
 }
 

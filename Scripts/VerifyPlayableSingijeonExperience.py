@@ -15,7 +15,7 @@ def check(condition, message):
 hwacha_bp = unreal.load_asset("/GF_Singijeon/Gameplay/BP_SingijeonHwacha")
 arrow_bp = unreal.load_asset("/GF_Singijeon/Gameplay/BP_SingijeonArrow")
 torch_bp = unreal.load_asset("/GF_Singijeon/Gameplay/BP_SingijeonTorch")
-scene = unreal.load_asset("/Game/Data/DA_Scene_Singijeon")
+scenario = unreal.load_asset("/Game/Data/DA_Scenario_Singijeon")
 
 for blueprint, name in (
     (hwacha_bp, "BP_SingijeonHwacha"),
@@ -67,20 +67,23 @@ expected_flow = {
     "INT_IgniteHwacha": "INT_FireHwacha",
     "INT_FireHwacha": "None",
 }
-if scene:
+if scenario:
+    stages = list(scenario.get_editor_property("stages"))
+    stage = stages[0] if len(stages) == 1 else None
+    check(stage is not None, "Scenario contains one inline Stage")
     interactions = {
         str(item.get_editor_property("interaction_id")): item
-        for item in scene.get_editor_property("interactions")
+        for item in (stage.get_editor_property("interactions") if stage else [])
     }
     for interaction_id, next_id in expected_flow.items():
-        check(interaction_id in interactions, f"Scene contains {interaction_id}")
+        check(interaction_id in interactions, f"Stage contains {interaction_id}")
         if interaction_id in interactions:
             actual_next = str(
                 interactions[interaction_id].get_editor_property("next_interaction_id")
             )
             check(actual_next == next_id, f"{interaction_id} advances to {next_id}")
 
-unreal.EditorLoadingAndSavingUtils.load_map("/GF_Singijeon/Maps/LV_Singijeon")
+unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/LV_Singijeon")
 actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
 labels = {actor.get_actor_label() for actor in actors}
 for label in (

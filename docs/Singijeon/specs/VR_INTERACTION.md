@@ -26,13 +26,17 @@
 ## Scenario 연결
 
 ```text
-NA_01 → NA_02
-→ INT_GrabAmmo      (Grab / Singijeon_Ammo)
-→ INT_LoadHwacha    (Custom / Hwacha_Load)
-→ INT_GrabTorch     (Grab / Singijeon_Torch)
-→ INT_IgniteHwacha  (Trigger / Hwacha_Fuse)
-→ INT_FireHwacha    (Combat / Hwacha_Fire)
+NAR_01~05 → INT_01  (Grab / Singijeon_Ammo)
+NAR_06~08 → INT_02  (Custom / Hwacha_Load)
+NAR_09~10 → INT_03  (Custom / Hwacha_Aim)
+NAR_11~12 → INT_04  (Grab / Singijeon_Torch)
+NAR_13    → INT_05  (Trigger / Torch_Ignite)
+NAR_14~15 → INT_06  (Trigger / Hwacha_Fuse)
+NAR_16    → INT_07  (Combat / Hwacha_Fire)
+NAR_17~21 → Scenario 완료
 ```
+
+전체 순서는 `DA_Scenario_Singijeon.Stages[Singijeon].Interactions[].NextInteractionID`가 단독으로 소유한다. `DT_Narration`의 각 Row는 `NextRow=None`, `AdvanceMode=Stop`으로 유지한다.
 
 Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 보고한다. 장전·점화·일제 발사 완료는 `ASingijeonHwachaActor`가 자동 보고한다.
 

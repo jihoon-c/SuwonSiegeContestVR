@@ -3,7 +3,7 @@ import unreal
 
 GAME_MODE_PATH = "/Game/XRFramework/Blueprints/BP_XRGameMode"
 EXPECTED_PAWN_PATH = "/Game/Core/VR/Pawn/BP_VRPlayerPawn"
-LEVEL_PATH = "/GF_Singijeon/Maps/LV_Singijeon"
+LEVEL_PATH = "/Game/Maps/LV_Singijeon"
 
 game_mode_blueprint = unreal.load_asset(GAME_MODE_PATH)
 expected_pawn_blueprint = unreal.load_asset(EXPECTED_PAWN_PATH)

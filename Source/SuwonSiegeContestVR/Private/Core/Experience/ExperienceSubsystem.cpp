@@ -18,6 +18,7 @@ void UExperienceSubsystem::Deinitialize()
 	CurrentExperienceID = NAME_None;
 	PendingDestinationLevelName = NAME_None;
 	bPendingReturnTravel = false;
+	ScenarioResumeCheckpoints.Reset();
 	State = EExperienceState::Inactive;
 	Super::Deinitialize();
 }
@@ -129,9 +130,59 @@ FExperienceProgressSnapshot UExperienceSubsystem::GetProgressSnapshot() const
 	return Snapshot;
 }
 
+bool UExperienceSubsystem::SetScenarioResumeCheckpoint(
+	const FName ScenarioID,
+	const FName SceneID,
+	const FName InteractionID)
+{
+	FScenarioResumeCheckpoint Checkpoint;
+	Checkpoint.ScenarioID = ScenarioID;
+	Checkpoint.SceneID = SceneID;
+	Checkpoint.InteractionID = InteractionID;
+	if (!Checkpoint.IsValid())
+	{
+		ReportFailure(TEXT("Scenario resume checkpoint requires ScenarioID, SceneID, and InteractionID."));
+		return false;
+	}
+
+	ScenarioResumeCheckpoints.Add(ScenarioID, Checkpoint);
+	return true;
+}
+
+bool UExperienceSubsystem::GetScenarioResumeCheckpoint(
+	const FName ScenarioID,
+	FScenarioResumeCheckpoint& OutCheckpoint) const
+{
+	if (const FScenarioResumeCheckpoint* Checkpoint = ScenarioResumeCheckpoints.Find(ScenarioID))
+	{
+		OutCheckpoint = *Checkpoint;
+		return Checkpoint->IsValid();
+	}
+	OutCheckpoint = FScenarioResumeCheckpoint();
+	return false;
+}
+
+bool UExperienceSubsystem::ConsumeScenarioResumeCheckpoint(
+	const FName ScenarioID,
+	FScenarioResumeCheckpoint& OutCheckpoint)
+{
+	if (!GetScenarioResumeCheckpoint(ScenarioID, OutCheckpoint))
+	{
+		return false;
+	}
+	ScenarioResumeCheckpoints.Remove(ScenarioID);
+	return true;
+}
+
+void UExperienceSubsystem::ClearScenarioResumeCheckpoint(const FName ScenarioID)
+{
+	ScenarioResumeCheckpoints.Remove(ScenarioID);
+}
+
 void UExperienceSubsystem::ResetSessionProgress()
 {
 	CompletedExperienceIDs.Reset();
+	ScenarioResumeCheckpoints.Reset();
 	OnProgressReset.Broadcast();
 }
 

@@ -97,9 +97,20 @@ bool FExperienceDefinitionAndProgressTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Experience becomes completed"),
 			ExperienceSubsystem->GetExperienceState(), EExperienceState::Completed);
 
+		TestTrue(TEXT("Scenario resume checkpoint is stored"),
+			ExperienceSubsystem->SetScenarioResumeCheckpoint(
+				TEXT("SCENARIO_Main"), TEXT("MAIN_SCENE"), TEXT("MAIN_RETURNED")));
+		FScenarioResumeCheckpoint Checkpoint;
+		TestTrue(TEXT("Scenario resume checkpoint can be queried"),
+			ExperienceSubsystem->GetScenarioResumeCheckpoint(TEXT("SCENARIO_Main"), Checkpoint));
+		TestEqual(TEXT("Checkpoint retains the Scene ID"), Checkpoint.SceneID, FName(TEXT("MAIN_SCENE")));
+		TestEqual(TEXT("Checkpoint retains the Interaction ID"), Checkpoint.InteractionID, FName(TEXT("MAIN_RETURNED")));
+
 		ExperienceSubsystem->ResetSessionProgress();
 		TestFalse(TEXT("Reset clears session progress"),
 			ExperienceSubsystem->IsExperienceCompleted(Definition->ExperienceID));
+		TestFalse(TEXT("Reset clears Scenario resume checkpoints"),
+			ExperienceSubsystem->GetScenarioResumeCheckpoint(TEXT("SCENARIO_Main"), Checkpoint));
 	}
 	GameInstance->Shutdown();
 	return true;
@@ -112,17 +123,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FScenarioDefinitionValidationTest::RunTest(const FString& Parameters)
 {
-	UScenarioSceneData* Scene = NewObject<UScenarioSceneData>();
-	Scene->SceneID = TEXT("SCENE_Test");
-	Scene->StartInteractionID = TEXT("INT_Start");
+	FScenarioStageDefinition Stage;
+	Stage.StageID = TEXT("STAGE_Test");
+	Stage.StartInteractionID = TEXT("INT_Start");
 
 	FScenarioInteraction Start;
 	Start.InteractionID = TEXT("INT_Start");
 	Start.NextInteractionID = TEXT("INT_Missing");
-	Scene->Interactions.Add(Start);
+	Stage.Interactions.Add(Start);
 
 	FString Error;
-	TestFalse(TEXT("A missing branch target is rejected"), Scene->ValidateScene(Error));
+	TestFalse(TEXT("A missing branch target is rejected"), Stage.ValidateStage(Error));
 	TestTrue(TEXT("Validation identifies the missing interaction"), Error.Contains(TEXT("INT_Missing")));
 	return true;
 }
@@ -147,27 +158,27 @@ bool FScenarioSynchronousFlowTest::RunTest(const FString& Parameters)
 	UScenarioManagerComponent* Manager = ManagerActor ? ManagerActor->GetScenarioManager() : nullptr;
 	TestNotNull(TEXT("Manager component is available"), Manager);
 
-	UScenarioSceneData* Scene = NewObject<UScenarioSceneData>();
-	Scene->SceneID = TEXT("SCENE_Test");
-	Scene->StartInteractionID = TEXT("INT_Objective");
+	FScenarioStageDefinition Stage;
+	Stage.StageID = TEXT("STAGE_Test");
+	Stage.StartInteractionID = TEXT("INT_Objective");
 
 	FScenarioInteraction Objective;
 	Objective.InteractionID = TEXT("INT_Objective");
 	Objective.InteractionType = EScenarioInteractionType::Objective;
 	Objective.bCompleteOnStart = true;
 	Objective.NextInteractionID = TEXT("INT_Wait");
-	Scene->Interactions.Add(Objective);
+	Stage.Interactions.Add(Objective);
 
 	FScenarioInteraction Wait;
 	Wait.InteractionID = TEXT("INT_Wait");
 	Wait.InteractionType = EScenarioInteractionType::Wait;
 	Wait.Duration = 0.0f;
-	Scene->Interactions.Add(Wait);
+	Stage.Interactions.Add(Wait);
 
 	UScenarioDefinition* Scenario = NewObject<UScenarioDefinition>();
 	Scenario->ScenarioID = TEXT("SCENARIO_Test");
-	Scenario->StartSceneID = Scene->SceneID;
-	Scenario->Scenes.Add(Scene);
+	Scenario->StartStageID = Stage.StageID;
+	Scenario->Stages.Add(Stage);
 
 	if (Manager)
 	{
@@ -179,6 +190,30 @@ bool FScenarioSynchronousFlowTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Scene completes"), Snapshot.SceneState, EScenarioSceneState::Completed);
 		TestEqual(TEXT("Objective completes"), Manager->GetInteractionState(Objective.InteractionID), EScenarioInteractionState::Completed);
 		TestEqual(TEXT("Wait completes"), Manager->GetInteractionState(Wait.InteractionID), EScenarioInteractionState::Completed);
+
+		FScenarioStageDefinition ResumeStage;
+		ResumeStage.StageID = TEXT("STAGE_Resume");
+		ResumeStage.StartInteractionID = TEXT("INT_BeforeTravel");
+		for (const FName InteractionID : {
+			FName(TEXT("INT_BeforeTravel")), FName(TEXT("INT_Travel")), FName(TEXT("INT_Return"))})
+		{
+			FScenarioInteraction Interaction;
+			Interaction.InteractionID = InteractionID;
+			ResumeStage.Interactions.Add(Interaction);
+		}
+		UScenarioDefinition* ResumeScenario = NewObject<UScenarioDefinition>();
+		ResumeScenario->ScenarioID = TEXT("SCENARIO_Resume");
+		ResumeScenario->StartStageID = ResumeStage.StageID;
+		ResumeScenario->Stages.Add(ResumeStage);
+		TestTrue(TEXT("Resume test Scenario starts"), Manager->StartScenario(ResumeScenario));
+		TestTrue(TEXT("Progress restores directly at the return interaction"),
+			Manager->RestoreProgressAtInteraction(ResumeStage.StageID, TEXT("INT_Return")));
+		TestEqual(TEXT("Interaction before travel is restored as completed"),
+			Manager->GetInteractionState(TEXT("INT_BeforeTravel")), EScenarioInteractionState::Completed);
+		TestEqual(TEXT("Travel interaction is restored as completed"),
+			Manager->GetInteractionState(TEXT("INT_Travel")), EScenarioInteractionState::Completed);
+		TestEqual(TEXT("Return interaction resumes as running"),
+			Manager->GetInteractionState(TEXT("INT_Return")), EScenarioInteractionState::Running);
 	}
 
 	World->DestroyWorld(false);
@@ -195,8 +230,6 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 {
 	UScenarioDefinition* Scenario = LoadObject<UScenarioDefinition>(
 		nullptr, TEXT("/Game/Data/DA_Scenario_Singijeon.DA_Scenario_Singijeon"));
-	UScenarioSceneData* Scene = LoadObject<UScenarioSceneData>(
-		nullptr, TEXT("/Game/Data/DA_Scene_Singijeon.DA_Scene_Singijeon"));
 	UDataTable* NarrationTable = LoadObject<UDataTable>(
 		nullptr, TEXT("/Game/Data/DT_Narration.DT_Narration"));
 	UExperienceDefinition* ExperienceDefinition = LoadObject<UExperienceDefinition>(
@@ -204,7 +237,6 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 		TEXT("/Game/Core/Experience/Definitions/DA_Experience_Singijeon.DA_Experience_Singijeon"));
 
 	if (!TestNotNull(TEXT("Singijeon Scenario Definition exists"), Scenario) ||
-		!TestNotNull(TEXT("Singijeon Scene exists"), Scene) ||
 		!TestNotNull(TEXT("Narration Data Table exists"), NarrationTable) ||
 		!TestNotNull(TEXT("Singijeon Experience Definition exists"), ExperienceDefinition))
 	{
@@ -217,8 +249,17 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 	{
 		AddError(ValidationError);
 	}
-	TestEqual(TEXT("Scenario starts from the configured Scene"), Scenario->StartSceneID, Scene->SceneID);
-	for (const FScenarioInteraction& Interaction : Scene->Interactions)
+	TestEqual(TEXT("Singijeon Scenario contains one inline Stage"), Scenario->Stages.Num(), 1);
+	if (Scenario->Stages.IsEmpty())
+	{
+		return false;
+	}
+	const FScenarioStageDefinition& Stage = Scenario->Stages[0];
+	TestEqual(TEXT("Scenario starts from the configured Stage"), Scenario->StartStageID, Stage.StageID);
+	TestEqual(TEXT("Scenario owns its Narration Table"), Scenario->NarrationTable.Get(), NarrationTable);
+	TestEqual(TEXT("Experience owns its Scenario Definition"),
+		ExperienceDefinition->ScenarioDefinition.Get(), Scenario);
+	for (const FScenarioInteraction& Interaction : Stage.Interactions)
 	{
 		if (Interaction.InteractionType == EScenarioInteractionType::Narration && !Interaction.NarrationID.IsNone())
 		{
@@ -230,7 +271,7 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 	}
 
 	UWorld* LevelWorld = LoadObject<UWorld>(
-		nullptr, TEXT("/GF_Singijeon/Maps/LV_Singijeon.LV_Singijeon"));
+		nullptr, TEXT("/Game/Maps/LV_Singijeon.LV_Singijeon"));
 	if (!TestNotNull(TEXT("LV_Singijeon loads"), LevelWorld) ||
 		!TestNotNull(TEXT("LV_Singijeon persistent level exists"), LevelWorld->PersistentLevel.Get()))
 	{

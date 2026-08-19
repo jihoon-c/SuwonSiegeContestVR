@@ -57,21 +57,24 @@ struct SUWONSIEGECONTESTVR_API FScenarioInteraction
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common")
 	FName InteractionID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common")
 	EScenarioInteractionType InteractionType = EScenarioInteractionType::Custom;
 
 	/** Logical level target, quiz, voice command, or custom content ID. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction",
+		meta = (EditCondition = "InteractionType != EScenarioInteractionType::Narration && InteractionType != EScenarioInteractionType::Objective && InteractionType != EScenarioInteractionType::Wait", EditConditionHides))
 	FName TargetID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Objective",
+		meta = (EditCondition = "InteractionType == EScenarioInteractionType::Objective", EditConditionHides, MultiLine = true))
 	FText ObjectiveText;
 
 	/** Row name consumed by the existing NarrationSequenceComponent. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Narration",
+		meta = (EditCondition = "InteractionType == EScenarioInteractionType::Narration", EditConditionHides))
 	FName NarrationID;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing", meta = (ClampMin = "0.0"))
@@ -81,24 +84,62 @@ struct SUWONSIEGECONTESTVR_API FScenarioInteraction
 	float DelayAfterComplete = 0.0f;
 
 	/** Used by Wait, or by custom Blueprint logic as an expected duration. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timing", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wait",
+		meta = (ClampMin = "0.0", EditCondition = "InteractionType == EScenarioInteractionType::Wait", EditConditionHides))
 	float Duration = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
 	bool bRequired = true;
 
 	/** Useful for instant Objective, Spawn, Sequence, or Custom steps. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow",
+		meta = (EditCondition = "InteractionType == EScenarioInteractionType::Objective || InteractionType == EScenarioInteractionType::Spawn || InteractionType == EScenarioInteractionType::Sequence || InteractionType == EScenarioInteractionType::Custom", EditConditionHides))
 	bool bCompleteOnStart = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
 	FName NextInteractionID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow",
+		meta = (EditCondition = "InteractionType != EScenarioInteractionType::Narration", EditConditionHides))
 	FName SuccessInteractionID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flow",
+		meta = (EditCondition = "InteractionType != EScenarioInteractionType::Narration", EditConditionHides))
 	FName FailInteractionID;
+};
+
+/** Authoring group stored directly inside a Scenario Definition. */
+USTRUCT(BlueprintType)
+struct SUWONSIEGECONTESTVR_API FScenarioStageDefinition
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage")
+	FName StageID;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage")
+	FText StageName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage")
+	FName StartInteractionID;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage")
+	FName NextStageID;
+
+	/** The complete flow is visible and editable here without opening another Data Asset. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stage", meta = (TitleProperty = "InteractionID"))
+	TArray<FScenarioInteraction> Interactions;
+
+	const FScenarioInteraction* FindInteraction(const FName InteractionID) const
+	{
+		return Interactions.FindByPredicate(
+			[InteractionID](const FScenarioInteraction& Interaction)
+			{
+				return Interaction.InteractionID == InteractionID;
+			});
+	}
+
+	bool ValidateStage(FString& OutError) const;
 };
 
 USTRUCT(BlueprintType)
@@ -109,7 +150,7 @@ struct SUWONSIEGECONTESTVR_API FScenarioDebugSnapshot
 	UPROPERTY(BlueprintReadOnly, Category = "Scenario|Debug")
 	FName ScenarioID;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Scenario|Debug")
+	UPROPERTY(BlueprintReadOnly, Category = "Scenario|Debug", meta = (DisplayName = "Stage ID"))
 	FName SceneID;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Scenario|Debug")

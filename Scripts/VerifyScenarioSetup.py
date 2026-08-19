@@ -12,27 +12,26 @@ def check(condition, message):
         unreal.log_error(f"SCENARIO_VERIFY FAIL: {message}")
 
 
-scene = unreal.load_asset("/Game/Data/DA_Scene_Singijeon")
 scenario = unreal.load_asset("/Game/Data/DA_Scenario_Singijeon")
 narration_table = unreal.load_asset("/Game/Data/DT_Narration")
 
-check(scene is not None, "DA_Scene_Singijeon loads")
 check(scenario is not None, "DA_Scenario_Singijeon loads")
 check(narration_table is not None, "DT_Narration loads")
 
-if scene and scenario:
-    scene_id = scene.get_editor_property("scene_id")
-    start_interaction_id = scene.get_editor_property("start_interaction_id")
-    interactions = list(scene.get_editor_property("interactions"))
-    scenario_scenes = list(scenario.get_editor_property("scenes"))
+if scenario:
+    stages = list(scenario.get_editor_property("stages"))
+    check(len(stages) == 1, "Scenario contains one inline Stage")
+    stage = stages[0] if stages else None
+    stage_id = stage.get_editor_property("stage_id") if stage else "None"
+    start_interaction_id = stage.get_editor_property("start_interaction_id") if stage else "None"
+    interactions = list(stage.get_editor_property("interactions")) if stage else []
 
-    check(bool(scene_id), "SceneID is assigned")
+    check(bool(stage_id), "StageID is assigned")
     check(bool(start_interaction_id), "StartInteractionID is assigned")
-    check(bool(interactions), "Scene contains at least one Interaction")
-    check(scene in scenario_scenes, "Scenario contains DA_Scene_Singijeon")
+    check(bool(interactions), "Stage contains at least one Interaction")
     check(
-        scenario.get_editor_property("start_scene_id") == scene_id,
-        "Scenario StartSceneID matches SceneID",
+        scenario.get_editor_property("start_stage_id") == stage_id,
+        "Scenario StartStageID matches StageID",
     )
 
     interaction_ids = [
@@ -58,7 +57,7 @@ if scene and scenario:
                 f"NarrationID {narration_id} exists in DT_Narration",
             )
 
-unreal.EditorLoadingAndSavingUtils.load_map("/GF_Singijeon/Maps/LV_Singijeon")
+unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/LV_Singijeon")
 managers = [
     actor
     for actor in unreal.EditorLevelLibrary.get_all_level_actors()
