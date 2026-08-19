@@ -26,11 +26,15 @@
 
 ## 미완료 작업
 
-1. Editor에서 최종 C++ 컴파일. 현재 Live Coding 활성화로 검증이 차단돼 있다.
-2. `BP_ChongtongCannon`, `BP_ChongtongProjectile`, 적 Blueprint와 메시/애니메이션 생성.
-3. `LV_Ongseong`에 성문, 총통, 적 목표점, Actor Pool, Spawn/Wave Manager 배치.
-4. 근거리 Enemy용 BT 또는 StateTree Asset 작성 및 `OnHighDetailAIChanged` 연결.
-5. Android 실기기에서 풀 크기, LOD 거리, 동시 투사체·적 수를 프로파일링하고 조정.
+1. `BP_ChongtongCannon`, `BP_ChongtongProjectile`, 적 Blueprint와 메시/애니메이션 생성.
+2. `LV_Ongseong`에 성문, 총통, 적 목표점, Actor Pool, Spawn/Wave Manager 배치.
+3. 근거리 Enemy용 BT 또는 StateTree Asset 작성 및 `OnHighDetailAIChanged` 연결.
+4. Android 실기기에서 풀 크기, LOD 거리, 동시 투사체·적 수를 프로파일링하고 조정.
+
+## 최신 검증
+
+- 2026-08-19: Editor 종료 후 `SuwonSiegeContestVREditor Win64 Development -NoHotReload` 빌드에 성공했다.
+- 빌드 과정에서 UE 5.8의 `TMap<TObjectPtr<AActor>, ...>` 키 추출 타입 불일치를 수정했다.
 
 ## 에디터 MCP 상태
 

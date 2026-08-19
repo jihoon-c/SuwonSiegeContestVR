@@ -4,11 +4,11 @@
 
 # 현재 상태
 
-Shared C++ 기반과 총통 Feature Runtime 모듈은 `bb37e29`에 구현됐다. 최종 컴파일은 Editor Live Coding 때문에 아직 실행하지 못했다. 8000번 포트 MCP에는 에디터 Asset/Level/Blueprint 도구가 노출되지 않았다.
+Shared C++ 기반과 총통 Feature Runtime 모듈은 `bb37e29`에 구현됐다. 2026-08-19에 Editor를 종료한 뒤 `SuwonSiegeContestVREditor Win64 Development -NoHotReload` 최종 컴파일이 성공했다. 8000번 포트 MCP에는 에디터 Asset/Level/Blueprint 도구가 노출되지 않았다.
 
 # 구현 범위
 
-- Live Coding 종료 후 C++ 컴파일
+- C++ 컴파일 완료
 - 총통/포탄/적 Blueprint 생성 및 C++ 부모 클래스 연결
 - 성문 목표 Actor, 총통, 목표점, Actor Pool을 `LV_Ongseong`에 배치
 - Enemy 근거리 BT 또는 StateTree와 AI LOD 이벤트 연결
@@ -24,12 +24,10 @@ Shared C++ 기반과 총통 Feature Runtime 모듈은 `bb37e29`에 구현됐다.
 
 # 구현 단계
 
-1. Editor를 종료하거나 Live Coding을 종료한다.
-2. `SuwonSiegeContestVREditor Win64 Development -NoHotReload`을 빌드한다.
-3. 총통/포탄/적 Blueprint를 만들고 총통 Muzzle, 포탄 시각·VFX를 설정한다.
-4. 성문에 Health/Faction/Threat Component를 설정하고 Level 목표점과 Pool을 배치한다.
-5. Wave/Spawner가 적의 목표·행동 상태를 설정하도록 연결한다.
-6. Android 기기에서 CPU/GPU/메모리와 적·투사체 동시 수를 측정한다.
+1. 총통/포탄/적 Blueprint를 만들고 총통 Muzzle, 포탄 시각·VFX를 설정한다.
+2. 성문에 Health/Faction/Threat Component를 설정하고 Level 목표점과 Pool을 배치한다.
+3. Wave/Spawner가 적의 목표·행동 상태를 설정하도록 연결한다.
+4. Android 기기에서 CPU/GPU/메모리와 적·투사체 동시 수를 측정한다.
 
 # 성능 기준
 

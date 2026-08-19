@@ -27,8 +27,16 @@ void UCombatThreatComponent::RegisterAttacker(AActor* Attacker)
 TArray<AActor*> UCombatThreatComponent::GetActiveAttackers()
 {
 	PruneExpiredAttackers();
+	TArray<TObjectPtr<AActor>> AttackerReferences;
+	RecentAttackers.GetKeys(AttackerReferences);
+
 	TArray<AActor*> Attackers;
-	RecentAttackers.GetKeys(Attackers);
+	Attackers.Reserve(AttackerReferences.Num());
+	for (const TObjectPtr<AActor>& Attacker : AttackerReferences)
+	{
+		Attackers.Add(Attacker.Get());
+	}
+
 	return Attackers;
 }
 
