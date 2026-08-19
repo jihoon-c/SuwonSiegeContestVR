@@ -2,7 +2,7 @@
 
 **조사 기준일**: 2026-08-11 · **조사 기준 커밋**: `57dd875`
 **계층**: Game Feature — `GF_OngseongCrossbow` (+ Shared Gameplay 의존)
-**전체 상태**: `Status: Planned` — **구현된 것이 없다. Game Feature Plugin 자체가 존재하지 않는다.**
+**전체 상태**: `Status: Partial` — Shared Combat/AI 기반과 총통 C++ Runtime 모듈이 구현됐다. Level, Blueprint 시각 요소, Wave/Spawner는 아직 없다.
 
 ---
 
@@ -32,17 +32,18 @@
 
 | 요소 | 상태 | 실제 확인 내용 |
 |---|---|---|
-| `GF_OngseongCrossbow` 플러그인 | `Planned` | `Plugins/` 디렉토리 자체가 없다 |
+| `GF_OngseongCrossbow` 플러그인 | `Partial` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
 | `L_OngseongCrossbow` Level | `Planned` | 존재하지 않음 |
 | 웅성 구조물 | `Planned` | 없음 |
 | 쇠뇌 Actor | `Planned` | 없음 |
 | 충차 Actor | `Planned` | 없음 |
-| 적 Wave 시스템 | `Planned` | 없음 |
+| 적 Wave 시스템 | `Partial` | 적 목표 이동/공격/풀 기반은 있음. Wave/Spawner는 없음 |
 | `BP_CrossbowExperienceManager` | `Planned` | 없음 |
-| Enemy Soldier (Shared) | `Planned` | 없음. 전투 캐릭터 에셋 전무 |
-| Health / Damage / Faction (Shared) | `Planned` | 없음 |
-| AI (BT / Blackboard / AIController) | `Planned` | 없음. `AIModule`이 `Build.cs`에 포함되지도 않음 |
-| Projectile (전투용) | `Planned` | 템플릿 `BP_Projectile`은 **데미지 로직이 없는** 시각 샘플 |
+| Enemy Soldier (Shared) | `Implemented (C++ base)` | `AEnemyCombatCharacter` 및 풀링/AI LOD 기반. 메시·애니메이션은 없음 |
+| Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
+| AI (BT / Blackboard / AIController) | `Implemented (base)` | 원거리 단순 이동 + 근거리 선택형 BT Controller. Feature BT/Spawner는 없음 |
+| Projectile (전투용) | `Implemented (base)` | 공통 데미지 투사체 기반. 전용 시각/발사체는 없음 |
+| 총통 Ally AI | `Implemented (C++ base)` | 공격자 → 성문 근접 → 무작위 우선순위. BP 메시/VFX 및 Level 배치 필요 |
 
 **활용 가능한 기존 자산**: 템플릿 `BP_Pistol` + `BP_Projectile`의 "잡고 → 발사" 흐름은 쇠뇌 조작 프로토타입의 참고 구조로 쓸 수 있다. 다만 데미지·명중 판정은 전부 신규 구현이다.
 
@@ -143,7 +144,7 @@ graph TD
 1. Game Feature Plugin 사용 여부 확정
 2. `ExperienceSubsystem` 인터페이스 확정 (Main)
 3. **Shared Gameplay 전투 구조 설계 확정** (Health / Damage / Faction / Character 계층)
-4. AI 방식 결정 (NavMesh + BT vs 스플라인)
+4. 웨이브별 적 수·풀 크기·경로점 결정
 5. `Build.cs`에 필요한 모듈 추가 (`AIModule`, `GameplayTasks`, `NavigationSystem`, `GameplayTags` 등)
 
 ---

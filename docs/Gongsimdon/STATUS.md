@@ -37,7 +37,7 @@
 | `GF_Gongsimdon` 플러그인 | `Planned` | `Plugins/` 디렉토리 자체가 없다 |
 | `L_Gongsimdon` Level | `Planned` | 존재하지 않음 |
 | 공심돈 구조물 | `Planned` | 없음 |
-| 침입 적 | `Planned` | 없음 (Shared Enemy 자체가 미구현) |
+| 침입 적 | `Implemented (C++ base)` | Shared Enemy, AI LOD, 단순 이동 기반. Feature 메시/배치/도주 목표는 미구현 |
 | 탐지 로직 | `Planned` | 없음 |
 | `BP_GongsimdonExperienceManager` | `Planned` | 없음 |
 | 탐지 UI | `Planned` | 없음 |
@@ -104,8 +104,8 @@
 1. **탐지 게임플레이 정의 (기획 확정)** — 가장 시급
 2. Game Feature Plugin 사용 여부 확정
 3. `ExperienceSubsystem` 인터페이스 확정 (Main)
-4. Shared Enemy Soldier 및 Faction 구조 확정
-   → `GF_OngseongCrossbow` 작업과 **같은 Shared 자산을 사용해야 하므로 중복 구현 주의**
+4. 탐지 시 도주 경로와 목표점 정의
+   → Shared Enemy의 Behavior State를 `Retreat`로 바꾸고 단순 이동 목표를 반대편 탈출점으로 지정한다.
 5. VR Player Pawn 및 상호작용 방식 확정 (Core)
 
 ---

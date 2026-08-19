@@ -16,6 +16,13 @@
 	"Installed": false,
 	"ExplicitlyLoaded": true,
 	"BuiltInInitialFeatureState": "Registered",
+	"Modules": [
+		{
+			"Name": "GF_OngseongCrossbow",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "ModularGameplay",

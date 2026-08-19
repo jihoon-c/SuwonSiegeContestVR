@@ -74,18 +74,21 @@ graph TD
 ```mermaid
 graph TD
     TPL["UE5 VR Template<br/>XRFramework + XRMannequins + VRSpectator"]
-    NONE1["Shared Gameplay<br/>(비어 있음)"]
-    NONE2["Game Features<br/>(비어 있음 — Plugins 디렉토리 자체가 없음)"]
+    CORE["Core<br/>VR / Scenario / Experience / Narration"]
+    SHARED["Shared Gameplay<br/>Combat Character / Health / Damage / Faction / Projectile"]
+    GF["Game Features<br/>GF_Geojunggi / GF_OngseongCrossbow / GF_Gongsimdon / GF_Singijeon"]
 
-    TPL -.->|"계층 구분 없음"| NONE1
-    NONE1 -.-> NONE2
+    GF --> SHARED
+    SHARED --> CORE
+    TPL -.->|"템플릿 참조"| CORE
 
-    style NONE1 stroke-dasharray: 5 5
-    style NONE2 stroke-dasharray: 5 5
+    style SHARED stroke-dasharray: 5 5
 ```
 
-**현재 계층 구분이 존재하지 않는다.** `Content/` 아래는 템플릿 디렉토리 구조 그대로이며
-Core / Shared Gameplay / Game Feature를 구분하는 폴더도 모듈도 없다.
+Core는 프로젝트 Runtime 모듈에 구현되어 있으며, Shared Gameplay의 공통 전투 기반도
+`Source/SuwonSiegeContestVR/Gameplay/`에 구현되어 있다. Content 기반 Shared Gameplay
+Blueprint와 AI/UI/Tags는 아직 없다. Game Feature 플러그인에는 신기전 구현이 존재하며,
+나머지 Feature는 플러그인 골격 상태다.
 
 ---
 
@@ -324,11 +327,12 @@ sequenceDiagram
 
 ## 4. Shared Gameplay 시스템
 
-**이 계층은 현재 전부 `Status: Planned`이다. 하나도 구현되어 있지 않다.**
+Character / Health / Damage / Faction / Projectile / AI LOD 기반은 `Status: Implemented`이며,
+공통 UI와 Gameplay Tags는 아직 `Status: Planned`이다.
 
 ### 4.1 Character 계층
 
-`Status: Planned`
+`Status: Implemented` — C++ 기반 클래스가 Shared Gameplay 계층에 제공된다.
 
 ```mermaid
 graph TD
@@ -348,11 +352,22 @@ graph TD
 이는 전투 캐릭터가 아니다. Enemy/Ally 병사는 존재하지 않는다.
 
 **분류 결정**: 적 병사·아군 병사는 웅성/쇠뇌, 신기전, 공심돈 등 복수 체험에서 사용될 수 있으므로
+`ACombatCharacter`는 `UHealthComponent`, `UCombatFactionComponent`를 보유하고
+`IDamageReceiverInterface`를 구현한다. `AEnemyCombatCharacter`,
+`AAllyCombatCharacter`는 각각 Enemy/Ally 진영을 기본값으로 지정한 Blueprintable
+기반 클래스다. 메시, 애니메이션, AI, 사망 연출은 Feature가 추가한다.
+
 **Game Feature가 아니라 Shared Gameplay에 둔다.** (`CLAUDE.md` 5절)
 
 ### 4.2 Health / Damage / Faction
 
-`Status: Planned` — 전부 미구현.
+`Status: Implemented` — `UHealthComponent`, `UCombatFactionComponent`,
+`FCombatDamageSpec`, `IDamageReceiverInterface`, `UCombatDamageLibrary`가 구현됐다.
+`UCombatDamageLibrary::ApplyCombatDamage`는 대상의 Interface를 우선 사용하고,
+없으면 Health Component로 적용한다. 양쪽에 Faction Component가 있을 때에는
+Enemy와 Player/Ally 사이의 적대 관계에만 피해를 허용하며, Neutral 및 같은 편은
+기본적으로 보호한다. 환경·스크립트 피해는 Damage Spec의 `bIgnoreFaction`으로
+명시적으로 우회할 수 있다.
 
 목표 데미지 흐름 (구체 클래스 검사 금지, Faction 기반 판정):
 
@@ -383,30 +398,53 @@ If Actor Is BP_EnemySoldier → Apply Damage    ← 금지
 Check Faction → Check Damage Policy → Apply Damage
 ```
 
-**참고**: 템플릿 `BP_Projectile`을 조사한 결과 **데미지 적용 로직이 없다.**
-`Actor` 파생에 머티리얼만 지정된 시각 샘플이므로, 공통 Projectile은 신규 설계해야 한다.
+**참고**: 템플릿 `BP_Projectile`에는 데미지 적용 로직이 없다. 해당 시각 샘플은 유지하고,
+신규 체험 투사체는 아래 공통 기반을 사용한다.
 
 ### 4.3 AI
 
-`Status: Planned` — 미구현.
+`Status: Implemented (공통 기반) / Planned (Feature별 행동 데이터)`
 
-`AIModule`, `NavigationSystem`, `GameplayTasks`가 `Build.cs`에 포함되어 있지 않다.
-Behavior Tree, Blackboard, AIController, Spawner 모두 존재하지 않는다.
+`AEnemyCombatCharacter`는 `UEnemyAILODComponent`,
+`UEnemySimpleMovementComponent`, `UEnemyBehaviorStateComponent`를 기본 보유한다.
+
+- 원거리: 0.5초 기본 평가/이동 주기, 메시 숨김, BT 중지, NavMesh 없이 목표점으로 직접 이동
+- 근거리: 메시 표시, Actor Tick 정상 주기, 단순 이동 중지, 선택형 `AEnemyAIController`의 Behavior Tree 실행
+- StateTree를 사용할 Feature는 Controller의 `OnHighDetailAIChanged` 이벤트를 Blueprint로 구독한다.
+- `EnterNearDistance` / `ExitNearDistance`는 히스테리시스로 왕복 전환을 방지한다.
+
+`AActorPool`은 미리 Actor를 생성하고 재사용한다. 기본적으로 확장을 금지해 시나리오별
+동시 생성 상한을 강제하며, `IPoolableActorInterface`로 재사용 시 타이머·상태를 초기화한다.
+Spawner와 구체 Behavior Tree/StateTree Asset은 Feature가 소유한다.
+
+### 4.3.1 Combat AI 후속 기반
+
+`UCombatAttackComponent`는 목표 Actor에 사거리 내 주기 피해를 적용하고,
+`UCombatThreatComponent`는 Health 피해의 공격원을 짧게 기억한다.
+`UCombatTargetingComponent`는 Faction/Health Component를 통해 살아 있는 적대 Actor만
+검색한다. 이들은 구체 적 클래스 검사를 하지 않으며, 성문·총통·충차 등 어느 전략 목표에도
+붙일 수 있다.
+
+`AEnemyCombatCharacter.SetObjectiveTarget`은 원거리 단순 이동을 설정하고 목표 도착 시
+`Advance → Assault` 및 공격 Component 활성화로 전환한다. 공심돈은
+`SetRetreatTargetLocation`으로 `Retreat` 상태와 탈출 목표를 지정한다.
 
 **참고**: `DefaultEngine.ini`에 `bAllowClientSideNavigation=True`가 설정되어 있고,
 `BP_XRPawn`의 텔레포트가 NavMesh 투영을 사용하므로 각 Level에 NavMeshBoundsVolume이 필요하다.
 
 ### 4.4 Projectile
 
-`Status: Partial (템플릿 샘플만)`
+`Status: Implemented (공통 기반) / Partial (기존 Feature 연결)`
 
 ```text
 현재 위치: Content/XRFramework/Blueprints/BP_Projectile
 권장 위치: Content/Gameplay/Combat/Projectiles/
 차이:      Actor 파생 시각 샘플. 데미지/Faction/충돌 정책 없음.
            BP_Pistol이 발사하는 용도로만 쓰인다.
-향후 조치: 공통 Projectile 기반 클래스를 신규 설계한다.
-           쇠뇌 볼트 / 신기전 / 적 투사체가 이를 공유한다.
+공통 기반: `AGameplayProjectileActor`는 충돌, 수명, 발사, Faction-aware damage,
+Impact Event를 제공한다. Feature는 시각 요소와 발사 정책을 파생 Blueprint/C++로
+구현한다. 기존 `BP_Projectile`와 신기전 전용 투사체는 아직 이 기반으로 이전하지
+않았으므로 기존 동작에는 영향이 없다.
 ```
 
 ### 4.5 공통 UI
