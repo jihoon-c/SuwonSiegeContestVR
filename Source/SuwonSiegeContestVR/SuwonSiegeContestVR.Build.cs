@@ -17,6 +17,8 @@ public class SuwonSiegeContestVR : ModuleRules
 			"InputCore",
 			"HeadMountedDisplay",
 			"NavigationSystem",
+			"AIModule",
+			"GameplayTasks",
 			"UMG"
 		});
 
