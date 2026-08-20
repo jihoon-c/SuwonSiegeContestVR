@@ -3,6 +3,7 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Gameplay/Combat/CombatDamageLibrary.h"
+#include "Gameplay/Pooling/ActorPool.h"
 
 AGameplayProjectileActor::AGameplayProjectileActor()
 {
@@ -27,6 +28,35 @@ void AGameplayProjectileActor::BeginPlay()
 	Super::BeginPlay();
 	CollisionComponent->OnComponentHit.AddDynamic(this, &AGameplayProjectileActor::HandleProjectileHit);
 	SetLifeSpan(LifeSpanSeconds);
+}
+
+void AGameplayProjectileActor::LifeSpanExpired()
+{
+	if (AActorPool* OwningPool = Cast<AActorPool>(GetOwner()))
+	{
+		if (OwningPool->ReleaseActor(this))
+		{
+			return;
+		}
+	}
+
+	Super::LifeSpanExpired();
+}
+
+void AGameplayProjectileActor::OnAcquiredFromPool_Implementation()
+{
+	DamageSpec = FCombatDamageSpec();
+	ProjectileMovement->StopMovementImmediately();
+	ProjectileMovement->Deactivate();
+	SetLifeSpan(LifeSpanSeconds);
+}
+
+void AGameplayProjectileActor::OnReleasedToPool_Implementation()
+{
+	ProjectileMovement->StopMovementImmediately();
+	ProjectileMovement->Deactivate();
+	DamageSpec = FCombatDamageSpec();
+	SetLifeSpan(0.0f);
 }
 
 void AGameplayProjectileActor::LaunchProjectile(const FVector Direction, const float Speed, const FCombatDamageSpec& InDamageSpec)
@@ -56,6 +86,13 @@ void AGameplayProjectileActor::HandleProjectileHit(UPrimitiveComponent* HitCompo
 	OnProjectileImpact.Broadcast(this, OtherActor, Hit);
 	if (bDestroyOnImpact)
 	{
+		if (AActorPool* OwningPool = Cast<AActorPool>(GetOwner()))
+		{
+			if (OwningPool->ReleaseActor(this))
+			{
+				return;
+			}
+		}
 		Destroy();
 	}
 }

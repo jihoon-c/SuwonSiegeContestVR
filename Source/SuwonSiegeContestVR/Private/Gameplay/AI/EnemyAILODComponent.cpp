@@ -2,6 +2,8 @@
 
 #include "Components/MeshComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Gameplay/AI/EnemyAIController.h"
 #include "Gameplay/AI/EnemySimpleMovementComponent.h"
@@ -31,6 +33,20 @@ void UEnemyAILODComponent::SetLODReferenceActor(AActor* NewReferenceActor)
 {
 	LODReferenceActor = NewReferenceActor;
 	RefreshLOD();
+}
+
+void UEnemyAILODComponent::SetLODSystemEnabled(const bool bEnabled)
+{
+	SetComponentTickEnabled(bEnabled);
+	if (!bEnabled)
+	{
+		SuspendManagedSystems();
+		return;
+	}
+
+	PrimaryComponentTick.TickInterval = EvaluationInterval;
+	RefreshLOD();
+	ApplyLODLevel(CurrentLODLevel, true);
 }
 
 void UEnemyAILODComponent::RefreshLOD()
@@ -73,6 +89,7 @@ void UEnemyAILODComponent::ApplyLODLevel(const EEnemyAILODLevel NewLevel, const 
 		for (UMeshComponent* MeshComponent : MeshComponents)
 		{
 			MeshComponent->SetVisibility(bNear, true);
+			MeshComponent->SetComponentTickEnabled(bNear);
 		}
 	}
 
@@ -90,10 +107,61 @@ void UEnemyAILODComponent::ApplyLODLevel(const EEnemyAILODLevel NewLevel, const 
 		// Preserve basic movement until a Feature actually configures a close-range BT or StateTree.
 		SimpleMovement->SetSimpleMovementEnabled(!bNear || !bHasHighDetailAI);
 	}
+	if (ACharacter* CharacterOwner = Cast<ACharacter>(Owner))
+	{
+		if (UCharacterMovementComponent* CharacterMovement = CharacterOwner->GetCharacterMovement())
+		{
+			const bool bUseCharacterMovement = bNear && bHasHighDetailAI;
+			if (bUseCharacterMovement)
+			{
+				CharacterMovement->SetComponentTickEnabled(true);
+				if (CharacterMovement->MovementMode == MOVE_None)
+				{
+					CharacterMovement->SetMovementMode(MOVE_Walking);
+				}
+			}
+			else
+			{
+				CharacterMovement->StopMovementImmediately();
+				CharacterMovement->DisableMovement();
+				CharacterMovement->SetComponentTickEnabled(false);
+			}
+		}
+	}
 
 	if (PreviousLevel != CurrentLODLevel)
 	{
 		OnLODChanged.Broadcast(PreviousLevel, CurrentLODLevel);
+	}
+}
+
+void UEnemyAILODComponent::SuspendManagedSystems()
+{
+	AActor* Owner = GetOwner();
+	if (!IsValid(Owner))
+	{
+		return;
+	}
+
+	if (const APawn* PawnOwner = Cast<APawn>(Owner))
+	{
+		if (AEnemyAIController* Controller = Cast<AEnemyAIController>(PawnOwner->GetController()))
+		{
+			Controller->SetHighDetailAIEnabled(false);
+		}
+	}
+	if (UEnemySimpleMovementComponent* SimpleMovement = Owner->FindComponentByClass<UEnemySimpleMovementComponent>())
+	{
+		SimpleMovement->SetSimpleMovementEnabled(false);
+	}
+	if (ACharacter* CharacterOwner = Cast<ACharacter>(Owner))
+	{
+		if (UCharacterMovementComponent* CharacterMovement = CharacterOwner->GetCharacterMovement())
+		{
+			CharacterMovement->StopMovementImmediately();
+			CharacterMovement->DisableMovement();
+			CharacterMovement->SetComponentTickEnabled(false);
+		}
 	}
 }
 

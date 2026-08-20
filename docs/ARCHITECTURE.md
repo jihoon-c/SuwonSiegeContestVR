@@ -415,6 +415,9 @@ Check Faction → Check Damage Policy → Apply Damage
 
 `AActorPool`은 미리 Actor를 생성하고 재사용한다. 기본적으로 확장을 금지해 시나리오별
 동시 생성 상한을 강제하며, `IPoolableActorInterface`로 재사용 시 타이머·상태를 초기화한다.
+재호출되는 `PrewarmPool`도 Active와 Available의 합계를 기준으로 용량을 계산해 상한을 넘지 않는다.
+적은 반납 시 공격 타이머·목표·고정밀 AI·이동 상태를 모두 정리하고, 공통 Projectile도
+Poolable 계약을 구현해 선택적으로 재사용할 수 있다.
 Spawner와 구체 Behavior Tree/StateTree Asset은 Feature가 소유한다.
 
 ### 4.3.1 Combat AI 후속 기반
@@ -591,13 +594,14 @@ graph TD
 | 초성 퀴즈 | Core | `Planned` | — |
 | 음성 인식 | Core | `Planned` | — (수단 미정) |
 | 공통 Interface | Core | `Planned` | — |
-| CombatCharacter | Shared | `Planned` | — |
-| EnemySoldier / AllySoldier | Shared | `Planned` | — |
-| HealthComponent | Shared | `Planned` | — |
-| Damage System | Shared | `Planned` | — |
-| FactionComponent | Shared | `Planned` | — |
-| AI (BT / Blackboard / Spawner) | Shared | `Planned` | — |
-| Projectile (전투용) | Shared | `Planned` | 템플릿 `BP_Projectile`은 데미지 없음 |
+| CombatCharacter | Shared | `Implemented (C++ base)` | `Source/SuwonSiegeContestVR/*/Gameplay/Characters/` |
+| EnemySoldier / AllySoldier | Shared | `Partial` | C++ 기반 구현, Blueprint 메시·애니메이션 미작성 |
+| HealthComponent | Shared | `Implemented` | `Source/SuwonSiegeContestVR/*/Gameplay/Combat/HealthComponent.*` |
+| Damage System | Shared | `Implemented` | Damage Spec / Interface / Library 구현 |
+| FactionComponent | Shared | `Implemented` | Player / Ally / Enemy / Neutral 적대 규칙 구현 |
+| AI (BT / StateTree / Spawner) | Shared | `Partial` | Controller·LOD·단순 이동 기반 구현, Feature 행동 Asset·Spawner 미작성 |
+| Actor Pool | Shared | `Implemented (C++ base)` | 고정 용량 사전 생성과 Enemy/Projectile 재사용 계약 구현 |
+| Projectile (전투용) | Shared | `Partial` | 공통 C++ 기반·풀 계약 구현, Feature Blueprint 시각 요소 일부 미작성 |
 | 공통 UI Widget | Shared | `Planned` | `WBP_Menu`(템플릿 메뉴)만 존재 |
 | Gameplay Tags | Shared | `Planned` | — |
 | GF_Geojunggi | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
@@ -605,7 +609,7 @@ graph TD
 | GF_Gongsimdon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | GF_Singijeon | Feature | `Partial` | Runtime C++ 모듈과 GameFeatureData 있음 / Blueprint·레벨 미완료 |
 | L_Main 및 체험 Level 4종 | — | `Partial` | `LV_Singijeon` 존재 및 Experience 연결, `L_Main`·나머지 체험 미구현 |
-| C++ 게임플레이 코드 | — | `Partial` | `GF_Singijeon` 핵심 VR 상호작용 구현 |
+| C++ 게임플레이 코드 | — | `Partial` | Core Scenario/Experience, Shared Combat/AI/Pooling, 신기전·총통 Runtime 구현 |
 
 ---
 
@@ -615,7 +619,8 @@ graph TD
 
 * `.uproject`에 GAS 관련 플러그인이 활성화되어 있지 않다. `Build.cs`에도 `GameplayAbilities`가 없다.
 * 이는 `CLAUDE.md` 11절의 방침과 일치한다.
-* 기본 전투 구조는 **Health Component + Faction Component + Damage Interface + Gameplay Tags**를 사용한다.
+* 현재 기본 전투 구조는 **Health Component + Faction Component + Damage Interface**를 사용한다.
+  Gameplay Tags는 네이밍 체계를 확정한 뒤 추가할 계획이다.
 * GAS 도입은 프로젝트 전역 Architecture 변경이므로 **사용자 요청 없이 도입하지 않는다.**
 
 ---

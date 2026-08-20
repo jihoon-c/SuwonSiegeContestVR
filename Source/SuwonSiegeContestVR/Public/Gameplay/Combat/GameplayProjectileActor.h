@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Gameplay/Combat/CombatTypes.h"
+#include "Gameplay/Pooling/PoolableActorInterface.h"
 #include "GameplayProjectileActor.generated.h"
 
 class UProjectileMovementComponent;
@@ -14,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnGameplayProjectileImpact, AGam
 
 /** Collision-based projectile base with faction-aware damage. Feature projectiles provide their visual and launch policy. */
 UCLASS(Abstract, Blueprintable)
-class SUWONSIEGECONTESTVR_API AGameplayProjectileActor : public AActor
+class SUWONSIEGECONTESTVR_API AGameplayProjectileActor : public AActor, public IPoolableActorInterface
 {
 	GENERATED_BODY()
 
@@ -22,6 +23,9 @@ public:
 	AGameplayProjectileActor();
 
 	virtual void BeginPlay() override;
+	virtual void LifeSpanExpired() override;
+	virtual void OnAcquiredFromPool_Implementation() override;
+	virtual void OnReleasedToPool_Implementation() override;
 
 	UFUNCTION(BlueprintCallable, Category = "Combat|Projectile")
 	void LaunchProjectile(FVector Direction, float Speed, const FCombatDamageSpec& InDamageSpec);

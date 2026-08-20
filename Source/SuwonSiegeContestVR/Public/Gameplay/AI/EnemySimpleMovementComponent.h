@@ -36,8 +36,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay|AI|Simple Movement", meta = (ClampMin = "0.0"))
 	float MoveSpeed = 250.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay|AI|Simple Movement", meta = (ClampMin = "1.0"))
-	float UpdateInterval = 0.25f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay|AI|Simple Movement", meta = (ClampMin = "0.05"))
+	float UpdateInterval = 0.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay|AI|Simple Movement", meta = (ClampMin = "0.0"))
 	float AcceptanceRadius = 100.0f;

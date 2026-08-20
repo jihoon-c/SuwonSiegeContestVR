@@ -27,9 +27,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
 	int32 GetAvailableCount() const { return AvailableActors.Num(); }
 
+	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
+	int32 GetActiveCount() const { return ActiveActors.Num(); }
+
+	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
+	int32 GetTotalCount() const { return AvailableActors.Num() + ActiveActors.Num(); }
+
 protected:
 	AActor* CreatePooledActor();
 	void DeactivateActor(AActor* ActorToDeactivate);
+	void PruneInvalidActors();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay|Pooling")
 	TSubclassOf<AActor> PooledActorClass;

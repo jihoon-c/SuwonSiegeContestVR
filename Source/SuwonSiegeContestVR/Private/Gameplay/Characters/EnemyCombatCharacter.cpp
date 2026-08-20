@@ -53,13 +53,22 @@ void AEnemyCombatCharacter::HandleObjectiveReached(AActor* ReachedEnemy)
 
 void AEnemyCombatCharacter::OnAcquiredFromPool_Implementation()
 {
-	HealthComponent->SetCurrentHealth(HealthComponent->GetMaxHealth());
-	AILODComponent->SetComponentTickEnabled(true);
-	AILODComponent->RefreshLOD();
+	ObjectiveTarget = nullptr;
+	HealthComponent->ResetHealth();
+	AttackComponent->SetAttackEnabled(false);
+	AttackComponent->SetAttackTarget(nullptr);
+	SimpleMovementComponent->ClearMoveTarget();
+	BehaviorStateComponent->SetBehaviorState(TEXT("Inactive"));
+	AILODComponent->SetLODSystemEnabled(true);
 }
 
 void AEnemyCombatCharacter::OnReleasedToPool_Implementation()
 {
+	ObjectiveTarget = nullptr;
+	AttackComponent->SetAttackEnabled(false);
+	AttackComponent->SetAttackTarget(nullptr);
 	SimpleMovementComponent->SetSimpleMovementEnabled(false);
-	AILODComponent->SetComponentTickEnabled(false);
+	SimpleMovementComponent->ClearMoveTarget();
+	BehaviorStateComponent->SetBehaviorState(TEXT("Inactive"));
+	AILODComponent->SetLODSystemEnabled(false);
 }

@@ -4,13 +4,13 @@
 
 # 현재 상태
 
-Shared C++ 기반과 총통 Feature Runtime 모듈은 `bb37e29`에 구현됐다. 2026-08-19에 Editor를 종료한 뒤 `SuwonSiegeContestVREditor Win64 Development -NoHotReload` 최종 컴파일이 성공했다. 8000번 포트 MCP에는 에디터 Asset/Level/Blueprint 도구가 노출되지 않았다.
+Shared C++ 기반과 총통 Feature Runtime 모듈은 `bb37e29`에 구현됐다. 2026-08-20에 공용 Enemy Blueprint, 성문 목표, 적·투사체 Pool과 `AOngseongEnemyWaveManager`를 `LV_Ongseong`에 연결했다. UBT 빌드, 전체 Automation Test 10/10, MCP Simulate PIE와 Map Check 0/0을 통과했다. 남은 범위는 최종 시각/음향 자산, Muzzle/충돌 튜닝, 근거리 BT/StateTree, 체험 완료 조건과 Android 실기기 성능 검증이다.
 
 # 구현 범위
 
 - C++ 컴파일 완료
 - 총통/포탄/적 Blueprint 생성 및 C++ 부모 클래스 연결
-- 성문 목표 Actor, 총통, 목표점, Actor Pool을 `LV_Ongseong`에 배치
+- 성문 목표 Actor, 총통, 목표점, Actor Pool을 `LV_Ongseong`에 배치하고 현재 비어 있는 참조를 연결
 - Enemy 근거리 BT 또는 StateTree와 AI LOD 이벤트 연결
 - Wave/Spawner Manager로 풀에서 적을 획득·반납
 - Android 실기기 성능 측정 및 수치 조정

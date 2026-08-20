@@ -25,6 +25,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gameplay|AI|LOD")
 	void RefreshLOD();
 
+	/** Enables or suspends every runtime system managed by this LOD component. */
+	UFUNCTION(BlueprintCallable, Category = "Gameplay|AI|LOD")
+	void SetLODSystemEnabled(bool bEnabled);
+
 	UFUNCTION(BlueprintPure, Category = "Gameplay|AI|LOD")
 	EEnemyAILODLevel GetCurrentLODLevel() const { return CurrentLODLevel; }
 
@@ -33,6 +37,7 @@ public:
 
 protected:
 	void ApplyLODLevel(EEnemyAILODLevel NewLevel, bool bForce = false);
+	void SuspendManagedSystems();
 	AActor* ResolveReferenceActor() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay|AI|LOD")

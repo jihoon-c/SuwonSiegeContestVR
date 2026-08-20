@@ -56,14 +56,32 @@ bool UHealthComponent::RestoreHealth(const float Amount)
 	return true;
 }
 
+void UHealthComponent::ResetHealth()
+{
+	const float PreviousHealth = CurrentHealth;
+	CurrentHealth = FMath::Max(0.0f, MaxHealth);
+	bIsDead = CurrentHealth <= 0.0f;
+	if (!FMath::IsNearlyEqual(PreviousHealth, CurrentHealth))
+	{
+		BroadcastHealthChanged(PreviousHealth);
+	}
+}
+
 void UHealthComponent::SetCurrentHealth(const float NewHealth)
 {
 	const float PreviousHealth = CurrentHealth;
+	const bool bWasDead = bIsDead;
 	CurrentHealth = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
 	bIsDead = CurrentHealth <= 0.0f;
 	if (!FMath::IsNearlyEqual(PreviousHealth, CurrentHealth))
 	{
 		BroadcastHealthChanged(PreviousHealth);
+	}
+	if (!bWasDead && bIsDead)
+	{
+		FCombatDamageSpec StateChangeDamage;
+		StateChangeDamage.Amount = PreviousHealth - CurrentHealth;
+		OnDeath.Broadcast(this, StateChangeDamage);
 	}
 }
 

@@ -17,6 +17,7 @@ public:
 	UCombatAttackComponent();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Combat|Attack")
 	void SetAttackTarget(AActor* NewTarget);
@@ -26,6 +27,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Combat|Attack")
 	bool TryPerformAttack();
+
+	UFUNCTION(BlueprintPure, Category = "Combat|Attack")
+	bool IsAttackEnabled() const { return bAttackEnabled; }
+
+	UFUNCTION(BlueprintPure, Category = "Combat|Attack")
+	AActor* GetAttackTarget() const { return AttackTarget; }
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Attack")
 	FOnCombatAttackPerformed OnAttackPerformed;

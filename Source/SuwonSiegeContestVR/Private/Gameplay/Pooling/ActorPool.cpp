@@ -15,6 +15,7 @@ void AActorPool::BeginPlay()
 
 AActor* AActorPool::AcquireActor(const FTransform& SpawnTransform)
 {
+	PruneInvalidActors();
 	AActor* PooledActor = nullptr;
 	while (!AvailableActors.IsEmpty() && !IsValid(PooledActor))
 	{
@@ -55,7 +56,8 @@ bool AActorPool::ReleaseActor(AActor* ActorToRelease)
 
 void AActorPool::PrewarmPool()
 {
-	const int32 DesiredAvailableCount = FMath::Max(0, InitialPoolSize) - AvailableActors.Num();
+	PruneInvalidActors();
+	const int32 DesiredAvailableCount = FMath::Max(0, InitialPoolSize - GetTotalCount());
 	for (int32 Index = 0; Index < DesiredAvailableCount; ++Index)
 	{
 		if (AActor* NewActor = CreatePooledActor())
@@ -88,4 +90,16 @@ void AActorPool::DeactivateActor(AActor* ActorToDeactivate)
 	ActorToDeactivate->SetActorEnableCollision(false);
 	ActorToDeactivate->SetActorHiddenInGame(true);
 	ActorToDeactivate->SetActorTickEnabled(false);
+}
+
+void AActorPool::PruneInvalidActors()
+{
+	AvailableActors.RemoveAll([](const TObjectPtr<AActor>& Actor)
+	{
+		return !IsValid(Actor);
+	});
+	ActiveActors.RemoveAll([](const TObjectPtr<AActor>& Actor)
+	{
+		return !IsValid(Actor);
+	});
 }

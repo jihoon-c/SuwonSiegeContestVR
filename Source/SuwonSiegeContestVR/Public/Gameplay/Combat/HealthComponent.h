@@ -26,6 +26,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat|Health")
 	bool RestoreHealth(float Amount);
 
+	/** Restores the component to its configured maximum without treating the reset as healing or damage. */
+	UFUNCTION(BlueprintCallable, Category = "Combat|Health")
+	void ResetHealth();
+
+	/** Direct state override for setup/debugging. Gameplay damage should use ApplyDamage. */
 	UFUNCTION(BlueprintCallable, Category = "Combat|Health")
 	void SetCurrentHealth(float NewHealth);
 

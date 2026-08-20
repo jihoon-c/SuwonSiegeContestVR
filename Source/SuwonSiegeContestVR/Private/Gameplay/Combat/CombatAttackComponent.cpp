@@ -14,6 +14,13 @@ void UCombatAttackComponent::BeginPlay()
 	SetAttackEnabled(bAttackEnabled);
 }
 
+void UCombatAttackComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	SetAttackEnabled(false);
+	AttackTarget = nullptr;
+	Super::EndPlay(EndPlayReason);
+}
+
 void UCombatAttackComponent::SetAttackTarget(AActor* NewTarget)
 {
 	AttackTarget = NewTarget;
