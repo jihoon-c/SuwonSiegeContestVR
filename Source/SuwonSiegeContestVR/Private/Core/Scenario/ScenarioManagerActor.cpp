@@ -69,7 +69,9 @@ void AScenarioManagerActor::ApplyConfiguration()
 	ScenarioDefinition = ExperienceDefinition && ExperienceDefinition->ScenarioDefinition
 		? ExperienceDefinition->ScenarioDefinition.Get()
 		: StandaloneScenarioDefinition.Get();
-	NarrationTable = ScenarioDefinition ? ScenarioDefinition->NarrationTable.Get() : nullptr;
+	NarrationTable = LevelNarrationTable
+		? LevelNarrationTable.Get()
+		: (ScenarioDefinition ? ScenarioDefinition->NarrationTable.Get() : nullptr);
 	if (ExperienceDefinition)
 	{
 		bAutoStartScenario = ExperienceDefinition->bAutoStartScenario;

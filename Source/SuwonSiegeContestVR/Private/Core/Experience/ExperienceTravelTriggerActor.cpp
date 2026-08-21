@@ -3,8 +3,10 @@
 #include "Components/BoxComponent.h"
 #include "Core/Experience/ExperienceDefinition.h"
 #include "Core/Experience/ExperienceSubsystem.h"
+#include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -69,7 +71,8 @@ void AExperienceTravelTriggerActor::OnConstruction(const FTransform& Transform)
 
 bool AExperienceTravelTriggerActor::TriggerExperienceTravel(AActor* TriggeringActor)
 {
-	if ((bTriggerOnce && bHasTriggered) || !DestinationExperience)
+	if ((bTriggerOnce && bHasTriggered) || !DestinationExperience ||
+		!IsInteractionRequirementMet())
 	{
 		return false;
 	}
@@ -98,6 +101,30 @@ bool AExperienceTravelTriggerActor::TriggerExperienceTravel(AActor* TriggeringAc
 
 	bHasTriggered = true;
 	return true;
+}
+
+bool AExperienceTravelTriggerActor::IsInteractionRequirementMet() const
+{
+	if (RequiredInteractionID.IsNone())
+	{
+		return true;
+	}
+
+	if (!GetWorld())
+	{
+		return false;
+	}
+
+	for (TActorIterator<AActor> ActorIterator(GetWorld()); ActorIterator; ++ActorIterator)
+	{
+		if (const UScenarioManagerComponent* Manager =
+			ActorIterator->FindComponentByClass<UScenarioManagerComponent>())
+		{
+			return Manager->GetCurrentInteraction().InteractionID == RequiredInteractionID;
+		}
+	}
+
+	return false;
 }
 
 void AExperienceTravelTriggerActor::HandleBeginOverlap(

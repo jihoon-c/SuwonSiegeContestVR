@@ -1,0 +1,49 @@
+import unreal
+
+
+HWACHA_BP_PATH = "/GF_Singijeon/Gameplay/BP_SingijeonHwacha"
+ARROW_BP_PATH = "/GF_Singijeon/Gameplay/BP_SingijeonArrow"
+ARROW_MESH_PATH = "/GF_Singijeon/Asset/Arrow/arrowb/StaticMeshes/arrowb"
+ARROW_MATERIAL_PATH = "/GF_Singijeon/Asset/Arrow/arrowb/Materials/M_Arrow01b"
+HWACHA_MESH_PATH = "/GF_Singijeon/Asset/Hwacha/hwacha/StaticMeshes/hwacha"
+
+hwacha_bp = unreal.load_asset(HWACHA_BP_PATH)
+arrow_bp = unreal.load_asset(ARROW_BP_PATH)
+arrow_mesh_asset = unreal.load_asset(ARROW_MESH_PATH)
+arrow_material_asset = unreal.load_asset(ARROW_MATERIAL_PATH)
+hwacha_mesh_asset = unreal.load_asset(HWACHA_MESH_PATH)
+if (not hwacha_bp or not arrow_bp or not arrow_mesh_asset or
+        not arrow_material_asset or not hwacha_mesh_asset):
+    raise RuntimeError(
+        "Hwacha Blueprint, Arrow Blueprint, Hwacha Static Mesh, or Arrow Static Mesh is missing"
+    )
+
+hwacha_cdo = unreal.get_default_object(hwacha_bp.generated_class())
+hwacha_cdo.get_editor_property("body_mesh").set_static_mesh(hwacha_mesh_asset)
+hwacha_cdo.set_editor_property("auto_fill_on_first_load", True)
+hwacha_cdo.set_editor_property("auto_fill_rows", 6)
+hwacha_cdo.set_editor_property("auto_fill_columns", 15)
+hwacha_cdo.set_editor_property("auto_fill_column_spacing", 8.0)
+hwacha_cdo.set_editor_property("auto_fill_row_spacing", 8.0)
+hwacha_cdo.set_editor_property("auto_fill_arrow_mesh", arrow_mesh_asset)
+hwacha_cdo.set_editor_property("auto_fill_arrow_material", arrow_material_asset)
+hwacha_cdo.set_editor_property("minimum_loaded_ammunition", 90)
+
+instance_component = hwacha_cdo.get_editor_property("auto_loaded_arrow_instances")
+instance_component.set_static_mesh(arrow_mesh_asset)
+instance_component.set_material(0, arrow_material_asset)
+
+arrow_cdo = unreal.get_default_object(arrow_bp.generated_class())
+projectile_mesh = arrow_cdo.get_editor_property("projectile_mesh")
+previous_mesh = projectile_mesh.get_editor_property("static_mesh")
+projectile_mesh.set_static_mesh(arrow_mesh_asset)
+projectile_mesh.set_material(0, arrow_material_asset)
+if previous_mesh and "/Engine/BasicShapes/Cylinder" in previous_mesh.get_path_name():
+    projectile_mesh.set_editor_property("relative_scale3d", unreal.Vector(1.0, 1.0, 1.0))
+    projectile_mesh.set_editor_property("relative_rotation", unreal.Rotator())
+
+for blueprint in (hwacha_bp, arrow_bp):
+    unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)
+    unreal.EditorAssetLibrary.save_loaded_asset(blueprint, only_if_is_dirty=False)
+
+unreal.log("SINGIJEON_AUTO_FILL_ARROW_GRID CONFIGURE SUCCESS")

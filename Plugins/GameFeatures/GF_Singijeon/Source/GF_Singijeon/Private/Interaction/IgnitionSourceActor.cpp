@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/Scenario/ScenarioInteractableComponent.h"
 #include "Core/Scenario/ScenarioTypes.h"
+#include "Particles/ParticleSystemComponent.h"
 
 AIgnitionSourceActor::AIgnitionSourceActor()
 {
@@ -27,6 +28,12 @@ AIgnitionSourceActor::AIgnitionSourceActor()
     GrabScenarioInteractor->SupportedInteractionTypes = { EScenarioInteractionType::Grab };
 }
 
+void AIgnitionSourceActor::BeginPlay()
+{
+    Super::BeginPlay();
+    RefreshIgnitionVisuals();
+}
+
 bool AIgnitionSourceActor::IsIgnitionActive_Implementation() const
 {
     return bIgnitionActive;
@@ -40,5 +47,27 @@ void AIgnitionSourceActor::SetIgnitionActive(const bool bNewActive)
     }
 
     bIgnitionActive = bNewActive;
+    RefreshIgnitionVisuals();
     OnIgnitionSourceStateChanged.Broadcast(bIgnitionActive);
+}
+
+void AIgnitionSourceActor::RefreshIgnitionVisuals()
+{
+    TInlineComponentArray<UFXSystemComponent*> Effects(this);
+    for (UFXSystemComponent* Effect : Effects)
+    {
+        if (!IsValid(Effect))
+        {
+            continue;
+        }
+
+        if (bIgnitionActive)
+        {
+            Effect->Activate(true);
+        }
+        else
+        {
+            Effect->DeactivateImmediate();
+        }
+    }
 }

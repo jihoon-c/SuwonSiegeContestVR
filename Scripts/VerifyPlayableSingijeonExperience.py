@@ -31,7 +31,7 @@ if hwacha_bp:
     cdo = unreal.get_default_object(hwacha_bp.generated_class())
     check(
         cdo.get_editor_property("body_mesh").get_editor_property("static_mesh") is not None,
-        "Hwacha Blueprint uses the Wooden_Rocket_Cart mesh",
+        "Hwacha Blueprint uses the Hwacha mesh",
     )
     for property_name, target_id in (
         ("load_scenario_interactor", "Hwacha_Load"),
@@ -60,12 +60,16 @@ for blueprint, name in ((arrow_bp, "Arrow"), (torch_bp, "Torch")):
         check("GrabPoint" in names, f"{name} Blueprint contains GrabPoint")
 
 expected_flow = {
-    "Singijeon2": "INT_GrabAmmo",
-    "INT_GrabAmmo": "INT_LoadHwacha",
-    "INT_LoadHwacha": "INT_GrabTorch",
-    "INT_GrabTorch": "INT_IgniteHwacha",
-    "INT_IgniteHwacha": "INT_FireHwacha",
-    "INT_FireHwacha": "None",
+    "NAR_01": "NAR_02", "NAR_02": "NAR_03", "NAR_03": "NAR_04",
+    "NAR_04": "NAR_05", "NAR_05": "INT_01", "INT_01": "NAR_06",
+    "NAR_06": "NAR_07", "NAR_07": "NAR_08", "NAR_08": "INT_02",
+    "INT_02": "NAR_09", "NAR_09": "NAR_10", "NAR_10": "INT_03",
+    "INT_03": "NAR_11", "NAR_11": "NAR_12", "NAR_12": "INT_04",
+    "INT_04": "NAR_13", "NAR_13": "INT_05", "INT_05": "NAR_14",
+    "NAR_14": "NAR_15", "NAR_15": "INT_06", "INT_06": "NAR_16",
+    "NAR_16": "INT_07", "INT_07": "NAR_17", "NAR_17": "NAR_18",
+    "NAR_18": "NAR_19", "NAR_19": "NAR_20", "NAR_20": "NAR_21",
+    "NAR_21": "None",
 }
 if scenario:
     stages = list(scenario.get_editor_property("stages"))
@@ -91,6 +95,7 @@ for label in (
     "BP_SingijeonHwacha_Playable",
     "BP_SingijeonArrow_Playable",
     "BP_SingijeonTorch_Playable",
+    "BP_SingijeonFirePit_Playable",
 ):
     check(label in labels, f"LV_Singijeon contains {label}")
 

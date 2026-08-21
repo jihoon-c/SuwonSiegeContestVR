@@ -1,6 +1,6 @@
 # Singijeon (신기전) — 현재 상태
 
-**갱신일**: 2026-08-12
+**갱신일**: 2026-08-19
 **계층**: Game Feature — `GF_Singijeon`
 **전체 상태**: `Status: Partial` — 핵심 VR 상호작용 C++ 구현 완료, 체험 콘텐츠와 Shared 전투 연동은 미완료
 
@@ -14,9 +14,13 @@
 | 화살 장전 | `USingijeonAmmoSlotComponent`, `ISingijeonAmmunitionInterface` |
 | 도화선 점화 | `UFuseIgnitionComponent`, `IIgnitionSourceInterface` |
 | 횃불 기본 액터 | `AIgnitionSourceActor` |
+| 횃불 점화 화로 | `AFirePitActor`, `BP_SingijeonFirePit`; 꺼진 횃불만 점화하고 `Torch_Ignite` 보고 |
 | 순차 연속 발사 | 슬롯별 `LaunchInterval`, `LaunchSpeed` 적용 |
 | 신기전 기본 투사체 | `ASingijeonProjectileActor` |
 | 양손 화차 운반 | `UTwoHandCarryComponent` |
+| 조준 가이드 | 장전 후 손잡이 표시, 양손 Grab 중 숨김, 미완료 Drop 시 복원, `Hwacha_Aim` 완료 시 해제 |
+| 자동 장전 외형 | 6 x 15 ISM에 신기전 메시와 `M_Arrow01b` 머티리얼 적용 |
+| 화로 불꽃 위치 | 점화 영역 `Z=102`, NS_Fire 하단 바운드 보정 원점 `Z=155` |
 | Blueprint 확장 이벤트 | 상태, 장전 수, 발사 완료, 점화, 운반 상태 이벤트 |
 | 이전 클래스 호환 | `SingijeonInteraction` 및 초기 게임 모듈 경로 Core Redirect |
 
@@ -43,7 +47,7 @@
 
 ## 다음 구현 순서
 
-1. VR Preview에서 탄약 Grab → 장전 → 횃불 Grab → 점화 → 발사 실기 검증
+1. VR Preview에서 탄약 Grab → 장전 → 횃불 Grab → FirePit 점화 → 도화선 점화 → 발사 실기 검증
 2. 신기전·횃불 전용 Static Mesh 교체
 3. Shared Damage/Target 계약 연결
 4. VFX/SFX/UI와 체험 완료 조건 연결

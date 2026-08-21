@@ -5,6 +5,7 @@
 #include "Animation/AnimInstance.h"
 #include "Core/Experience/ExperienceDefinition.h"
 #include "Core/Experience/ExperienceSubsystem.h"
+#include "Core/Experience/ExperienceTravelTriggerActor.h"
 #include "Core/Scenario/ScenarioDefinition.h"
 #include "Core/Scenario/ScenarioManagerActor.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
@@ -184,6 +185,20 @@ bool FScenarioSynchronousFlowTest::RunTest(const FString& Parameters)
 	{
 		ManagerActor->SetScenarioDefinition(Scenario);
 		TestEqual(TEXT("Actor configuration reaches manager component"), Manager->ScenarioDefinition.Get(), Scenario);
+
+		UDataTable* ScenarioNarrationTable = NewObject<UDataTable>(Scenario);
+		UDataTable* LevelNarrationTable = NewObject<UDataTable>(ManagerActor);
+		Scenario->NarrationTable = ScenarioNarrationTable;
+		ManagerActor->RefreshResolvedConfiguration();
+		TestEqual(TEXT("Manager falls back to the Scenario Narration Table"),
+			ManagerActor->NarrationTable.Get(), ScenarioNarrationTable);
+		ManagerActor->LevelNarrationTable = LevelNarrationTable;
+		ManagerActor->RefreshResolvedConfiguration();
+		TestEqual(TEXT("Level Narration Table overrides the Scenario default"),
+			ManagerActor->NarrationTable.Get(), LevelNarrationTable);
+		ManagerActor->LevelNarrationTable = nullptr;
+		ManagerActor->RefreshResolvedConfiguration();
+
 		TestTrue(TEXT("Configured scenario starts"), ManagerActor->StartConfiguredScenario());
 		const FScenarioDebugSnapshot Snapshot = Manager->GetDebugSnapshot();
 		TestEqual(TEXT("Scenario completes"), Snapshot.ScenarioState, EScenarioState::Completed);
@@ -214,6 +229,22 @@ bool FScenarioSynchronousFlowTest::RunTest(const FString& Parameters)
 			Manager->GetInteractionState(TEXT("INT_Travel")), EScenarioInteractionState::Completed);
 		TestEqual(TEXT("Return interaction resumes as running"),
 			Manager->GetInteractionState(TEXT("INT_Return")), EScenarioInteractionState::Running);
+
+		AExperienceTravelTriggerActor* TravelTrigger =
+			World->SpawnActor<AExperienceTravelTriggerActor>();
+		TestNotNull(TEXT("Travel Trigger is spawned"), TravelTrigger);
+		if (TravelTrigger)
+		{
+			TravelTrigger->RequiredInteractionID = TEXT("INT_Return");
+			TestTrue(TEXT("Travel Trigger accepts its required current interaction"),
+				TravelTrigger->IsInteractionRequirementMet());
+			TravelTrigger->RequiredInteractionID = TEXT("INT_Travel");
+			TestFalse(TEXT("Travel Trigger rejects a non-current interaction"),
+				TravelTrigger->IsInteractionRequirementMet());
+			TravelTrigger->RequiredInteractionID = NAME_None;
+			TestTrue(TEXT("An empty Travel Trigger requirement preserves legacy behavior"),
+				TravelTrigger->IsInteractionRequirementMet());
+		}
 	}
 
 	World->DestroyWorld(false);
@@ -293,6 +324,8 @@ bool FScenarioProjectAssetConfigurationTest::RunTest(const FString& Parameters)
 			PlacedManager->ScenarioDefinition.Get(), Scenario);
 		TestEqual(TEXT("Placed Manager references DT_Narration"),
 			PlacedManager->NarrationTable.Get(), NarrationTable);
+		TestNull(TEXT("Placed Manager uses the Scenario Narration Table when no Level override is assigned"),
+			PlacedManager->LevelNarrationTable.Get());
 		TestEqual(TEXT("Placed Manager references DA_Experience_Singijeon"),
 			PlacedManager->ExperienceDefinition.Get(), ExperienceDefinition);
 		TestTrue(TEXT("Placed Manager auto-start is enabled"), PlacedManager->bAutoStartScenario);

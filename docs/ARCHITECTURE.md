@@ -327,47 +327,65 @@ sequenceDiagram
 
 ## 4. Shared Gameplay 시스템
 
-Character / Health / Damage / Faction / Projectile / AI LOD 기반은 `Status: Implemented`이며,
-공통 UI와 Gameplay Tags는 아직 `Status: Planned`이다.
+Shared Gameplay에는 신규 표준인 `Gameplay/*` 전투 계층과 공심돈·신기전에서 계속
+사용 중인 `Shared/*` 호환 계층이 함께 존재한다. 신규 Character / Health / Damage /
+Faction / Projectile / AI LOD / Pooling 기반은 구현됐고, 기존 Feature의 표준 계층 이전과
+공통 UI·Gameplay Tags는 아직 남아 있다.
 
 ### 4.1 Character 계층
 
-`Status: Implemented` — C++ 기반 클래스가 Shared Gameplay 계층에 제공된다.
+`Status: Implemented (신규 C++ 기반) / Partial (기존 Feature 이전)`
 
 ```mermaid
 graph TD
-    CC["BP_CombatCharacter<br/>(공통 기반)"]
-    E["BP_EnemySoldier"]
-    A["BP_AllySoldier"]
-    HC["HealthComponent"]
-    FC["FactionComponent"]
+    CC["ACombatCharacter<br/>(신규 표준)"]
+    EC["AEnemyCombatCharacter"]
+    AC["AAllyCombatCharacter"]
+    GHC["Gameplay::HealthComponent"]
+    GFC["CombatFactionComponent"]
+    LEG["AEnemySoldierActor<br/>(Feature 호환)"]
+    LHC["Shared::HealthComponent"]
+    LFC["FactionComponent"]
 
-    CC --> E
-    CC --> A
-    CC -.->|"보유"| HC
-    CC -.->|"보유"| FC
+    CC --> EC
+    CC --> AC
+    CC -.->|"보유"| GHC
+    CC -.->|"보유"| GFC
+    LEG -.->|"보유"| LHC
+    LEG -.->|"보유"| LFC
 ```
 
-**현재 존재하는 유일한 캐릭터성 에셋**은 `BP_MannequinsXR`(플레이어 손 표시용 마네킹)뿐이며,
-이는 전투 캐릭터가 아니다. Enemy/Ally 병사는 존재하지 않는다.
-
-**분류 결정**: 적 병사·아군 병사는 웅성/쇠뇌, 신기전, 공심돈 등 복수 체험에서 사용될 수 있으므로
 `ACombatCharacter`는 `UHealthComponent`, `UCombatFactionComponent`를 보유하고
 `IDamageReceiverInterface`를 구현한다. `AEnemyCombatCharacter`,
 `AAllyCombatCharacter`는 각각 Enemy/Ally 진영을 기본값으로 지정한 Blueprintable
 기반 클래스다. 메시, 애니메이션, AI, 사망 연출은 Feature가 추가한다.
 
-**Game Feature가 아니라 Shared Gameplay에 둔다.** (`CLAUDE.md` 5절)
+`AEnemySoldierActor`는 기존 `Shared/Characters` 계층의 호환 Character이며 별도
+`Shared/Combat/ULegacyHealthComponent`, `UFactionComponent`를 가진다. 현재 공심돈의 7명
+Enemy Group과 신기전의 근거리 Enemy Wave가 이 클래스를 사용한다. Manny Mesh는
+교체용 임시 표시 자산이다. 동작 중인 Feature를 깨지 않도록 유지하되 신규 Feature는
+`AEnemyCombatCharacter` 계층을 우선 사용하고 기존 Feature는 별도 마이그레이션 후
+호환 계층을 제거한다.
+
+**분류 결정**: 적 병사·아군 병사는 웅성/쇠뇌, 신기전, 공심돈 등 복수 체험에서
+사용될 수 있으므로 **Game Feature가 아니라 Shared Gameplay에 둔다.** (`CLAUDE.md` 5절)
 
 ### 4.2 Health / Damage / Faction
 
-`Status: Implemented` — `UHealthComponent`, `UCombatFactionComponent`,
+`Status: Implemented (신규 표준) / Implemented (기존 Feature 호환)`
+
+신규 `Gameplay/Combat` 계층에는 `UHealthComponent`, `UCombatFactionComponent`,
 `FCombatDamageSpec`, `IDamageReceiverInterface`, `UCombatDamageLibrary`가 구현됐다.
 `UCombatDamageLibrary::ApplyCombatDamage`는 대상의 Interface를 우선 사용하고,
 없으면 Health Component로 적용한다. 양쪽에 Faction Component가 있을 때에는
 Enemy와 Player/Ally 사이의 적대 관계에만 피해를 허용하며, Neutral 및 같은 편은
 기본적으로 보호한다. 환경·스크립트 피해는 Damage Spec의 `bIgnoreFaction`으로
 명시적으로 우회할 수 있다.
+
+기존 `Shared/Combat` 계층의 `ULegacyHealthComponent`, `UFactionComponent`도 공심돈·신기전
+호환을 위해 유지한다. 이 계층은 표준 Unreal `ApplyDamage`를 소비하지만 신규
+`FCombatDamageSpec` 정책과 자동 통합되지는 않는다. 두 계층을 혼용할 때에는 구체
+Enemy Class 검사가 아니라 Damage Interface 또는 Faction Component 존재 여부를 사용한다.
 
 목표 데미지 흐름 (구체 클래스 검사 금지, Faction 기반 판정):
 
@@ -429,8 +447,13 @@ Spawner와 구체 Behavior Tree/StateTree Asset은 Feature가 소유한다.
 붙일 수 있다.
 
 `AEnemyCombatCharacter.SetObjectiveTarget`은 원거리 단순 이동을 설정하고 목표 도착 시
-`Advance → Assault` 및 공격 Component 활성화로 전환한다. 공심돈은
-`SetRetreatTargetLocation`으로 `Retreat` 상태와 탈출 목표를 지정한다.
+`Advance → Assault` 및 공격 Component 활성화로 전환한다.
+`SetRetreatTargetLocation`은 신규 Feature에서 `Retreat` 상태와 탈출 목표를 지정할 때
+사용할 수 있다. 현재 공심돈은 기존 `AEnemySoldierActor`와 전용 Group Spline을 사용하므로
+이 API로 아직 이전하지 않았다.
+
+공통 AI 빌드 의존성인 `AIModule`, `NavigationSystem`, `GameplayTasks`는
+`SuwonSiegeContestVR.Build.cs`에 등록되어 있다.
 
 **참고**: `DefaultEngine.ini`에 `bAllowClientSideNavigation=True`가 설정되어 있고,
 `BP_XRPawn`의 텔레포트가 NavMesh 투영을 사용하므로 각 Level에 NavMeshBoundsVolume이 필요하다.
@@ -472,41 +495,45 @@ Faction, Damage 정책, Experience 상태, Quiz 상태를 태그로 표현할 �
 
 ## 5. Game Feature 시스템
 
-`Status: Partial` — **플러그인 껍데기는 생성되었고 내용은 비어 있다.**
+`Status: Partial` — 네 개 Feature 플러그인과 `UGameFeatureData`가 존재한다.
+공심돈·신기전·웅성은 Runtime/Level 기반이 구현됐고 거중기는 콘텐츠 구현 전이다.
 
-* `Plugins/GameFeatures/` 아래에 `.uplugin` 4개 생성 완료 (2026-08-12)
+* `Plugins/GameFeatures/` 아래에 `.uplugin` 4개와 `UGameFeatureData` 4개 존재
 * `.uproject`에 `ModularGameplay`, `GameFeatures` 활성화 완료
 * 활성 플러그인: ModularGameplay, GameFeatures, OpenXR, OpenXREyeTracker, OpenXRHandTracking, PICOController
 * 공통 설정: `"CanContainContent": true`, `"ExplicitlyLoaded": true`, `"BuiltInInitialFeatureState": "Registered"`
 
-> `UGameFeatureData` 에셋 4개는 생성되어 있다. `GF_Geojunggi` 에셋 이름 불일치 1건은
-> `Plugins/GameFeatures/README.md`의 절차에 따라 에디터에서 수정해야 한다.
-
 Feature 상태 전이는 `Registered → Loaded → Active` 순이다.
-체험 진입 시 `Active`로 올리고 복귀 시 내리는 흐름은 `ExperienceSubsystem` 설계와 함께 확정한다. (`TODO`)
+`UExperienceSubsystem`이 Definition의 Feature URL을 활성화한 뒤 Level을 열고,
+복귀 시 활성 Feature를 내리는 흐름을 제공한다. 공심돈·신기전은 Experience Definition과
+연결됐으며 나머지 Feature는 Definition/Level 연결이 필요하다.
 
 목표 Feature 및 담당 범위:
 
 | Game Feature | 범위 | 상태 |
 |---|---|---|
-| `GF_Geojunggi` | 거중기 조작, 성벽 건축 체험, Geojunggi Phone 기능 | 플러그인 생성됨 / 내용 Planned |
-| `GF_OngseongCrossbow` | 웅성, 쇠뇌, 충차, 적 Wave 연출, Crossbow Phone 기능 | 플러그인 생성됨 / 내용 Planned |
-| `GF_Gongsimdon` | 공심돈, 침입 적 탐색/탐지, Gongsimdon Phone 기능 | 플러그인 생성됨 / 내용 Planned |
-| `GF_Singijeon` | 장전, 점화, 연속 발사, 양손 화차 운반 | C++ 핵심 상호작용 구현 / 콘텐츠 Partial |
+| `GF_Geojunggi` | 거중기 조작, 성벽 건축 체험, Geojunggi Phone 기능 | 플러그인/데이터 생성 / 콘텐츠 Planned |
+| `GF_OngseongCrossbow` | 웅성, 쇠뇌, 충차, 적 Wave 연출, Crossbow Phone 기능 | Shared Combat/AI, 총통, Enemy Pool·Wave, `LV_Ongseong` 기능 프로토타입 |
+| `GF_Gongsimdon` | 공심돈 야간 경계, 탐지·보고·퇴각 사격 | Scenario, 7명 Enemy Group, Main 왕복 구현 / 콘텐츠 Partial |
+| `GF_Singijeon` | 장전, 점화, 연속 발사, 양손 화차 운반, 45명 자동 돌진 Wave | C++ 핵심 상호작용·Enemy Wave 구현 / 콘텐츠 Partial |
 
 **주의**: 적 병사·데미지·체력·투사체 기반은 여러 Feature가 공유하므로 Shared Gameplay에 둔다.
 Feature에는 **그 체험에서만 쓰이는 것**(쇠뇌, 충차, 거중기, 신기전 발사대, 공심돈 탐지 로직)만 넣는다.
 
 **결정 완료 (2026-08-12)**: Game Feature Plugin(모듈러 게임플레이)을 사용한다.
-남은 작업은 `UGameFeatureData` 에셋 생성과 로딩/활성화 흐름 설계다.
+남은 작업은 거중기·웅성의 Experience 연결과 Feature별 최종 콘텐츠 완성이다.
 
 ---
 
 ## 6. Experience Flow / Level Flow
 
-`Status: Partial` — Core 전환 기반과 `LV_Singijeon` 연결은 구현됐고, `L_Main` 및 나머지 체험 Level은 미구현이다.
+`Status: Partial` — `L_Main → 공심돈 → L_Main → 신기전 → L_Main` 전환과 세션
+체크포인트 복원은 구현됐다. 거중기·웅성의 Main 순서 연결과 SaveGame 영속화는 미구현이다.
 
-**현재 실제 Level Flow**: `UExperienceSubsystem.StartExperience(DA_Experience_Singijeon)`으로 `LV_Singijeon`에 진입할 수 있다. Scenario 완료는 세션 진행도에 기록된다. 복귀는 `L_Main` 생성 및 `ReturnLevel` 지정 후 동작한다.
+**현재 실제 Level Flow**: `DA_Scenario_Main`의 Trigger가
+`UExperienceSubsystem.StartExperience`를 호출해 공심돈과 신기전 Level에 진입한다.
+Scenario 완료는 세션 진행도에 기록되며 `ReturnLevel=L_Main`으로 복귀한 뒤
+`MAIN_AFTER_GONGSIMDON` 등 저장된 체크포인트 다음부터 이어진다.
 
 목표 Flow:
 
@@ -595,20 +622,21 @@ graph TD
 | 음성 인식 | Core | `Planned` | — (수단 미정) |
 | 공통 Interface | Core | `Planned` | — |
 | CombatCharacter | Shared | `Implemented (C++ base)` | `Source/SuwonSiegeContestVR/*/Gameplay/Characters/` |
-| EnemySoldier / AllySoldier | Shared | `Partial` | C++ 기반 구현, Blueprint 메시·애니메이션 미작성 |
-| HealthComponent | Shared | `Implemented` | `Source/SuwonSiegeContestVR/*/Gameplay/Combat/HealthComponent.*` |
+| EnemySoldier / AllySoldier | Shared | `Partial` | 신규 C++ 기반 구현, Blueprint 메시·애니메이션 미작성 |
+| Legacy EnemySoldier | Shared | `Implemented (호환)` | `Shared/Characters/AEnemySoldierActor`, 공심돈·신기전 사용 중 |
+| HealthComponent | Shared | `Implemented` | 신규 `Gameplay/Combat` + 기존 `Shared/Combat` 병행 |
 | Damage System | Shared | `Implemented` | Damage Spec / Interface / Library 구현 |
-| FactionComponent | Shared | `Implemented` | Player / Ally / Enemy / Neutral 적대 규칙 구현 |
+| FactionComponent | Shared | `Implemented` | 신규 적대 규칙 + 기존 Feature용 Faction Component 병행 |
 | AI (BT / StateTree / Spawner) | Shared | `Partial` | Controller·LOD·단순 이동 기반 구현, Feature 행동 Asset·Spawner 미작성 |
 | Actor Pool | Shared | `Implemented (C++ base)` | 고정 용량 사전 생성과 Enemy/Projectile 재사용 계약 구현 |
 | Projectile (전투용) | Shared | `Partial` | 공통 C++ 기반·풀 계약 구현, Feature Blueprint 시각 요소 일부 미작성 |
 | 공통 UI Widget | Shared | `Planned` | `WBP_Menu`(템플릿 메뉴)만 존재 |
 | Gameplay Tags | Shared | `Planned` | — |
 | GF_Geojunggi | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
-| GF_OngseongCrossbow | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
-| GF_Gongsimdon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
-| GF_Singijeon | Feature | `Partial` | Runtime C++ 모듈과 GameFeatureData 있음 / Blueprint·레벨 미완료 |
-| L_Main 및 체험 Level 4종 | — | `Partial` | `LV_Singijeon` 존재 및 Experience 연결, `L_Main`·나머지 체험 미구현 |
+| GF_OngseongCrossbow | Feature | `Partial` | Runtime 총통, Shared Enemy Pool·Wave, `LV_Ongseong` 기능 프로토타입 |
+| GF_Gongsimdon | Feature | `Partial` | Runtime 모듈, Scenario, 7명 Enemy Group, Main 왕복 구현 |
+| GF_Singijeon | Feature | `Partial` | Runtime C++ 상호작용, 45명 Enemy Wave, GameFeatureData 구현 / 최종 적군 시각 자산 미완료 |
+| L_Main 및 체험 Level 4종 | — | `Partial` | `L_Main`, 공심돈, 신기전 왕복 구현. 웅성 Level은 기능 프로토타입, 거중기 Level/연결 미완료 |
 | C++ 게임플레이 코드 | — | `Partial` | Core Scenario/Experience, Shared Combat/AI/Pooling, 신기전·총통 Runtime 구현 |
 
 ---
