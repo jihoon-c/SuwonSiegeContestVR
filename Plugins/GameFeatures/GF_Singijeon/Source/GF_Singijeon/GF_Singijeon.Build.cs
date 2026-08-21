@@ -11,6 +11,7 @@ public class GF_Singijeon : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
+            "NavigationSystem",
             "SuwonSiegeContestVR"
         });
     }

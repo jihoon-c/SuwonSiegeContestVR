@@ -21,8 +21,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Experience")
 	bool TriggerExperienceTravel(AActor* TriggeringActor);
 
+	/** True when no guard is configured or the active Scenario is at RequiredInteractionID. */
+	UFUNCTION(BlueprintPure, Category = "Experience")
+	bool IsInteractionRequirementMet() const;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience")
 	TObjectPtr<UExperienceDefinition> DestinationExperience;
+
+	/** Optional guard used when multiple Experience triggers share one Level. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience")
+	FName RequiredInteractionID;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Return Checkpoint")
 	FName ReturnScenarioID;

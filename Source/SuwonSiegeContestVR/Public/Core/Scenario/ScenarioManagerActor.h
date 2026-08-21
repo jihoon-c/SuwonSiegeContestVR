@@ -45,7 +45,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
 	TObjectPtr<UScenarioDefinition> ScenarioDefinition;
 
-	/** Resolved automatically from ScenarioDefinition. */
+	/** Resolved from LevelNarrationTable when assigned, otherwise from ScenarioDefinition. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
 	TObjectPtr<UDataTable> NarrationTable;
 
@@ -55,6 +55,10 @@ public:
 	/** The only required Level authoring assignment for an Experience. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Configuration")
 	TObjectPtr<UExperienceDefinition> ExperienceDefinition;
+
+	/** Optional per-Level override. Leave empty to use ScenarioDefinition.NarrationTable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Narration", meta = (DisplayName = "Level Narration Table"))
+	TObjectPtr<UDataTable> LevelNarrationTable;
 
 	/** Only for a level-local Scenario that deliberately has no Experience. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Advanced", meta = (AdvancedDisplay))

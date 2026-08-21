@@ -324,35 +324,34 @@ sequenceDiagram
 
 ## 4. Shared Gameplay 시스템
 
-**이 계층은 현재 전부 `Status: Planned`이다. 하나도 구현되어 있지 않다.**
+Shared Gameplay는 최소 Enemy Soldier, Health, Faction 기반이 구현됐고 나머지 공통 전투 계층은 Planned 상태다.
 
 ### 4.1 Character 계층
 
-`Status: Planned`
+`Status: Partial`
 
 ```mermaid
 graph TD
-    CC["BP_CombatCharacter<br/>(공통 기반)"]
-    E["BP_EnemySoldier"]
-    A["BP_AllySoldier"]
+    CC["CombatCharacter<br/>(Planned)"]
+    E["AEnemySoldierActor<br/>(Implemented)"]
+    A["AllySoldier<br/>(Planned)"]
     HC["HealthComponent"]
     FC["FactionComponent"]
 
-    CC --> E
-    CC --> A
-    CC -.->|"보유"| HC
-    CC -.->|"보유"| FC
+    E -.->|"보유"| HC
+    E -.->|"보유"| FC
+    CC -.-> E
+    CC -.-> A
 ```
 
-**현재 존재하는 유일한 캐릭터성 에셋**은 `BP_MannequinsXR`(플레이어 손 표시용 마네킹)뿐이며,
-이는 전투 캐릭터가 아니다. Enemy/Ally 병사는 존재하지 않는다.
+`AEnemySoldierActor`는 Shared C++ Character이며 `UHealthComponent`와 `UFactionComponent`를 가진다. 현재 공심돈에서 7명을 Spawn하며 Manny Mesh는 교체용 임시 표시 자산이다. 공통 CombatCharacter와 Ally Soldier는 아직 없다.
 
 **분류 결정**: 적 병사·아군 병사는 웅성/쇠뇌, 신기전, 공심돈 등 복수 체험에서 사용될 수 있으므로
 **Game Feature가 아니라 Shared Gameplay에 둔다.** (`CLAUDE.md` 5절)
 
 ### 4.2 Health / Damage / Faction
 
-`Status: Planned` — 전부 미구현.
+`Status: Partial` — 표준 Unreal Damage를 받는 `UHealthComponent`와 `UFactionComponent`가 구현됐다. 공격원 Faction 검사와 공통 Projectile 정책은 아직 미구현이다.
 
 목표 데미지 흐름 (구체 클래스 검사 금지, Faction 기반 판정):
 
@@ -451,7 +450,7 @@ Feature 상태 전이는 `Registered → Loaded → Active` 순이다.
 | `GF_Geojunggi` | 거중기 조작, 성벽 건축 체험, Geojunggi Phone 기능 | 플러그인 생성됨 / 내용 Planned |
 | `GF_OngseongCrossbow` | 웅성, 쇠뇌, 충차, 적 Wave 연출, Crossbow Phone 기능 | 플러그인 생성됨 / 내용 Planned |
 | `GF_Gongsimdon` | 공심돈, 침입 적 탐색/탐지, Gongsimdon Phone 기능 | 플러그인 생성됨 / 내용 Planned |
-| `GF_Singijeon` | 장전, 점화, 연속 발사, 양손 화차 운반 | C++ 핵심 상호작용 구현 / 콘텐츠 Partial |
+| `GF_Singijeon` | 장전, 점화, 연속 발사, 양손 화차 운반, 45명 자동 돌진 Wave | C++ 핵심 상호작용·Enemy Wave 구현 / 콘텐츠 Partial |
 
 **주의**: 적 병사·데미지·체력·투사체 기반은 여러 Feature가 공유하므로 Shared Gameplay에 둔다.
 Feature에는 **그 체험에서만 쓰이는 것**(쇠뇌, 충차, 거중기, 신기전 발사대, 공심돈 탐지 로직)만 넣는다.
@@ -554,18 +553,18 @@ graph TD
 | 음성 인식 | Core | `Planned` | — (수단 미정) |
 | 공통 Interface | Core | `Planned` | — |
 | CombatCharacter | Shared | `Planned` | — |
-| EnemySoldier / AllySoldier | Shared | `Planned` | — |
-| HealthComponent | Shared | `Planned` | — |
+| EnemySoldier / AllySoldier | Shared | `Partial` | `AEnemySoldierActor` 구현, Ally 미구현 |
+| HealthComponent | Shared | `Implemented` | `Source/SuwonSiegeContestVR/*/Shared/Combat/HealthComponent.*` |
 | Damage System | Shared | `Planned` | — |
-| FactionComponent | Shared | `Planned` | — |
+| FactionComponent | Shared | `Implemented` | `Source/SuwonSiegeContestVR/*/Shared/Combat/FactionComponent.*` |
 | AI (BT / Blackboard / Spawner) | Shared | `Planned` | — |
 | Projectile (전투용) | Shared | `Planned` | 템플릿 `BP_Projectile`은 데미지 없음 |
 | 공통 UI Widget | Shared | `Planned` | `WBP_Menu`(템플릿 메뉴)만 존재 |
 | Gameplay Tags | Shared | `Planned` | — |
 | GF_Geojunggi | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
 | GF_OngseongCrossbow | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
-| GF_Gongsimdon | Feature | `Partial` | `.uplugin` 생성됨 / GameFeatureData·에셋 없음 |
-| GF_Singijeon | Feature | `Partial` | Runtime C++ 모듈과 GameFeatureData 있음 / Blueprint·레벨 미완료 |
+| GF_Gongsimdon | Feature | `Partial` | Runtime 모듈, Scenario, 7명 Enemy Group, Main 왕복 구현 |
+| GF_Singijeon | Feature | `Partial` | Runtime C++ 상호작용, 45명 Enemy Wave, GameFeatureData 구현 / 최종 적군 시각 자산 미완료 |
 | L_Main 및 체험 Level 4종 | — | `Partial` | `LV_Singijeon` 존재 및 Experience 연결, `L_Main`·나머지 체험 미구현 |
 | C++ 게임플레이 코드 | — | `Partial` | `GF_Singijeon` 핵심 VR 상호작용 구현 |
 

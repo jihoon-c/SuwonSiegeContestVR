@@ -23,9 +23,10 @@ Core Scenario System은 **한 Level 안에서** `Interaction → Scene → Scena
 2. `Stages` 배열에 Stage를 추가하고 `StageID`, `StartInteractionID`, `Interactions`를 입력한다.
 3. `StartStageID`를 지정하고 Narration 사용 시 같은 Asset의 `NarrationTable`을 지정한다.
 4. `DA_Experience_*`의 `ScenarioDefinition`에 `DA_Scenario_*`를 지정한다.
-5. Level의 `BP_ScenarioManager`에는 `ExperienceDefinition` 하나만 지정한다.
+5. Level의 `BP_ScenarioManager`에 `ExperienceDefinition`을 지정한다.
+6. Level별 나레이션 DT가 필요하면 Manager의 `Level Narration Table`을 지정한다. 비워 두면 Scenario의 `NarrationTable`을 사용한다.
 
-별도 `DA_Scene_*`를 만들거나 Level Manager에 Scenario/Narration을 다시 지정하지 않는다. Manager의 `Resolved Configuration`은 Experience와 Scenario에서 자동으로 계산되는 읽기 전용 결과다.
+별도 `DA_Scene_*`를 만들거나 Level Manager에 Scenario를 다시 지정하지 않는다. `Level Narration Table`은 의도적인 레벨별 Override이고, 최종 사용 DT는 Manager의 읽기 전용 `Resolved Configuration > Narration Table`에서 확인한다.
 
 Stage 배열 순서는 편집 가독성과 복귀 시 이전 단계 완료 상태에 사용한다. 실제 분기는 `StartInteractionID`, `NextInteractionID`, `SuccessInteractionID`, `FailInteractionID`, `NextStageID`가 결정한다.
 
@@ -134,15 +135,23 @@ Data Asset은 Scenario 시작 시 다음 항목을 검증한다.
 
 `ExperienceTravelTriggerActor.TriggerExperienceTravel`은 이동 전에 복귀할 `ScenarioID`, `SceneID`, `InteractionID`를 세션 체크포인트로 저장한다. 목적지 Scenario가 완료되면 Experience의 `ReturnLevel`로 이동하고, Main Manager의 Experience Bridge가 체크포인트 이전 Interaction을 완료 상태로 복원한 뒤 지정 Interaction부터 재개한다.
 
-현재 예시는 다음과 같다.
+현재 메인 예시는 공심돈을 먼저 완료한 뒤 신기전으로 이동한다.
 
 ```text
 L_Main / DA_Scenario_Main.Stages[MAIN_SCENE]
-MAIN_INTRO → MAIN_TRAVEL_SINGIJEON
-                    ↓ TriggerExperienceTravel
+MAIN_INTRO → MAIN_TRAVEL_GONGSIMDON
+                    ↓ 공심돈 Trigger
+      /GF_Gongsimdon/Maps/LV_Gongsimdon
+                    ↓ Scenario 01 완료
+L_Main / MAIN_AFTER_GONGSIMDON (이전 단계 완료 상태 복원)
+                    ↓ 자동 진행
+         MAIN_TRAVEL_SINGIJEON
+                    ↓ 신기전 Trigger
                LV_Singijeon
                     ↓ Scenario 완료
-L_Main / MAIN_RETURNED (이전 단계 완료 상태 복원)
+L_Main / MAIN_AFTER_SINGIJEON (이전 단계 완료 상태 복원)
 ```
+
+각 Trigger의 `RequiredInteractionID`는 현재 Main Interaction이 일치할 때만 이동을 허용한다. 공심돈 Trigger는 `MAIN_TRAVEL_GONGSIMDON`, 신기전 Trigger는 `MAIN_TRAVEL_SINGIJEON`으로 설정되어 순서를 건너뛸 수 없다. 값을 비우면 이전과 같이 조건 없이 동작한다.
 
 배치 Trigger는 Pawn Overlap과 Player Camera(HMD) 위치 진입을 모두 지원한다. 충돌 Primitive가 없는 VR Pawn은 HMD 위치 판정을 사용한다. 버튼, 퀴즈 완료, 나레이션 Completion Event 등 특정 이벤트에서 Trigger Actor의 `TriggerExperienceTravel(PlayerPawn)`을 호출해도 같은 흐름을 사용한다.

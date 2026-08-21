@@ -20,6 +20,7 @@ class GF_SINGIJEON_API AIgnitionSourceActor : public AActor, public IIgnitionSou
 public:
     AIgnitionSourceActor();
 
+    virtual void BeginPlay() override;
     virtual bool IsIgnitionActive_Implementation() const override;
 
     UFUNCTION(BlueprintCallable, Category = "Ignition")
@@ -29,6 +30,8 @@ public:
     FOnIgnitionSourceStateChanged OnIgnitionSourceStateChanged;
 
 protected:
+    void RefreshIgnitionVisuals();
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<USceneComponent> SceneRoot;
 
@@ -42,5 +45,5 @@ protected:
     TObjectPtr<UScenarioInteractableComponent> GrabScenarioInteractor;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ignition")
-    bool bIgnitionActive = true;
+    bool bIgnitionActive = false;
 };

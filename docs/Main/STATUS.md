@@ -2,7 +2,7 @@
 
 **조사 기준일**: 2026-08-11 · **조사 기준 커밋**: `57dd875`
 **계층**: Core (Game Feature Plugin 없음)
-**전체 상태**: `Status: Partial` — VR Pawn, Scenario, Main↔신기전 왕복과 세션 진행 복원 구현
+**전체 상태**: `Status: Partial` — VR Pawn, Scenario, Main→공심돈→Main→신기전→Main 흐름과 세션 진행 복원 구현
 
 ---
 
@@ -23,8 +23,8 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 
 | 요소 | 상태 | 실제 확인 내용 |
 |---|---|---|
-| `L_Main` Level | `Implemented` | `/Game/Maps/Main/L_Main`. Main Manager, PlayerStart, 신기전 이동 예시 Trigger 배치 |
-| Tutorial Flow | `Partial` | `DA_Scenario_Main` 인라인 Stage 예시 흐름 구현. 전체 NPC/퀴즈 콘텐츠는 미작성 |
+| `L_Main` Level | `Implemented` | `/Game/Maps/Main/L_Main`. Main Manager, PlayerStart, 공심돈·신기전 순차 이동 Trigger 배치 |
+| Tutorial Flow | `Partial` | `DA_Scenario_Main`에 공심돈 복귀 후 신기전으로 이어지는 인라인 흐름 구현. 전체 NPC/퀴즈 콘텐츠는 미작성 |
 | NPC | `Partial` | NPC Actor/애니메이션은 없으나 DT 기반 음성·자막 진행 구조 구현 |
 | 초성 퀴즈 | `Planned` | Quiz Blueprint / Widget / Data Table 없음 |
 | 음성 인식 | `Planned` | **관련 플러그인·SDK·C++ 모듈이 전혀 없다.** 기술 선정 자체가 미완 |
@@ -46,9 +46,10 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 - `Content/Core/Scenario/Managers/BP_ScenarioManager`
 - `UExperienceDefinition`, `UExperienceSubsystem`, `UScenarioExperienceBridgeComponent`
 - `Content/Core/Experience/Definitions/DA_Experience_Singijeon`
+- `Content/Core/Experience/Definitions/DA_Experience_Gongsimdon`
 - `Content/Data/DA_Scenario_Main` 인라인 Stage/Interaction
 - `Content/Core/Experience/Definitions/DA_Experience_Main`
-- `AExperienceTravelTriggerActor`, Main Scenario 체크포인트 복원
+- `AExperienceTravelTriggerActor`, Interaction 순서 가드, Main Scenario 체크포인트 복원
 - Experience 하나만 Level Manager에 지정하는 자동 Scenario/Narration 해석
 
 나레이션은 `docs/Main/specs/NARRATION_SYSTEM.md`, Scenario 제작은 `docs/Main/specs/SCENARIO_SYSTEM.md`를 참고한다. `BP_XRGameMode`는 `BP_VRPlayerPawn`을 기본 Pawn으로 사용하며 `LV_Singijeon`에도 명시적으로 지정되어 있다.
@@ -122,7 +123,7 @@ PC에서만 검증하면 arm64 빌드 단계에서 문제가 드러날 수 있�
 
 * 전환 방식은 `OpenLevelBySoftObjectPtr`로 구현 완료
 * 전환 중 로딩 화면 / 페이드 처리 (VR에서 급격한 전환은 멀미 유발)
-* 신기전 `ReturnLevel=L_Main` 연결 완료. 다른 체험 Definition 생성 시 동일하게 연결 필요
+* 공심돈·신기전 `ReturnLevel=L_Main` 연결 완료. 다른 체험 Definition 생성 시 동일하게 연결 필요
 
 ### 4.4 진행도 관리
 
@@ -156,7 +157,7 @@ Main의 다음 요소는 **네 체험 전부가 의존**하므로 우선 확정�
 
 1. ~~`Content/Core/` 골격 디렉토리 생성 및 커밋~~ → **완료 (2026-08-12)**
 2. 음성 인식 **서드파티 모듈 선정 + Android 실기 Spike** (**최우선**)
-3. ~~`L_Main` + Main↔신기전 왕복 + 기본 Map 교체~~ → **완료 (2026-08-18)**
+3. ~~`L_Main` + Main→공심돈→Main→신기전→Main 왕복 + 기본 Map 교체~~ → **완료 (2026-08-19)**
 4. ~~`ExperienceSubsystem` 인터페이스 및 신기전 연결~~ → **완료 (2026-08-15)**
 5. 초성 분해 Function Library 구현 (**서드파티 선정과 무관하게 지금 착수 가능**)
 6. PlayerPhone 역할 정의 및 기본 구조 설계

@@ -27,8 +27,10 @@ if main_scenario:
     stages = list(main_scenario.get_editor_property("stages"))
     ids = [str(item.get_editor_property("interaction_id"))
            for item in stages[0].get_editor_property("interactions")] if stages else []
-    check(ids == ["MAIN_INTRO", "MAIN_TRAVEL_SINGIJEON", "MAIN_RETURNED"],
-          "DA_Scenario_Main exposes the complete inline travel and return flow")
+    check(ids == [
+        "MAIN_INTRO", "MAIN_TRAVEL_GONGSIMDON", "MAIN_AFTER_GONGSIMDON",
+        "MAIN_TRAVEL_SINGIJEON", "MAIN_AFTER_SINGIJEON",
+    ], "DA_Scenario_Main reaches Singijeon after the Gongsimdon return")
     check(str(main_scenario.get_editor_property("scenario_id")) == "SCENARIO_Main",
           "Main Scenario ID is configured")
 if main_experience:
@@ -47,7 +49,7 @@ managers = [actor for actor in actors if isinstance(actor, unreal.ScenarioManage
 triggers = [actor for actor in actors if isinstance(actor, unreal.ExperienceTravelTriggerActor)]
 player_starts = [actor for actor in actors if isinstance(actor, unreal.PlayerStart)]
 check(len(managers) == 1, "L_Main contains exactly one Scenario Manager")
-check(len(triggers) == 1, "L_Main contains exactly one Experience Travel Trigger")
+check(len(triggers) == 2, "L_Main contains the Gongsimdon and Singijeon Travel Triggers")
 check(len(player_starts) >= 1, "L_Main contains a PlayerStart")
 if managers:
     manager = managers[0]
@@ -61,11 +63,20 @@ if managers:
           "Main Scenario does not auto-complete its Experience")
     check(manager.get_editor_property("restore_scenario_checkpoint"),
           "Main Scenario checkpoint restore is enabled")
-if triggers:
-    trigger = triggers[0]
+singijeon_triggers = [
+    trigger for trigger in triggers
+    if trigger.get_actor_label() == "ExperienceTravelTrigger_Singijeon"
+]
+check(len(singijeon_triggers) == 1, "L_Main contains the named Singijeon Travel Trigger")
+if singijeon_triggers:
+    trigger = singijeon_triggers[0]
     check(trigger.get_editor_property("destination_experience") == singijeon_experience,
-          "Travel Trigger targets the Singijeon Experience")
-    check(str(trigger.get_editor_property("return_interaction_id")) == "MAIN_RETURNED",
+          "Singijeon Travel Trigger targets the Singijeon Experience")
+    check(str(trigger.get_editor_property("required_interaction_id")) ==
+          "MAIN_TRAVEL_SINGIJEON",
+          "Singijeon Travel Trigger is gated after the Gongsimdon return")
+    check(str(trigger.get_editor_property("return_interaction_id")) ==
+          "MAIN_AFTER_SINGIJEON",
           "Travel Trigger stores the post-Singijeon checkpoint")
     check(trigger.get_editor_property("trigger_on_player_view_location"),
           "Travel Trigger supports collisionless VR Pawn HMD entry")
