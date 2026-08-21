@@ -63,6 +63,10 @@ public:
 	EChongtongLoadingState GetLoadingState() const { return LoadingState; }
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Loading")
 	int32 GetCompletedShots() const { return CompletedShots; }
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Loading")
+	int32 GetRequiredRammerStrokes() const { return RequiredRammerStrokes; }
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Loading")
+	int32 GetRequiredShotsToComplete() const { return RequiredShotsToComplete; }
 
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong")
 	AActor* SelectTarget() const;

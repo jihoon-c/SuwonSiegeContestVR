@@ -1,6 +1,7 @@
 #include "Ongseong/OngseongNarrationComponent.h"
 
 #include "Core/Narration/NarrationSequenceComponent.h"
+#include "Gameplay/UI/VRHUDComponent.h"
 #include "Engine/DataTable.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
@@ -10,6 +11,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Ongseong/ChongtongCannonActor.h"
 #include "Ongseong/OngseongEnemyWaveManager.h"
+
+#define LOCTEXT_NAMESPACE "OngseongVRUI"
 
 namespace OngseongNarrationEvents
 {
@@ -67,6 +70,7 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 	if (Cannon)
 	{
 		Cannon->OnLoadingStateChanged.AddUniqueDynamic(this, &ThisClass::HandleLoadingStateChanged);
+		Cannon->OnRammingProgress.AddUniqueDynamic(this, &ThisClass::HandleRammingProgress);
 	}
 
 	if (!WaveManager && GetWorld())
@@ -81,6 +85,7 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 	{
 		WaveManager->OnWaveStarted.AddUniqueDynamic(this, &ThisClass::HandleWaveStarted);
 		WaveManager->OnEnemySpawned.AddUniqueDynamic(this, &ThisClass::HandleEnemySpawned);
+		WaveManager->OnWaveProgress.AddUniqueDynamic(this, &ThisClass::HandleWaveProgress);
 		WaveManager->OnAllEnemiesDefeated.AddUniqueDynamic(this, &ThisClass::HandleAllEnemiesDefeated);
 		if (!GateActor)
 		{
@@ -91,6 +96,7 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 	if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
 	{
 		NarrationSequence = PlayerPawn->FindComponentByClass<UNarrationSequenceComponent>();
+		VRHUD = PlayerPawn->FindComponentByClass<UVRHUDComponent>();
 	}
 	if (NarrationSequence)
 	{
@@ -109,10 +115,21 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 	{
 		BindHealthActor(Ally, false);
 	}
+	if (VRHUD)
+	{
+		VRHUD->SetObjective(
+			LOCTEXT("DefenseObjective", "총통을 운용해 성문을 방어하십시오"),
+			LOCTEXT("DefenseObjectiveDetail", "장전 순서를 지키고 접근하는 적을 저지하십시오"));
+		if (Cannon)
+		{
+			HandleLoadingStateChanged(Cannon->GetLoadingState(), Cannon->GetCompletedShots());
+		}
+	}
 
 	if (WaveManager && WaveManager->HasWaveStarted())
 	{
-		HandleWaveStarted(0);
+		HandleWaveStarted(WaveManager->GetTotalEnemiesToSpawn());
+		HandleWaveProgress(WaveManager->GetDefeatedEnemyCount(), WaveManager->GetTotalEnemiesToSpawn());
 	}
 	return NarrationSequence != nullptr;
 }
@@ -188,6 +205,34 @@ void UOngseongNarrationComponent::HandleNarrationFinished()
 
 void UOngseongNarrationComponent::HandleLoadingStateChanged(const EChongtongLoadingState NewState, const int32 CompletedShots)
 {
+	if (VRHUD)
+	{
+		const int32 RequiredShots = Cannon ? Cannon->GetRequiredShotsToComplete() : 5;
+		switch (NewState)
+		{
+		case EChongtongLoadingState::NeedsPowder:
+			VRHUD->ShowPrompt(FText::Format(LOCTEXT("LoadPowderPrompt", "화약을 넣으십시오 · 발사 {0}/{1}"),
+				FText::AsNumber(CompletedShots), FText::AsNumber(RequiredShots)));
+			break;
+		case EChongtongLoadingState::NeedsRamming:
+			VRHUD->ShowPrompt(LOCTEXT("RamPrompt", "쑤시개로 화약을 다지십시오"));
+			break;
+		case EChongtongLoadingState::NeedsCannonball:
+			VRHUD->ShowPrompt(LOCTEXT("LoadBallPrompt", "대포알을 넣으십시오"));
+			break;
+		case EChongtongLoadingState::ReadyToAim:
+			VRHUD->ShowPrompt(LOCTEXT("AimPrompt", "양손으로 손잡이를 잡고 방아쇠를 당기십시오"));
+			break;
+		case EChongtongLoadingState::Completed:
+			VRHUD->ClearPrompt();
+			VRHUD->ShowNotification(LOCTEXT("CannonComplete", "총통 운용을 완료했습니다"), EVRHUDNotificationType::Success, 4.0f);
+			break;
+		default:
+			VRHUD->ClearPrompt();
+			break;
+		}
+	}
+
 	switch (NewState)
 	{
 	case EChongtongLoadingState::NeedsRamming:
@@ -210,8 +255,21 @@ void UOngseongNarrationComponent::HandleLoadingStateChanged(const EChongtongLoad
 	}
 }
 
+void UOngseongNarrationComponent::HandleRammingProgress(const int32 CompletedRams, const int32 RequiredRams)
+{
+	if (VRHUD)
+	{
+		VRHUD->ShowPrompt(FText::Format(LOCTEXT("RammingProgress", "화약 다지기 {0}/{1}"),
+			FText::AsNumber(CompletedRams), FText::AsNumber(RequiredRams)));
+	}
+}
+
 void UOngseongNarrationComponent::HandleWaveStarted(const int32 TotalEnemies)
 {
+	if (VRHUD && TotalEnemies > 0)
+	{
+		VRHUD->SetProgress(LOCTEXT("DefenseProgress", "적 저지"), 0, TotalEnemies);
+	}
 	ReportScenarioEvent(OngseongNarrationEvents::WaveStarted, WaveManager);
 }
 
@@ -223,8 +281,21 @@ void UOngseongNarrationComponent::HandleEnemySpawned(AEnemyCombatCharacter* Enem
 	}
 }
 
+void UOngseongNarrationComponent::HandleWaveProgress(const int32 DefeatedEnemies, const int32 TotalEnemies)
+{
+	if (VRHUD)
+	{
+		VRHUD->SetProgress(LOCTEXT("DefenseProgress", "적 저지"), DefeatedEnemies, TotalEnemies);
+	}
+}
+
 void UOngseongNarrationComponent::HandleAllEnemiesDefeated(const int32 TotalEnemies)
 {
+	if (VRHUD)
+	{
+		VRHUD->SetProgress(LOCTEXT("DefenseProgress", "적 저지"), TotalEnemies, TotalEnemies);
+		VRHUD->ShowNotification(LOCTEXT("DefenseSucceeded", "성문 방어에 성공했습니다"), EVRHUDNotificationType::Success, 5.0f);
+	}
 	ReportScenarioEvent(OngseongNarrationEvents::DefenseSucceeded, WaveManager);
 }
 
@@ -251,11 +322,19 @@ void UOngseongNarrationComponent::BindHealthActor(AActor* Actor, const bool bIsG
 
 void UOngseongNarrationComponent::HandleGateDamaged(UHealthComponent* HealthComponent, const FCombatDamageSpec& DamageSpec)
 {
+	if (VRHUD)
+	{
+		VRHUD->ShowNotification(LOCTEXT("GateUnderAttack", "성문이 공격받고 있습니다"), EVRHUDNotificationType::Warning, 3.0f);
+	}
 	ReportScenarioEvent(OngseongNarrationEvents::GateUnderAttack, HealthComponent ? HealthComponent->GetOwner() : nullptr);
 }
 
 void UOngseongNarrationComponent::HandleGateDestroyed(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage)
 {
+	if (VRHUD)
+	{
+		VRHUD->ShowNotification(LOCTEXT("GateDestroyed", "성문이 파괴되었습니다"), EVRHUDNotificationType::Error, 0.0f);
+	}
 	ReportScenarioEvent(OngseongNarrationEvents::GateDestroyed, HealthComponent ? HealthComponent->GetOwner() : nullptr);
 }
 
@@ -269,11 +348,13 @@ void UOngseongNarrationComponent::UnbindSources()
 	if (Cannon)
 	{
 		Cannon->OnLoadingStateChanged.RemoveDynamic(this, &ThisClass::HandleLoadingStateChanged);
+		Cannon->OnRammingProgress.RemoveDynamic(this, &ThisClass::HandleRammingProgress);
 	}
 	if (WaveManager)
 	{
 		WaveManager->OnWaveStarted.RemoveDynamic(this, &ThisClass::HandleWaveStarted);
 		WaveManager->OnEnemySpawned.RemoveDynamic(this, &ThisClass::HandleEnemySpawned);
+		WaveManager->OnWaveProgress.RemoveDynamic(this, &ThisClass::HandleWaveProgress);
 		WaveManager->OnAllEnemiesDefeated.RemoveDynamic(this, &ThisClass::HandleAllEnemiesDefeated);
 	}
 	for (UHealthComponent* Health : BoundHealthComponents)
@@ -289,8 +370,14 @@ void UOngseongNarrationComponent::UnbindSources()
 	{
 		NarrationSequence->OnSequenceFinished.RemoveDynamic(this, &ThisClass::HandleNarrationFinished);
 	}
+	if (VRHUD)
+	{
+		VRHUD->ClearAll();
+	}
 	BoundHealthComponents.Reset();
 }
+
+#undef LOCTEXT_NAMESPACE
 
 void UOngseongNarrationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {

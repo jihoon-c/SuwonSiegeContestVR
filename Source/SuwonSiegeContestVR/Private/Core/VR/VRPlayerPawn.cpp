@@ -21,6 +21,8 @@
 #include "Core/Scenario/ScenarioInteractableComponent.h"
 #include "Core/Scenario/ScenarioTypes.h"
 #include "Core/Narration/SubtitleWidget.h"
+#include "Gameplay/UI/VRHUDComponent.h"
+#include "Gameplay/UI/VRHUDWidget.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -133,6 +135,20 @@ AVRPlayerPawn::AVRPlayerPawn()
 	NarrationEventHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	NarrationEventHUD->SetVisibility(false);
 
+	StatusHUD = CreateDefaultSubobject<UWidgetComponent>(TEXT("StatusHUD"));
+	StatusHUD->SetupAttachment(VRCamera);
+	StatusHUD->SetRelativeLocation(StatusHUDOffset);
+	StatusHUD->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	StatusHUD->SetWidgetSpace(EWidgetSpace::World);
+	StatusHUD->SetDrawSize(FVector2D(720.0f, 360.0f));
+	StatusHUD->SetRelativeScale3D(FVector(0.07f));
+	StatusHUD->SetPivot(FVector2D(0.5f, 0.5f));
+	StatusHUD->SetBlendMode(EWidgetBlendMode::Transparent);
+	StatusHUD->SetTwoSided(true);
+	StatusHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	StatusHUD->SetWidgetClass(UVRHUDWidget::StaticClass());
+	StatusHUD->SetVisibility(false);
+
 	NarrationAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("NarrationAudio"));
 	NarrationAudio->SetupAttachment(VRCamera);
 	NarrationAudio->bAutoActivate = false;
@@ -140,6 +156,7 @@ AVRPlayerPawn::AVRPlayerPawn()
 	NarrationAudio->bAllowSpatialization = false;
 
 	NarrationSequence = CreateDefaultSubobject<UNarrationSequenceComponent>(TEXT("NarrationSequence"));
+	VRHUD = CreateDefaultSubobject<UVRHUDComponent>(TEXT("VRHUD"));
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> TeleportActionFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Move.IA_Move"));
 	static ConstructorHelpers::FObjectFinder<UInputAction> TurnActionFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Turn.IA_Turn"));
@@ -278,11 +295,15 @@ void AVRPlayerPawn::BeginPlay()
 
 	SubtitleHUD->SetRelativeLocation(SubtitleHUDOffset);
 	NarrationEventHUD->SetRelativeLocation(EventHUDOffset);
+	StatusHUD->SetRelativeLocation(StatusHUDOffset);
 	SubtitleHUD->InitWidget();
+	StatusHUD->InitWidget();
 	NarrationSequence->SetAudioComponent(NarrationAudio);
 	NarrationSequence->OnSubtitleChanged.AddUniqueDynamic(this, &AVRPlayerPawn::HandleSubtitleChanged);
 	NarrationSequence->OnNarrationStarted.AddUniqueDynamic(this, &AVRPlayerPawn::HandleNarrationStarted);
 	NarrationSequence->OnWidgetRequested.AddUniqueDynamic(this, &AVRPlayerPawn::HandleNarrationWidgetRequested);
+	VRHUD->OnHUDStateChanged.AddUniqueDynamic(this, &AVRPlayerPawn::HandleVRHUDStateChanged);
+	HandleVRHUDStateChanged(VRHUD->GetHUDState());
 }
 
 void AVRPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -778,6 +799,20 @@ void AVRPlayerPawn::HandleSubtitleChanged(const FText SpeakerName, const FText S
 	if (USubtitleWidget* Widget = Cast<USubtitleWidget>(SubtitleHUD->GetUserWidgetObject()))
 	{
 		Widget->SetSubtitle(SpeakerName, Subtitle);
+	}
+}
+
+void AVRPlayerPawn::HandleVRHUDStateChanged(const FVRHUDState State)
+{
+	if (!StatusHUD)
+	{
+		return;
+	}
+
+	StatusHUD->SetVisibility(State.HasVisibleContent());
+	if (UVRHUDWidget* Widget = Cast<UVRHUDWidget>(StatusHUD->GetUserWidgetObject()))
+	{
+		Widget->ApplyHUDState(State);
 	}
 }
 

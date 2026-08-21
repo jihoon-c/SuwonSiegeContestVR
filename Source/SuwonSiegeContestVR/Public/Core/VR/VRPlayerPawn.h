@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Gameplay/UI/VRHUDTypes.h"
 #include "GameFramework/Pawn.h"
 #include "VRPlayerPawn.generated.h"
 
@@ -14,6 +15,7 @@ class USceneComponent;
 class USkeletalMeshComponent;
 class USubtitleWidget;
 class UUserWidget;
+class UVRHUDComponent;
 class UWidgetComponent;
 class UWidgetInteractionComponent;
 
@@ -43,6 +45,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Narration")
 	UNarrationSequenceComponent* GetNarrationSequence() const { return NarrationSequence; }
+
+	UFUNCTION(BlueprintPure, Category = "VR|UI")
+	UVRHUDComponent* GetVRHUD() const { return VRHUD; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -88,6 +93,9 @@ protected:
 	UFUNCTION()
 	void HandleNarrationStarted(FName RowName);
 
+	UFUNCTION()
+	void HandleVRHUDStateChanged(FVRHUDState State);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VR|Components")
 	TObjectPtr<USceneComponent> VROrigin;
 
@@ -124,6 +132,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Narration")
 	TObjectPtr<UWidgetComponent> NarrationEventHUD;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VR|UI")
+	TObjectPtr<UWidgetComponent> StatusHUD;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VR|UI")
+	TObjectPtr<UVRHUDComponent> VRHUD;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Narration")
 	TObjectPtr<UAudioComponent> NarrationAudio;
@@ -228,4 +242,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
 	FVector EventHUDOffset = FVector(180.0f, 0.0f, -5.0f);
+
+	/** Persistent objective/progress panel, placed above the subtitle safe area. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VR|UI")
+	FVector StatusHUDOffset = FVector(180.0f, 0.0f, 28.0f);
 };

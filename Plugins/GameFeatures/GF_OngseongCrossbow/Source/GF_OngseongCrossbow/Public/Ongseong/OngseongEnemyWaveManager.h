@@ -52,6 +52,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	bool HasWaveStarted() const { return bWaveStarted; }
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	int32 GetDefeatedEnemyCount() const { return DefeatedEnemyCount; }
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	int32 GetTotalEnemiesToSpawn() const { return TotalEnemiesToSpawn; }
 
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	AActor* GetObjectiveTarget() const { return ObjectiveTarget; }

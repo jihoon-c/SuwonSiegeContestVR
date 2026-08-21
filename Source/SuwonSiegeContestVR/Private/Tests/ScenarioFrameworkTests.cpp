@@ -10,6 +10,7 @@
 #include "Core/Scenario/ScenarioManagerActor.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Core/Scenario/ScenarioSceneData.h"
+#include "Gameplay/UI/VRHUDComponent.h"
 #include "Engine/DataTable.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -18,6 +19,39 @@
 #include "InputAction.h"
 #include "InputCoreTypes.h"
 #include "UObject/UnrealType.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FVRHUDStateContractTest,
+	"SuwonSiegeContestVR.Core.VR.HUDStateContract",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+
+bool FVRHUDStateContractTest::RunTest(const FString& Parameters)
+{
+	UVRHUDComponent* HUD = NewObject<UVRHUDComponent>();
+	if (!TestNotNull(TEXT("VR HUD component can be created"), HUD))
+	{
+		return false;
+	}
+
+	HUD->SetObjective(FText::FromString(TEXT("Defend")), FText::FromString(TEXT("Use cannon")));
+	HUD->SetProgress(FText::FromString(TEXT("Enemies")), 7, 5);
+	HUD->ShowPrompt(FText::FromString(TEXT("Load powder")));
+	HUD->ShowNotification(FText::FromString(TEXT("Warning")), EVRHUDNotificationType::Warning, 0.0f);
+
+	FVRHUDState State = HUD->GetHUDState();
+	TestEqual(TEXT("Progress clamps to its total"), State.ProgressCurrent, 5);
+	TestEqual(TEXT("Progress total is retained"), State.ProgressTotal, 5);
+	TestEqual(TEXT("Progress fraction reaches one"), State.GetProgressFraction(), 1.0f);
+	TestTrue(TEXT("Configured HUD reports visible content"), State.HasVisibleContent());
+	TestTrue(TEXT("Prompt channel is visible"), State.bPromptVisible);
+	TestTrue(TEXT("Notification channel is visible"), State.bNotificationVisible);
+
+	HUD->ClearAll();
+	State = HUD->GetHUDState();
+	TestFalse(TEXT("Cleared HUD has no visible content"), State.HasVisibleContent());
+	TestFalse(TEXT("Cleared progress channel is hidden"), State.bProgressVisible);
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FVRPawnInputAndHandAnimationConfigurationTest,

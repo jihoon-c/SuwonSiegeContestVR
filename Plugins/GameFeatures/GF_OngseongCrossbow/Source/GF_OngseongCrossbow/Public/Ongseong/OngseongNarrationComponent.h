@@ -11,6 +11,7 @@ class AOngseongEnemyWaveManager;
 class UDataTable;
 class UHealthComponent;
 class UNarrationSequenceComponent;
+class UVRHUDComponent;
 
 /** A named gameplay event. Designers can subscribe without depending on the narration mapping. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOngseongScenarioEvent, FName, EventName, AActor*, SourceActor);
@@ -87,9 +88,13 @@ private:
 	UFUNCTION()
 	void HandleLoadingStateChanged(EChongtongLoadingState NewState, int32 CompletedShots);
 	UFUNCTION()
+	void HandleRammingProgress(int32 CompletedRams, int32 RequiredRams);
+	UFUNCTION()
 	void HandleWaveStarted(int32 TotalEnemies);
 	UFUNCTION()
 	void HandleEnemySpawned(class AEnemyCombatCharacter* Enemy, int32 SpawnedEnemies, int32 TotalEnemies);
+	UFUNCTION()
+	void HandleWaveProgress(int32 DefeatedEnemies, int32 TotalEnemies);
 	UFUNCTION()
 	void HandleAllEnemiesDefeated(int32 TotalEnemies);
 	UFUNCTION()
@@ -103,6 +108,8 @@ private:
 	TObjectPtr<AChongtongCannonActor> Cannon;
 	UPROPERTY(Transient)
 	TObjectPtr<UNarrationSequenceComponent> NarrationSequence;
+	UPROPERTY(Transient)
+	TObjectPtr<UVRHUDComponent> VRHUD;
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UHealthComponent>> BoundHealthComponents;
 
