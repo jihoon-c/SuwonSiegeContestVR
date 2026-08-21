@@ -8,6 +8,9 @@
 class AActorPool;
 class UHealthComponent;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOngseongWaveProgress, int32, DefeatedEnemies, int32, TotalEnemies);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOngseongAllEnemiesDefeated, int32, TotalEnemies);
+
 /**
  * Minimal Ongseong wave loop that acquires enemies from a shared pool, assigns the gate objective,
  * and returns defeated enemies to the pool. Feature-specific presentation remains in Blueprint.
@@ -41,6 +44,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	bool IsSpawnConfigured() const;
 
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	bool AreAllEnemiesDefeated() const { return TotalEnemiesToSpawn > 0 && DefeatedEnemyCount >= TotalEnemiesToSpawn; }
+
+	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
+	FOnOngseongWaveProgress OnWaveProgress;
+	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
+	FOnOngseongAllEnemiesDefeated OnAllEnemiesDefeated;
+
 protected:
 	UFUNCTION()
 	void HandleEnemyDeath(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage);
@@ -63,6 +74,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "1"))
 	int32 MaxActiveEnemies = 6;
 
+	/** Finite wave size. Five matches the five requested player loading/firing cycles. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "1"))
+	int32 TotalEnemiesToSpawn = 5;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0.0"))
 	float SpawnSpacing = 250.0f;
 
@@ -70,5 +85,9 @@ protected:
 	bool bAutoStart = true;
 
 	int32 SpawnSequence = 0;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Wave")
+	int32 SpawnedEnemyCount = 0;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Wave")
+	int32 DefeatedEnemyCount = 0;
 	FTimerHandle SpawnTimerHandle;
 };

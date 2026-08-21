@@ -52,7 +52,8 @@ void AOngseongEnemyWaveManager::StopSpawning()
 
 bool AOngseongEnemyWaveManager::SpawnEnemy()
 {
-	if (!IsSpawnConfigured() || EnemyPool->GetActiveCount() >= FMath::Max(1, MaxActiveEnemies))
+	if (!IsSpawnConfigured() || SpawnedEnemyCount >= FMath::Max(1, TotalEnemiesToSpawn) ||
+		EnemyPool->GetActiveCount() >= FMath::Max(1, MaxActiveEnemies))
 	{
 		return false;
 	}
@@ -73,6 +74,8 @@ bool AOngseongEnemyWaveManager::SpawnEnemy()
 		HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleEnemyDeath);
 	}
 	Enemy->SetObjectiveTarget(ObjectiveTarget);
+	++SpawnedEnemyCount;
+	if (SpawnedEnemyCount >= TotalEnemiesToSpawn) StopSpawning();
 	return true;
 }
 
@@ -91,6 +94,13 @@ void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthCompone
 	if (AActor* EnemyActor = HealthComponent->GetOwner())
 	{
 		EnemyPool->ReleaseActor(EnemyActor);
+		++DefeatedEnemyCount;
+		OnWaveProgress.Broadcast(DefeatedEnemyCount, TotalEnemiesToSpawn);
+		if (AreAllEnemiesDefeated())
+		{
+			StopSpawning();
+			OnAllEnemiesDefeated.Broadcast(TotalEnemiesToSpawn);
+		}
 	}
 }
 

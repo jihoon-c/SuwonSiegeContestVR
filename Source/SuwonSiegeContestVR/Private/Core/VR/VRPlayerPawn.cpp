@@ -32,7 +32,7 @@
 
 AVRPlayerPawn::AVRPlayerPawn()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -200,20 +200,62 @@ void AVRPlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		EnhancedInput->BindAction(ViewTurnAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTurnCompleted);
 	}
 
+	if (GrabLeftAction)
+	{
+		EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabLeft);
+		EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseLeft);
+		EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseLeft);
+	}
+	if (GrabRightAction)
+	{
+		EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabRight);
+		EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseRight);
+		EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseRight);
+	}
 	if (TriggerGrabLeftAction)
 	{
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabLeft);
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseLeft);
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseLeft);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTriggerLeftPressed);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTriggerLeftReleased);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTriggerLeftReleased);
 	}
 	if (TriggerGrabRightAction)
 	{
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabRight);
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseRight);
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseRight);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTriggerRightPressed);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTriggerRightReleased);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTriggerRightReleased);
 	}
 
 	ConfigureLocomotionInput();
+}
+
+void AVRPlayerPawn::Tick(const float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (!MountedCameraAnchor.IsValid() || !VRCamera)
+	{
+		return;
+	}
+
+	const FTransform AnchorTransform = MountedCameraAnchor->GetComponentTransform();
+	const FVector CameraOffset = VRCamera->GetComponentLocation() - GetActorLocation();
+	SetActorLocationAndRotation(
+		AnchorTransform.GetLocation() - FVector(CameraOffset.X, CameraOffset.Y, CameraOffset.Z),
+		FRotator(0.0f, AnchorTransform.Rotator().Yaw, 0.0f), false, nullptr, ETeleportType::TeleportPhysics);
+}
+
+void AVRPlayerPawn::EnterMountedInteraction(USceneComponent* CameraAnchor)
+{
+	if (!IsValid(CameraAnchor)) return;
+	MountedCameraAnchor = CameraAnchor;
+	bEnableMove = false;
+	Tick(0.0f);
+}
+
+void AVRPlayerPawn::ExitMountedInteraction(USceneComponent* CameraAnchor)
+{
+	if (CameraAnchor && MountedCameraAnchor.Get() != CameraAnchor) return;
+	MountedCameraAnchor.Reset();
+	bEnableMove = true;
 }
 
 void AVRPlayerPawn::BeginPlay()
@@ -246,8 +288,8 @@ void AVRPlayerPawn::BeginPlay()
 void AVRPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	RemoveLocomotionInput();
-	TryRelease(HeldComponentLeft);
-	TryRelease(HeldComponentRight);
+	TryRelease(MotionControllerLeftGrip, HeldComponentLeft);
+	TryRelease(MotionControllerRightGrip, HeldComponentRight);
 
 	if (TeleportVisualizer)
 	{
@@ -339,13 +381,33 @@ void AVRPlayerPawn::HandleGrabRight(const FInputActionValue& Value)
 void AVRPlayerPawn::HandleReleaseLeft(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(LeftHandMesh, 0.0f);
-	TryRelease(HeldComponentLeft);
+	TryRelease(MotionControllerLeftGrip, HeldComponentLeft);
 }
 
 void AVRPlayerPawn::HandleReleaseRight(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(RightHandMesh, 0.0f);
-	TryRelease(HeldComponentRight);
+	TryRelease(MotionControllerRightGrip, HeldComponentRight);
+}
+
+void AVRPlayerPawn::HandleTriggerLeftPressed(const FInputActionValue& Value)
+{
+	NotifyHeldTrigger(HeldComponentLeft, TEXT("TriggerPressed"), MotionControllerLeftGrip);
+}
+
+void AVRPlayerPawn::HandleTriggerRightPressed(const FInputActionValue& Value)
+{
+	NotifyHeldTrigger(HeldComponentRight, TEXT("TriggerPressed"), MotionControllerRightGrip);
+}
+
+void AVRPlayerPawn::HandleTriggerLeftReleased(const FInputActionValue& Value)
+{
+	NotifyHeldTrigger(HeldComponentLeft, TEXT("TriggerReleased"), MotionControllerLeftGrip);
+}
+
+void AVRPlayerPawn::HandleTriggerRightReleased(const FInputActionValue& Value)
+{
+	NotifyHeldTrigger(HeldComponentRight, TEXT("TriggerReleased"), MotionControllerRightGrip);
 }
 
 void AVRPlayerPawn::ConfigureLocomotionInput()
@@ -389,8 +451,10 @@ void AVRPlayerPawn::ConfigureLocomotionInput()
 		FEnhancedActionKeyMapping& TurnLeftMapping = RuntimeLocomotionMappingContext->MapKey(ViewTurnAction, EKeys::Q);
 		TurnLeftMapping.Modifiers.Add(NewObject<UInputModifierNegate>(RuntimeLocomotionMappingContext));
 
-		RuntimeLocomotionMappingContext->MapKey(TriggerGrabLeftAction, EKeys::F);
-		RuntimeLocomotionMappingContext->MapKey(TriggerGrabRightAction, EKeys::G);
+		RuntimeLocomotionMappingContext->MapKey(GrabLeftAction, EKeys::F);
+		RuntimeLocomotionMappingContext->MapKey(GrabRightAction, EKeys::G);
+		RuntimeLocomotionMappingContext->MapKey(TriggerGrabLeftAction, EKeys::T);
+		RuntimeLocomotionMappingContext->MapKey(TriggerGrabRightAction, EKeys::Y);
 	}
 
 	if (!InputSubsystem->HasMappingContext(RuntimeLocomotionMappingContext))
@@ -573,20 +637,20 @@ void AVRPlayerPawn::TryGrab(UMotionControllerComponent* MotionController, TObjec
 	}
 }
 
-void AVRPlayerPawn::TryRelease(TObjectPtr<USceneComponent>& HeldComponent)
+void AVRPlayerPawn::TryRelease(UMotionControllerComponent* MotionController, TObjectPtr<USceneComponent>& HeldComponent)
 {
 	if (!HeldComponent)
 	{
 		return;
 	}
 
-	InvokeGrabFunction(HeldComponent, TEXT("TryRelease"), nullptr);
+	InvokeGrabFunction(HeldComponent, TEXT("TryRelease"), MotionController);
 	HeldComponent = nullptr;
 }
 
 USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionControllerComponent* MotionController) const
 {
-	if (!MotionController || !GrabComponentClass || !GetWorld())
+	if (!MotionController || !GetWorld())
 	{
 		return nullptr;
 	}
@@ -597,14 +661,17 @@ USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionController
 
 	for (TActorIterator<AActor> ActorIterator(GetWorld()); ActorIterator; ++ActorIterator)
 	{
-		TArray<UActorComponent*> GrabComponents;
-		ActorIterator->GetComponents(GrabComponentClass, GrabComponents);
-		for (UActorComponent* Component : GrabComponents)
+		TInlineComponentArray<USceneComponent*> SceneComponents(*ActorIterator);
+		for (USceneComponent* SceneComponent : SceneComponents)
 		{
-			USceneComponent* SceneComponent = Cast<USceneComponent>(Component);
-			if (!SceneComponent || SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
+			if (!SceneComponent || !SceneComponent->FindFunction(TEXT("TryGrab")))
 			{
 				continue;
+			}
+			if (SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
+			{
+				const FBoolProperty* TwoHandProperty = FindFProperty<FBoolProperty>(SceneComponent->GetClass(), TEXT("bAllowTwoHandedGrab"));
+				if (!TwoHandProperty || !TwoHandProperty->GetPropertyValue_InContainer(SceneComponent)) continue;
 			}
 
 			const float DistanceSquared = FVector::DistSquared(GripLocation, SceneComponent->GetComponentLocation());
@@ -617,6 +684,14 @@ USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionController
 	}
 
 	return NearestComponent;
+}
+
+void AVRPlayerPawn::NotifyHeldTrigger(USceneComponent* HeldComponent, const FName FunctionName, UMotionControllerComponent* MotionController) const
+{
+	if (HeldComponent && HeldComponent->FindFunction(FunctionName))
+	{
+		InvokeGrabFunction(HeldComponent, FunctionName, MotionController);
+	}
 }
 
 bool AVRPlayerPawn::InvokeGrabFunction(

@@ -1,6 +1,6 @@
 # OngseongCrossbow (웅성 · 쇠뇌) — 현재 상태
 
-**조사 기준일**: 2026-08-20 · **코드 기준 커밋**: `227cfb6` + 현재 Shared Gameplay 작업 트리
+**조사 기준일**: 2026-08-21 · **코드 기준**: 현재 작업 트리
 **계층**: Game Feature — `GF_OngseongCrossbow` (+ Shared Gameplay 의존)
 **전체 상태**: `Status: Partial (functional prototype)` — Shared Combat/AI 기반, 총통 C++ Runtime, 공용 Enemy Blueprint, 고정 용량 Pool, 성문 목표와 Wave Manager가 `LV_Ongseong`에서 연결되어 동작한다. 최종 아트·근거리 AI·체험 완료 조건·Android VR 검증은 남아 있다.
 
@@ -37,13 +37,14 @@
 | 웅성 구조물 | `Implemented (placeholder)` | `JihwaGate_Main`에 Shared Health(1000)와 Ally Faction 연결 |
 | 쇠뇌 Actor | `Planned` | 없음 |
 | 충차 Actor | `Planned` | 없음 |
-| 적 Wave 시스템 | `Implemented (prototype)` | `AOngseongEnemyWaveManager`가 공용 Enemy Pool에서 최대 6개를 꺼내 성문 목표를 지정하고 사망 시 반환 |
+| 적 Wave 시스템 | `Implemented (prototype)` | 공용 Enemy Pool에서 기본 5명의 유한 Wave를 구성하고 사망 시 반환; 진행/전원 퇴치 이벤트 제공 |
 | `BP_CrossbowExperienceManager` | `Planned` | 없음 |
 | Enemy Soldier (Shared) | `Implemented (placeholder BP)` | `/Game/Gameplay/Characters/BP_EnemySoldier`; 공용 C++ 기반 + Manny 임시 메시/애니메이션 |
 | Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
 | AI (BT / Blackboard / AIController) | `Implemented (base)` | 원거리 단순 이동 + 근거리 선택형 BT Controller. Feature BT/Spawner는 없음 |
-| Projectile (전투용) | `Implemented (runtime)` | 공통 데미지 투사체 기반 + `AChongtongProjectileActor`; 16개 고정 Pool 연결. 전용 시각/VFX는 없음 |
-| 총통 Ally AI | `Implemented (runtime)` | 네이티브 Actor에 GateTarget과 Projectile Pool 연결. 공격자 → 성문 근접 → 무작위 우선순위로 발사. BP 메시/VFX 및 Muzzle 튜닝은 미작성 |
+| Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, 임시 폭발 FX/사운드 |
+| 총통 플레이어 조작 | `Implemented (runtime)` | 기본 메시 장전물, 화약 → 쑤시개 3회 → 대포알 상태 머신, 준비 신호, 조종 시점 고정, 양손 조준/트리거 발사, 5발 완료 이벤트 |
+| 총통 Ally AI | `Implemented (optional)` | 기존 우선순위 자동 사격은 `bEnableAutomaticFire` 옵션으로 보존하며 기본 비활성 |
 
 **활용 가능한 기존 자산**: 템플릿 `BP_Pistol` + `BP_Projectile`의 "잡고 → 발사" 흐름은 쇠뇌 조작 프로토타입의 참고 구조로 쓸 수 있다. 다만 데미지·명중 판정은 전부 신규 구현이다.
 
@@ -101,6 +102,10 @@ graph TD
 * 발사 방식: 히트스캔 vs 실제 투사체
   → 교육 콘텐츠이고 비행 궤적이 볼거리이므로 **투사체 권장**
 * 탄약 개념 유무
+
+총통 조작은 별도로 확정·구현되었다. `EChongtongLoadingState`가 순서를 강제하고,
+`UChongtongAimGripComponent`가 양손 그립과 트리거 동시 입력을 판정한다. Core VR Pawn은
+Feature를 참조하지 않고 reflection-compatible 그랩/트리거 및 mounted camera 계약만 제공한다.
 
 ### 4.2 적 Wave
 

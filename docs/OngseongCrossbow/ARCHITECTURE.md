@@ -57,10 +57,11 @@ graph TD
 | Feature 플러그인 | `Partial` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
 | `LV_Ongseong` | `Implemented (base)` | `/GF_OngseongCrossbow/Maps/LV_Ongseong` |
 | 옹성 성문 목표 | `Implemented (placeholder)` | `JihwaGate_Main`, Shared Health 1000, Ally Faction |
-| 적 Wave | `Implemented (prototype)` | `AOngseongEnemyWaveManager`가 공용 Enemy Pool에서 적을 가져와 성문을 목표로 지정 |
+| 적 Wave | `Implemented (prototype)` | 공용 Enemy Pool 기반 유한 Wave(기본 5명), 진행/전원 퇴치 이벤트 제공 |
 | Enemy Pool | `Implemented` | 고정 크기 8, 자동 확장 비활성; Wave 최대 활성 적 6 |
-| 총통 Ally AI | `Implemented (runtime)` | GateTarget·Projectile Pool 연결, 공격자/성문 근접/무작위 우선순위로 발사 |
-| 총통 투사체 | `Implemented (runtime)` | `AChongtongProjectileActor`, 고정 Pool 16 |
+| 총통 플레이어 조작 | `Implemented (runtime)` | 화약 → 쑤시개 3회 → 대포알 상태 머신, 양손 조준, 양손 트리거 발사, 5발 완료 |
+| 총통 Ally AI | `Implemented (optional)` | 기존 자동 표적 사격을 `bEnableAutomaticFire` 옵션으로 보존; 플레이어 모드 기본값은 비활성 |
+| 총통 투사체 | `Implemented (runtime)` | 곡사, 직접 명중 + 350cm 범위 피해, 교체 가능한 임시 Niagara/사운드 |
 | 쇠뇌 Actor | `Planned` | 아직 없음 |
 | 충차 Actor | `Planned` | 아직 없음 |
 | 체험 완료 조건 | `Planned` | Experience 완료 연동 필요 |
@@ -128,7 +129,7 @@ flowchart LR
 2. 쇠뇌 발사: 실제 투사체 사용을 기본안으로 한다. 비행 궤적이 교육·연출 요소다.
 3. Wave: 수, Wave당 적 수, 스폰 위치, 경로, 난이도 곡선
 4. 충차: 파괴 대상인지, 성문 도달 시 실패인지, 병사가 미는 연출이 필요한지
-5. 완료·실패: 완료 조건, 재시도 UX, Main 복귀 시점
+5. 완료·실패: 총통은 5발 발사 시 완료 이벤트를 제공. Experience/Main 복귀 연결 시점은 별도 결정
 6. 이동: 성벽 위 고정 위치인지, 제한된 지점 텔레포트인지
 7. 성능 예산: Android에서 동시 적 수·동시 투사체 수·드로우콜 상한
 

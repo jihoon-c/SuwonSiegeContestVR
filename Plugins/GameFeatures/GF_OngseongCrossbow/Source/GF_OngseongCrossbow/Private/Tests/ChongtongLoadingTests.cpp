@@ -1,0 +1,42 @@
+#include "Misc/AutomationTest.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Ongseong/ChongtongCannonActor.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FChongtongLoadingSequenceTest,
+	"SuwonSiegeContestVR.Ongseong.Chongtong.LoadingSequence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FChongtongLoadingSequenceTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("Test world is created"), World)) return false;
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Context.SetCurrentWorld(World);
+
+	AChongtongCannonActor* Cannon = World->SpawnActor<AChongtongCannonActor>();
+	if (TestNotNull(TEXT("Cannon is spawned"), Cannon))
+	{
+		TestEqual(TEXT("Initial step requests powder"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsPowder);
+		TestFalse(TEXT("Cannonball cannot skip powder"), Cannon->TryLoadItem(EChongtongLoadingItemType::Cannonball));
+		TestTrue(TEXT("Powder is accepted"), Cannon->TryLoadItem(EChongtongLoadingItemType::Powder));
+		TestEqual(TEXT("Powder advances to ramming"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsRamming);
+		TestTrue(TEXT("First ram is counted"), Cannon->RegisterRammerStroke());
+		TestTrue(TEXT("Second ram is counted"), Cannon->RegisterRammerStroke());
+		TestTrue(TEXT("Third ram is counted"), Cannon->RegisterRammerStroke());
+		TestEqual(TEXT("Three rams unlock cannonball"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsCannonball);
+		TestTrue(TEXT("Cannonball is accepted"), Cannon->TryLoadItem(EChongtongLoadingItemType::Cannonball));
+		TestEqual(TEXT("Completed load enters ready state"), Cannon->GetLoadingState(), EChongtongLoadingState::ReadyToAim);
+		TestFalse(TEXT("Player fire is gated by a two-hand grip"), Cannon->TryFirePlayer());
+	}
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
+
+#endif
