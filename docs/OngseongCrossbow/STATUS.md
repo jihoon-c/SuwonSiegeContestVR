@@ -24,7 +24,8 @@
 | **Projectile 기반 클래스** | **Shared Gameplay** | 쇠뇌 볼트·신기전이 공유 |
 
 > `CLAUDE.md` 5절: "적 병사는 여러 체험에서 사용할 수 있으므로 Shared Gameplay이다."
-> **적 병사를 `GF_OngseongCrossbow` 안에 만들지 않는다.** 현재 Blueprint도 `/Game/Gameplay/Characters/BP_EnemySoldier`에 두어 이 규칙을 지킨다.
+> 공통 적 동작은 `/Game/Gameplay/Characters/BP_EnemySoldier`에 유지한다. 옹성은 이 공용 BP를
+> 상속한 Feature 전용 자식 BP만 두어 외형·애니메이션·밸런스를 독립적으로 교체한다.
 
 ---
 
@@ -39,7 +40,7 @@
 | 충차 Actor | `Planned` | 없음 |
 | 적 Wave 시스템 | `Implemented (prototype)` | 공용 Enemy Pool에서 기본 5명의 유한 Wave를 구성하고 사망 시 반환; 진행/전원 퇴치 이벤트 제공 |
 | `BP_CrossbowExperienceManager` | `Planned` | 없음 |
-| Enemy Soldier (Shared) | `Implemented (placeholder BP)` | `/Game/Gameplay/Characters/BP_EnemySoldier`; 공용 C++ 기반 + Manny 임시 메시/애니메이션 |
+| Enemy Soldier | `Implemented (placeholder BP)` | Shared `/Game/Gameplay/Characters/BP_EnemySoldier`를 상속한 `/GF_OngseongCrossbow/Blueprints/BP_OngseongEnemySoldier`; Manny 임시 메시/애니메이션 |
 | Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
 | AI (BT / Blackboard / AIController) | `Implemented (base)` | 원거리 단순 이동 + 근거리 선택형 BT Controller. Feature BT/Spawner는 없음 |
 | Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, 임시 폭발 FX/사운드 |
@@ -65,7 +66,7 @@ graph TD
     end
 
     subgraph SHARED["Shared Gameplay"]
-      ENEMY["BP_EnemySoldier"]
+      ENEMY["BP_OngseongEnemySoldier<br/>(Shared BP_EnemySoldier child)"]
       CC["BP_CombatCharacter"]
       HP["HealthComponent"]
       FAC["FactionComponent"]

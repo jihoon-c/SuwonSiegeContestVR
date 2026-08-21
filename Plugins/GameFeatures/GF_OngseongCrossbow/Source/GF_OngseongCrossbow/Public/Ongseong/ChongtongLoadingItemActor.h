@@ -6,6 +6,7 @@
 #include "ChongtongLoadingItemActor.generated.h"
 
 class UStaticMeshComponent;
+class UStaticMesh;
 
 /** Placeholder loading prop. Meshes are Engine primitives and can be replaced in a Blueprint child. */
 UCLASS(Blueprintable)
@@ -31,6 +32,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UStaticMeshComponent> Mesh;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading|Appearance")
+	TObjectPtr<UStaticMesh> PowderMesh;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading|Appearance")
+	TObjectPtr<UStaticMesh> RammerMesh;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading|Appearance")
+	TObjectPtr<UStaticMesh> CannonballMesh;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
 	EChongtongLoadingItemType ItemType = EChongtongLoadingItemType::Powder;
 	FTransform HomeTransform;

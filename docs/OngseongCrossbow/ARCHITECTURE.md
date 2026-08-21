@@ -68,6 +68,8 @@ graph TD
 | Android VR 검증 | `Planned` | 성능 및 실제 HMD 테스트 필요 |
 
 공용 Enemy Blueprint의 현재 위치는 `/Game/Gameplay/Characters/BP_EnemySoldier`다.
+옹성에서는 이를 부모로 하는 `/GF_OngseongCrossbow/Blueprints/BP_OngseongEnemySoldier`를 사용한다.
+공통 AI·전투·풀링 계약은 Shared 부모에 유지하고, 옹성 전용 외형·애니메이션·밸런스는 Feature 자식에서 교체한다.
 임시 Manny 메시/애니메이션을 사용하므로 최종 아트로 간주하지 않는다.
 
 ---

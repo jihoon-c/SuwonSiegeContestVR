@@ -11,6 +11,12 @@ AChongtongLoadingItemActor::AChongtongLoadingItemActor()
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	SetRootComponent(Mesh);
 	Mesh->SetCollisionProfileName(TEXT("PhysicsActor"));
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	PowderMesh = Cylinder.Object;
+	RammerMesh = Cylinder.Object;
+	CannonballMesh = Sphere.Object;
 }
 
 void AChongtongLoadingItemActor::OnConstruction(const FTransform& Transform)
@@ -29,16 +35,14 @@ void AChongtongLoadingItemActor::ConfigureItem(EChongtongLoadingItemType NewType
 
 void AChongtongLoadingItemActor::ApplyPlaceholderAppearance()
 {
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (ItemType == EChongtongLoadingItemType::Cannonball)
 	{
-		Mesh->SetStaticMesh(Sphere.Object);
+		Mesh->SetStaticMesh(CannonballMesh);
 		Mesh->SetRelativeScale3D(FVector(0.18f));
 	}
 	else
 	{
-		Mesh->SetStaticMesh(Cylinder.Object);
+		Mesh->SetStaticMesh(ItemType == EChongtongLoadingItemType::Rammer ? RammerMesh : PowderMesh);
 		Mesh->SetRelativeScale3D(ItemType == EChongtongLoadingItemType::Rammer ? FVector(0.05f, 0.05f, 1.2f) : FVector(0.16f, 0.16f, 0.25f));
 	}
 }

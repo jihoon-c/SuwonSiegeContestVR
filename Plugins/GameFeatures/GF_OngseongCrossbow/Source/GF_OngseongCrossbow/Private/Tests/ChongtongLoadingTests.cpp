@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/ChongtongLoadingItemActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FChongtongLoadingSequenceTest,
@@ -19,6 +20,13 @@ bool FChongtongLoadingSequenceTest::RunTest(const FString& Parameters)
 	Context.SetCurrentWorld(World);
 
 	AChongtongCannonActor* Cannon = World->SpawnActor<AChongtongCannonActor>();
+	AChongtongLoadingItemActor* LoadingItem = World->SpawnActor<AChongtongLoadingItemActor>();
+	if (TestNotNull(TEXT("Loading item is spawned without constructor-helper crash"), LoadingItem))
+	{
+		LoadingItem->ConfigureItem(EChongtongLoadingItemType::Powder);
+		LoadingItem->ConfigureItem(EChongtongLoadingItemType::Rammer);
+		LoadingItem->ConfigureItem(EChongtongLoadingItemType::Cannonball);
+	}
 	if (TestNotNull(TEXT("Cannon is spawned"), Cannon))
 	{
 		TestEqual(TEXT("Initial step requests powder"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsPowder);
