@@ -46,6 +46,7 @@
 | Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, 임시 폭발 FX/사운드 |
 | 총통 플레이어 조작 | `Implemented (runtime)` | 기본 메시 장전물, 화약 → 쑤시개 3회 → 대포알 상태 머신, 준비 신호, 조종 시점 고정, 양손 조준/트리거 발사, 5발 완료 이벤트 |
 | 총통 Ally AI | `Implemented (optional)` | 기존 우선순위 자동 사격은 `bEnableAutomaticFire` 옵션으로 보존하며 기본 비활성 |
+| 교관 나레이션 | `Implemented (recording pending)` | 이미지 대본 23행 DataTable, 진행/상황 이벤트 큐, 총통·Wave·아군/성문 Health 델리게이트 연결. 실제 녹음 SoundWave 연결은 대기 |
 
 **활용 가능한 기존 자산**: 템플릿 `BP_Pistol` + `BP_Projectile`의 "잡고 → 발사" 흐름은 쇠뇌 조작 프로토타입의 참고 구조로 쓸 수 있다. 다만 데미지·명중 판정은 전부 신규 구현이다.
 

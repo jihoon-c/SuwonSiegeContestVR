@@ -21,6 +21,7 @@ class UTextRenderComponent;
 class UPointLightComponent;
 class UNiagaraSystem;
 class USoundBase;
+class UOngseongNarrationComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChongtongFired, AActor*, Target, AGameplayProjectileActor*, Projectile);
 
@@ -123,6 +124,9 @@ protected:
 	TObjectPtr<USceneComponent> PlayerCameraAnchor;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UChongtongAimGripComponent> AimGrip;
+	/** Event-driven instructor narration for this experience. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UOngseongNarrationComponent> Narration;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UTextRenderComponent> StatusText;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")

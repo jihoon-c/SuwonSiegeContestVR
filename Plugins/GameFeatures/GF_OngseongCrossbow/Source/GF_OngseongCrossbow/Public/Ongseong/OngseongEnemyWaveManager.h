@@ -6,8 +6,11 @@
 #include "OngseongEnemyWaveManager.generated.h"
 
 class AActorPool;
+class AEnemyCombatCharacter;
 class UHealthComponent;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOngseongWaveStarted, int32, TotalEnemies);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnOngseongEnemySpawned, AEnemyCombatCharacter*, Enemy, int32, SpawnedEnemies, int32, TotalEnemies);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOngseongWaveProgress, int32, DefeatedEnemies, int32, TotalEnemies);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOngseongAllEnemiesDefeated, int32, TotalEnemies);
 
@@ -46,6 +49,17 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	bool AreAllEnemiesDefeated() const { return TotalEnemiesToSpawn > 0 && DefeatedEnemyCount >= TotalEnemiesToSpawn; }
+
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	bool HasWaveStarted() const { return bWaveStarted; }
+
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	AActor* GetObjectiveTarget() const { return ObjectiveTarget; }
+
+	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
+	FOnOngseongWaveStarted OnWaveStarted;
+	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
+	FOnOngseongEnemySpawned OnEnemySpawned;
 
 	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
 	FOnOngseongWaveProgress OnWaveProgress;
@@ -89,5 +103,6 @@ protected:
 	int32 SpawnedEnemyCount = 0;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Wave")
 	int32 DefeatedEnemyCount = 0;
+	bool bWaveStarted = false;
 	FTimerHandle SpawnTimerHandle;
 };

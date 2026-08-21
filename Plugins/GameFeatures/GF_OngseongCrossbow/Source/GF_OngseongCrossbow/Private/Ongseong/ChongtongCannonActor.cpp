@@ -16,6 +16,7 @@
 #include "Ongseong/ChongtongProjectileActor.h"
 #include "Ongseong/ChongtongAimGripComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
+#include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
@@ -53,6 +54,7 @@ AChongtongCannonActor::AChongtongCannonActor()
 	AimGrip->SetupAttachment(HwachaBaseMesh);
 	AimGrip->SetRelativeLocation(FVector(-40.0f, 0.0f, 120.0f));
 	AimGrip->SetAimTarget(BarrelPivot);
+	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
 	StatusText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("StatusText"));
 	StatusText->SetupAttachment(HwachaBaseMesh);
 	StatusText->SetRelativeLocation(FVector(-25.0f, -10.0f, 205.0f));

@@ -1,0 +1,300 @@
+#include "Ongseong/OngseongNarrationComponent.h"
+
+#include "Core/Narration/NarrationSequenceComponent.h"
+#include "Engine/DataTable.h"
+#include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
+#include "Gameplay/Characters/AllyCombatCharacter.h"
+#include "Gameplay/Characters/EnemyCombatCharacter.h"
+#include "Gameplay/Combat/HealthComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/OngseongEnemyWaveManager.h"
+
+namespace OngseongNarrationEvents
+{
+	const FName ScenarioStarted(TEXT("ScenarioStarted"));
+	const FName WaveStarted(TEXT("WaveStarted"));
+	const FName EnemyAssault(TEXT("EnemyAssault"));
+	const FName PowderLoaded(TEXT("PowderLoaded"));
+	const FName RammingCompleted(TEXT("RammingCompleted"));
+	const FName ReadyToAim(TEXT("ReadyToAim"));
+	const FName ReloadRequired(TEXT("ReloadRequired"));
+	const FName AlliesUnderAttack(TEXT("AlliesUnderAttack"));
+	const FName GateUnderAttack(TEXT("GateUnderAttack"));
+	const FName DefenseSucceeded(TEXT("DefenseSucceeded"));
+	const FName GateDestroyed(TEXT("GateDestroyed"));
+}
+
+UOngseongNarrationComponent::UOngseongNarrationComponent()
+{
+	PrimaryComponentTick.bCanEverTick = false;
+	NarrationTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(TEXT("/GF_OngseongCrossbow/Data/DT_OngseongNarration.DT_OngseongNarration")));
+
+	const auto AddBinding = [this](const FName Event, const TCHAR* Row, const bool bOnce = true)
+	{
+		FOngseongNarrationEventBinding& Binding = EventBindings.AddDefaulted_GetRef();
+		Binding.EventName = Event;
+		Binding.NarrationRow = FName(Row);
+		Binding.bPlayOnce = bOnce;
+	};
+	AddBinding(OngseongNarrationEvents::ScenarioStarted, TEXT("ON_01"));
+	AddBinding(OngseongNarrationEvents::WaveStarted, TEXT("ON_10"));
+	AddBinding(OngseongNarrationEvents::EnemyAssault, TEXT("ON_19"));
+	AddBinding(OngseongNarrationEvents::PowderLoaded, TEXT("ON_14"), false);
+	AddBinding(OngseongNarrationEvents::RammingCompleted, TEXT("ON_15"), false);
+	AddBinding(OngseongNarrationEvents::ReadyToAim, TEXT("ON_16"), false);
+	AddBinding(OngseongNarrationEvents::ReloadRequired, TEXT("ON_18"), false);
+	AddBinding(OngseongNarrationEvents::AlliesUnderAttack, TEXT("ON_20"));
+	AddBinding(OngseongNarrationEvents::GateUnderAttack, TEXT("ON_21"));
+	AddBinding(OngseongNarrationEvents::DefenseSucceeded, TEXT("ON_22"));
+	AddBinding(OngseongNarrationEvents::GateDestroyed, TEXT("ON_23"));
+}
+
+void UOngseongNarrationComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	InitializeNarrationBindings();
+	if (bPlayIntroduction)
+	{
+		ReportScenarioEvent(OngseongNarrationEvents::ScenarioStarted, GetOwner());
+	}
+}
+
+bool UOngseongNarrationComponent::InitializeNarrationBindings()
+{
+	Cannon = Cast<AChongtongCannonActor>(GetOwner());
+	if (Cannon)
+	{
+		Cannon->OnLoadingStateChanged.AddUniqueDynamic(this, &ThisClass::HandleLoadingStateChanged);
+	}
+
+	if (!WaveManager && GetWorld())
+	{
+		for (TActorIterator<AOngseongEnemyWaveManager> It(GetWorld()); It; ++It)
+		{
+			WaveManager = *It;
+			break;
+		}
+	}
+	if (WaveManager)
+	{
+		WaveManager->OnWaveStarted.AddUniqueDynamic(this, &ThisClass::HandleWaveStarted);
+		WaveManager->OnEnemySpawned.AddUniqueDynamic(this, &ThisClass::HandleEnemySpawned);
+		WaveManager->OnAllEnemiesDefeated.AddUniqueDynamic(this, &ThisClass::HandleAllEnemiesDefeated);
+		if (!GateActor)
+		{
+			GateActor = WaveManager->GetObjectiveTarget();
+		}
+	}
+
+	if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+	{
+		NarrationSequence = PlayerPawn->FindComponentByClass<UNarrationSequenceComponent>();
+	}
+	if (NarrationSequence)
+	{
+		NarrationSequence->OnSequenceFinished.AddUniqueDynamic(this, &ThisClass::HandleNarrationFinished);
+	}
+
+	BindHealthActor(GateActor, true);
+	if (AlliedDefenseActors.IsEmpty() && GetWorld())
+	{
+		for (TActorIterator<AAllyCombatCharacter> It(GetWorld()); It; ++It)
+		{
+			AlliedDefenseActors.Add(*It);
+		}
+	}
+	for (AActor* Ally : AlliedDefenseActors)
+	{
+		BindHealthActor(Ally, false);
+	}
+
+	if (WaveManager && WaveManager->HasWaveStarted())
+	{
+		HandleWaveStarted(0);
+	}
+	return NarrationSequence != nullptr;
+}
+
+void UOngseongNarrationComponent::ReportScenarioEvent(const FName EventName, AActor* SourceActor)
+{
+	if (EventName.IsNone())
+	{
+		return;
+	}
+	OnScenarioEvent.Broadcast(EventName, SourceActor);
+	if (const FOngseongNarrationEventBinding* Binding = FindEventBinding(EventName))
+	{
+		if (Binding->bPlayOnce && PlayedOnceEvents.Contains(EventName))
+		{
+			return;
+		}
+		if (Binding->bPlayOnce)
+		{
+			PlayedOnceEvents.Add(EventName);
+		}
+		QueueNarration(Binding->NarrationRow);
+	}
+}
+
+const FOngseongNarrationEventBinding* UOngseongNarrationComponent::FindEventBinding(const FName EventName) const
+{
+	return EventBindings.FindByPredicate([EventName](const FOngseongNarrationEventBinding& Binding)
+	{
+		return Binding.EventName == EventName;
+	});
+}
+
+void UOngseongNarrationComponent::QueueNarration(const FName RowName)
+{
+	if (!RowName.IsNone())
+	{
+		PendingRows.Add(RowName);
+		TryPlayNextNarration();
+	}
+}
+
+void UOngseongNarrationComponent::TryPlayNextNarration()
+{
+	if (!NarrationSequence)
+	{
+		InitializeNarrationBindings();
+	}
+	if (!NarrationSequence || bOwnsCurrentNarration || NarrationSequence->IsNarrationPlaying() || PendingRows.IsEmpty())
+	{
+		return;
+	}
+
+	UDataTable* Table = NarrationTable.LoadSynchronous();
+	const FName Row = PendingRows[0];
+	PendingRows.RemoveAt(0);
+	bOwnsCurrentNarration = Table && NarrationSequence->PlaySequence(Table, Row);
+	if (!bOwnsCurrentNarration)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Could not play Ongseong narration row %s."), *Row.ToString());
+		TryPlayNextNarration();
+	}
+}
+
+void UOngseongNarrationComponent::HandleNarrationFinished()
+{
+	if (bOwnsCurrentNarration)
+	{
+		bOwnsCurrentNarration = false;
+		TryPlayNextNarration();
+	}
+}
+
+void UOngseongNarrationComponent::HandleLoadingStateChanged(const EChongtongLoadingState NewState, const int32 CompletedShots)
+{
+	switch (NewState)
+	{
+	case EChongtongLoadingState::NeedsRamming:
+		ReportScenarioEvent(OngseongNarrationEvents::PowderLoaded, Cannon);
+		break;
+	case EChongtongLoadingState::NeedsCannonball:
+		ReportScenarioEvent(OngseongNarrationEvents::RammingCompleted, Cannon);
+		break;
+	case EChongtongLoadingState::ReadyToAim:
+		ReportScenarioEvent(OngseongNarrationEvents::ReadyToAim, Cannon);
+		break;
+	case EChongtongLoadingState::NeedsPowder:
+		if (CompletedShots > 0)
+		{
+			ReportScenarioEvent(OngseongNarrationEvents::ReloadRequired, Cannon);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void UOngseongNarrationComponent::HandleWaveStarted(const int32 TotalEnemies)
+{
+	ReportScenarioEvent(OngseongNarrationEvents::WaveStarted, WaveManager);
+}
+
+void UOngseongNarrationComponent::HandleEnemySpawned(AEnemyCombatCharacter* Enemy, const int32 SpawnedEnemies, const int32 TotalEnemies)
+{
+	if (SpawnedEnemies == 1)
+	{
+		ReportScenarioEvent(OngseongNarrationEvents::EnemyAssault, Enemy);
+	}
+}
+
+void UOngseongNarrationComponent::HandleAllEnemiesDefeated(const int32 TotalEnemies)
+{
+	ReportScenarioEvent(OngseongNarrationEvents::DefenseSucceeded, WaveManager);
+}
+
+void UOngseongNarrationComponent::BindHealthActor(AActor* Actor, const bool bIsGate)
+{
+	if (!Actor)
+	{
+		return;
+	}
+	if (UHealthComponent* Health = Actor->FindComponentByClass<UHealthComponent>())
+	{
+		BoundHealthComponents.AddUnique(Health);
+		if (bIsGate)
+		{
+			Health->OnDamaged.AddUniqueDynamic(this, &ThisClass::HandleGateDamaged);
+			Health->OnDeath.AddUniqueDynamic(this, &ThisClass::HandleGateDestroyed);
+		}
+		else
+		{
+			Health->OnDamaged.AddUniqueDynamic(this, &ThisClass::HandleAllyDamaged);
+		}
+	}
+}
+
+void UOngseongNarrationComponent::HandleGateDamaged(UHealthComponent* HealthComponent, const FCombatDamageSpec& DamageSpec)
+{
+	ReportScenarioEvent(OngseongNarrationEvents::GateUnderAttack, HealthComponent ? HealthComponent->GetOwner() : nullptr);
+}
+
+void UOngseongNarrationComponent::HandleGateDestroyed(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage)
+{
+	ReportScenarioEvent(OngseongNarrationEvents::GateDestroyed, HealthComponent ? HealthComponent->GetOwner() : nullptr);
+}
+
+void UOngseongNarrationComponent::HandleAllyDamaged(UHealthComponent* HealthComponent, const FCombatDamageSpec& DamageSpec)
+{
+	ReportScenarioEvent(OngseongNarrationEvents::AlliesUnderAttack, HealthComponent ? HealthComponent->GetOwner() : nullptr);
+}
+
+void UOngseongNarrationComponent::UnbindSources()
+{
+	if (Cannon)
+	{
+		Cannon->OnLoadingStateChanged.RemoveDynamic(this, &ThisClass::HandleLoadingStateChanged);
+	}
+	if (WaveManager)
+	{
+		WaveManager->OnWaveStarted.RemoveDynamic(this, &ThisClass::HandleWaveStarted);
+		WaveManager->OnEnemySpawned.RemoveDynamic(this, &ThisClass::HandleEnemySpawned);
+		WaveManager->OnAllEnemiesDefeated.RemoveDynamic(this, &ThisClass::HandleAllEnemiesDefeated);
+	}
+	for (UHealthComponent* Health : BoundHealthComponents)
+	{
+		if (Health)
+		{
+			Health->OnDamaged.RemoveDynamic(this, &ThisClass::HandleGateDamaged);
+			Health->OnDamaged.RemoveDynamic(this, &ThisClass::HandleAllyDamaged);
+			Health->OnDeath.RemoveDynamic(this, &ThisClass::HandleGateDestroyed);
+		}
+	}
+	if (NarrationSequence)
+	{
+		NarrationSequence->OnSequenceFinished.RemoveDynamic(this, &ThisClass::HandleNarrationFinished);
+	}
+	BoundHealthComponents.Reset();
+}
+
+void UOngseongNarrationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UnbindSources();
+	PendingRows.Reset();
+	Super::EndPlay(EndPlayReason);
+}

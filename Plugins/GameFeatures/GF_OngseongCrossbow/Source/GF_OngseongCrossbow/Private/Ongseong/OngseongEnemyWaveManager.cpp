@@ -32,6 +32,12 @@ void AOngseongEnemyWaveManager::StartSpawning()
 		return;
 	}
 
+	if (!bWaveStarted)
+	{
+		bWaveStarted = true;
+		OnWaveStarted.Broadcast(TotalEnemiesToSpawn);
+	}
+
 	GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 	GetWorldTimerManager().SetTimer(
 		SpawnTimerHandle,
@@ -75,6 +81,7 @@ bool AOngseongEnemyWaveManager::SpawnEnemy()
 	}
 	Enemy->SetObjectiveTarget(ObjectiveTarget);
 	++SpawnedEnemyCount;
+	OnEnemySpawned.Broadcast(Enemy, SpawnedEnemyCount, TotalEnemiesToSpawn);
 	if (SpawnedEnemyCount >= TotalEnemiesToSpawn) StopSpawning();
 	return true;
 }
