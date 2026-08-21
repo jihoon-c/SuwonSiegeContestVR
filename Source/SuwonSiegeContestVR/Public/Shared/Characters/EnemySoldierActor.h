@@ -5,7 +5,7 @@
 #include "EnemySoldierActor.generated.h"
 
 class UFactionComponent;
-class UHealthComponent;
+class ULegacyHealthComponent;
 
 /** Reusable enemy soldier shell. Feature groups own its authored movement. */
 UCLASS(Blueprintable)
@@ -20,7 +20,7 @@ public:
 	UFactionComponent* GetFactionComponent() const { return Faction; }
 
 	UFUNCTION(BlueprintPure, Category = "Combat")
-	UHealthComponent* GetHealthComponent() const { return Health; }
+	ULegacyHealthComponent* GetHealthComponent() const { return Health; }
 
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void SetSoldierActive(bool bActive);
@@ -30,5 +30,5 @@ protected:
 	TObjectPtr<UFactionComponent> Faction;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
-	TObjectPtr<UHealthComponent> Health;
+	TObjectPtr<ULegacyHealthComponent> Health;
 };

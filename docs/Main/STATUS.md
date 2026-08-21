@@ -4,6 +4,8 @@
 **계층**: Core (Game Feature Plugin 없음)
 **전체 상태**: `Status: Partial` — VR Pawn, Scenario, Main→공심돈→Main→신기전→Main 흐름과 세션 진행 복원 구현
 
+Shared 전투·AI·풀링 현황과 Editor 통합 계획은 [Gameplay/README.md](Gameplay/README.md)를 참고한다.
+
 ---
 
 ## 1. 담당 범위

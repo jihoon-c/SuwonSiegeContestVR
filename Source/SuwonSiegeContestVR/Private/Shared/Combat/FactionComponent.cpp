@@ -7,9 +7,9 @@ UFactionComponent::UFactionComponent()
 
 bool UFactionComponent::IsHostileTo(const UFactionComponent* Other) const
 {
-	if (!Other || Faction == ECombatFaction::Neutral || Other->Faction == ECombatFaction::Neutral)
+	if (!Other || Faction == ELegacyCombatFaction::Neutral || Other->Faction == ELegacyCombatFaction::Neutral)
 	{
 		return false;
 	}
-	return (Faction == ECombatFaction::Enemy) != (Other->Faction == ECombatFaction::Enemy);
+	return (Faction == ELegacyCombatFaction::Enemy) != (Other->Faction == ELegacyCombatFaction::Enemy);
 }

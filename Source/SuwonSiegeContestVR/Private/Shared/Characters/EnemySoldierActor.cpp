@@ -4,7 +4,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Shared/Combat/FactionComponent.h"
-#include "Shared/Combat/HealthComponent.h"
+#include "Shared/Combat/LegacyHealthComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
 AEnemySoldierActor::AEnemySoldierActor()
@@ -12,8 +12,8 @@ AEnemySoldierActor::AEnemySoldierActor()
 	PrimaryActorTick.bCanEverTick = false;
 
 	Faction = CreateDefaultSubobject<UFactionComponent>(TEXT("Faction"));
-	Faction->Faction = ECombatFaction::Enemy;
-	Health = CreateDefaultSubobject<UHealthComponent>(TEXT("Health"));
+	Faction->Faction = ELegacyCombatFaction::Enemy;
+	Health = CreateDefaultSubobject<ULegacyHealthComponent>(TEXT("Health"));
 
 	GetCapsuleComponent()->InitCapsuleSize(42.0f, 92.0f);
 	GetCharacterMovement()->DefaultLandMovementMode = MOVE_None;

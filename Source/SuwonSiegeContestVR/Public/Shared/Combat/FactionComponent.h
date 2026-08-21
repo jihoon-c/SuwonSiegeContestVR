@@ -5,7 +5,7 @@
 #include "FactionComponent.generated.h"
 
 UENUM(BlueprintType)
-enum class ECombatFaction : uint8
+enum class ELegacyCombatFaction : uint8
 {
 	Neutral,
 	Player,
@@ -26,5 +26,5 @@ public:
 	bool IsHostileTo(const UFactionComponent* Other) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Faction")
-	ECombatFaction Faction = ECombatFaction::Neutral;
+	ELegacyCombatFaction Faction = ELegacyCombatFaction::Neutral;
 };

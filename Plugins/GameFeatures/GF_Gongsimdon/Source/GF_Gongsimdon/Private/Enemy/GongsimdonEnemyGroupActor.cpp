@@ -8,7 +8,7 @@
 #include "EngineUtils.h"
 #include "Scenario/GongsimdonScenarioDirectorActor.h"
 #include "Shared/Characters/EnemySoldierActor.h"
-#include "Shared/Combat/HealthComponent.h"
+#include "Shared/Combat/LegacyHealthComponent.h"
 #include "TimerManager.h"
 
 AGongsimdonEnemyGroupActor::AGongsimdonEnemyGroupActor()
@@ -147,7 +147,7 @@ bool AGongsimdonEnemyGroupActor::SpawnEnemies()
 			return false;
 		}
 		SpawnedEnemies.Add(Enemy);
-		if (UHealthComponent* Health = Enemy->GetHealthComponent())
+		if (ULegacyHealthComponent* Health = Enemy->GetHealthComponent())
 		{
 			Health->OnHealthChanged.AddUniqueDynamic(this, &ThisClass::HandleEnemyHealthChanged);
 		}

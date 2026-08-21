@@ -34,7 +34,7 @@
 | 신기전 레벨 | Partial | 플레이용 화차·탄약·횃불·PlayerStart 배치 및 Scenario 흐름 연결. VFX/SFX/표적 미완료 |
 | VFX/SFX/UI | Planned | C++ Delegate에 바인딩 |
 | 표적 및 점수 | Planned | 체험 전용 로직은 이 Feature에 배치 |
-| Damage/Health/Faction | Planned | `GF_OngseongCrossbow`와 Shared Gameplay 구현을 공유 |
+| Damage/Health/Faction | Implemented (Shared base) | 공통 기반 구현 완료. 신기전 투사체/적 표적과의 연결은 미완료 |
 | Experience Manager | Planned | Main의 완료 인터페이스 확정 후 연결 |
 | PlayerPhone 확장 | Planned | Core PlayerPhone 계약 확정 후 구현 |
 | 스탠드얼론 VR 성능 검증 | Needs Verification | 동시 투사체·VFX 상한 측정 필요 |

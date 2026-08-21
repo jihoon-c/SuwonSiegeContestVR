@@ -12,7 +12,7 @@
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
 #include "Shared/Characters/EnemySoldierActor.h"
-#include "Shared/Combat/HealthComponent.h"
+#include "Shared/Combat/LegacyHealthComponent.h"
 #include "Singijeon/SingijeonHwachaActor.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -417,7 +417,7 @@ bool ASingijeonEnemyWaveActor::SpawnVisualRepresentations()
                 return false;
             }
             Slot.InteractiveActor = Enemy;
-            if (UHealthComponent* Health = Enemy->GetHealthComponent())
+            if (ULegacyHealthComponent* Health = Enemy->GetHealthComponent())
             {
                 Health->OnHealthDepleted.AddUniqueDynamic(this, &ThisClass::HandleInteractiveEnemyDepleted);
             }
@@ -443,7 +443,7 @@ void ASingijeonEnemyWaveActor::DestroyVisualRepresentations()
     {
         if (AEnemySoldierActor* Enemy = Slot.InteractiveActor.Get())
         {
-            if (UHealthComponent* Health = Enemy->GetHealthComponent())
+            if (ULegacyHealthComponent* Health = Enemy->GetHealthComponent())
             {
                 Health->OnHealthDepleted.RemoveDynamic(this, &ThisClass::HandleInteractiveEnemyDepleted);
             }

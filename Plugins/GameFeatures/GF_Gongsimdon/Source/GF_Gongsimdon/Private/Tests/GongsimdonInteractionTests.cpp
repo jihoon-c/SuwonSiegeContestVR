@@ -15,7 +15,7 @@
 #include "Scenario/GongsimdonScenarioDirectorActor.h"
 #include "Shared/Characters/EnemySoldierActor.h"
 #include "Shared/Combat/FactionComponent.h"
-#include "Shared/Combat/HealthComponent.h"
+#include "Shared/Combat/LegacyHealthComponent.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGongsimdonActionInteractionFlowTest,
@@ -56,7 +56,7 @@ bool FGongsimdonEnemyGroupFlowTest::RunTest(const FString& Parameters)
 			if (Soldier->GetFactionComponent())
 			{
 				TestEqual(TEXT("Soldier belongs to Enemy faction"),
-					Soldier->GetFactionComponent()->Faction, ECombatFaction::Enemy);
+					Soldier->GetFactionComponent()->Faction, ELegacyCombatFaction::Enemy);
 			}
 		}
 
