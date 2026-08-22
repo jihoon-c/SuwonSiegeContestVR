@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "0.1",
 	"FriendlyName": "GF_Geojunggi",
-	"Description": "거중기 체험 Game Feature. 거중기 조작, 성벽 건축 체험, 관련 PlayerPhone 확장을 포함한다.",
+	"Description": "녹로를 조작해 파손된 성벽에 성돌을 배치하는 VR 체험 Game Feature.",
 	"Category": "Game Features",
 	"CreatedBy": "SuwonSiegeContestVR Team",
 	"CreatedByURL": "",
@@ -16,6 +16,13 @@
 	"Installed": false,
 	"ExplicitlyLoaded": true,
 	"BuiltInInitialFeatureState": "Registered",
+	"Modules": [
+		{
+			"Name": "GF_Geojunggi",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "ModularGameplay",
