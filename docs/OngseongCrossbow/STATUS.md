@@ -1,8 +1,8 @@
 # OngseongCrossbow (웅성 · 쇠뇌) — 현재 상태
 
-**조사 기준일**: 2026-08-21 · **코드 기준**: 현재 작업 트리
+**조사 기준일**: 2026-08-22 · **코드 기준**: 현재 작업 트리
 **계층**: Game Feature — `GF_OngseongCrossbow` (+ Shared Gameplay 의존)
-**전체 상태**: `Status: Partial (functional prototype)` — Shared Combat/AI 기반, 총통 C++ Runtime, 공용 Enemy Blueprint, 고정 용량 Pool, 성문 목표와 Wave Manager가 `LV_Ongseong`에서 연결되어 동작한다. 최종 아트·근거리 AI·체험 완료 조건·Android VR 검증은 남아 있다.
+**전체 상태**: `Status: Partial (functional prototype)` — Shared Combat/AI 기반, 총통 C++ Runtime, 검병·궁병 Wave, 완성 충차의 성문 돌진 왕복, 성문 목표와 방어 종료 흐름이 연결되어 있다. 최종 아트·궁병 발사체 전투·Android VR 검증은 남아 있다.
 
 ---
 
@@ -35,12 +35,12 @@
 |---|---|---|
 | `GF_OngseongCrossbow` 플러그인 | `Partial` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
 | `LV_Ongseong` Level | `Implemented (base)` | `/GF_OngseongCrossbow/Maps/LV_Ongseong` 존재 및 MCP 로드 확인 |
-| 웅성 구조물 | `Implemented (placeholder)` | `JihwaGate_Main`에 Shared Health(1000)와 Ally Faction 연결 |
+| 웅성 구조물 | `Implemented (runtime + placed)` | `BP_OngseongGate`/`AOngseongGateActor`; 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health 비율·파괴 이벤트, 재시도 Reset. `LV_Ongseong`의 임시 성문 Actor 교체 완료 |
 | 쇠뇌 Actor | `Planned` | 없음 |
-| 충차 Actor | `Planned` | 없음 |
-| 적 Wave 시스템 | `Implemented (prototype)` | 공용 Enemy Pool에서 기본 5명의 유한 Wave를 구성하고 사망 시 반환; 진행/전원 퇴치 이벤트 제공 |
-| `BP_CrossbowExperienceManager` | `Planned` | 없음 |
-| Enemy Soldier | `Implemented (placeholder BP)` | Shared `/Game/Gameplay/Characters/BP_EnemySoldier`를 상속한 `/GF_OngseongCrossbow/Blueprints/BP_OngseongEnemySoldier`; Manny 임시 메시/애니메이션 |
+| 충차 Actor | `Implemented (runtime; placeholder art)` | `AOngseongRamActor`; 완성 상태로 병력과 동시 전진, 성문 앞 대기 지점 도착 후 돌진·충돌 피해·복귀 반복, 파괴 시 정지. 임시 Cube 표현 |
+| 적 Wave 시스템 | `Implemented (prototype)` | 기본 검병 3·궁병 2 구성, 유형별 행동 상태와 선택형 궁병 Pool, 사망/퇴각 시 Pool 반환 |
+| 방어 Scenario Manager | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`; 180초 타이머, 시작 시 완성 충차 Spawn, 성문 파괴 실패, 적 퇴각 후 Experience 완료, 재시도 |
+| 검병·궁병 | `Implemented (placeholder BP)` | `BP_OngseongSwordsman`/`BP_OngseongArcher`; 공용 병사 부모와 Manny 임시 메시를 사용하며 각각 전용 Pool/행동 상태로 구분 |
 | Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
 | AI (BT / Blackboard / AIController) | `Implemented (base)` | 원거리 단순 이동 + 근거리 선택형 BT Controller. Feature BT/Spawner는 없음 |
 | Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, 임시 폭발 FX/사운드 |

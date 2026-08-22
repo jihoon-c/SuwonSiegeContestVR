@@ -9,10 +9,18 @@ class AActorPool;
 class AEnemyCombatCharacter;
 class UHealthComponent;
 
+UENUM(BlueprintType)
+enum class EOngseongEnemyType : uint8
+{
+	Swordsman,
+	Archer
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOngseongWaveStarted, int32, TotalEnemies);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnOngseongEnemySpawned, AEnemyCombatCharacter*, Enemy, int32, SpawnedEnemies, int32, TotalEnemies);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOngseongWaveProgress, int32, DefeatedEnemies, int32, TotalEnemies);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOngseongAllEnemiesDefeated, int32, TotalEnemies);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOngseongAllEnemiesRetreated);
 
 /**
  * Minimal Ongseong wave loop that acquires enemies from a shared pool, assigns the gate objective,
@@ -35,6 +43,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
 	void StopSpawning();
 
+	/** Stops the wave and sends every living pooled enemy toward the configured retreat point. */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
+	void RetreatAllEnemies(FVector RetreatLocation);
+
+	/** Immediately returns every living enemy to the shared pool (failure/teardown path). */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
+	void ReleaseAllEnemies();
+
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
+	void ResetWave();
+
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
 	bool SpawnEnemy();
 
@@ -56,6 +75,10 @@ public:
 	int32 GetDefeatedEnemyCount() const { return DefeatedEnemyCount; }
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	int32 GetTotalEnemiesToSpawn() const { return TotalEnemiesToSpawn; }
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	int32 GetSwordsmenToSpawn() const { return SwordsmenToSpawn; }
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
+	int32 GetArchersToSpawn() const { return ArchersToSpawn; }
 
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	AActor* GetObjectiveTarget() const { return ObjectiveTarget; }
@@ -69,16 +92,26 @@ public:
 	FOnOngseongWaveProgress OnWaveProgress;
 	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
 	FOnOngseongAllEnemiesDefeated OnAllEnemiesDefeated;
+	UPROPERTY(BlueprintAssignable, Category="Ongseong|Wave")
+	FOnOngseongAllEnemiesRetreated OnAllEnemiesRetreated;
 
 protected:
 	UFUNCTION()
 	void HandleEnemyDeath(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage);
+	UFUNCTION()
+	void HandleRetreatTargetReached(AActor* EnemyActor);
 
 	void SpawnScheduledEnemy();
+	EOngseongEnemyType ChooseNextEnemyType() const;
+	AActorPool* GetPoolForEnemyType(EOngseongEnemyType EnemyType) const;
 	FTransform BuildSpawnTransform();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave")
 	TObjectPtr<AActorPool> EnemyPool;
+
+	/** Optional dedicated archer pool. When unset, archers use EnemyPool with an ArcherAdvance behavior state. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave")
+	TObjectPtr<AActorPool> ArcherEnemyPool;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave")
 	TObjectPtr<AActor> ObjectiveTarget;
@@ -92,8 +125,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "1"))
 	int32 MaxActiveEnemies = 6;
 
-	/** Finite wave size. Five matches the five requested player loading/firing cycles. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "1"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0"))
+	int32 SwordsmenToSpawn = 3;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0"))
+	int32 ArchersToSpawn = 2;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Wave")
 	int32 TotalEnemiesToSpawn = 5;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0.0"))
@@ -105,8 +141,15 @@ protected:
 	int32 SpawnSequence = 0;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Wave")
 	int32 SpawnedEnemyCount = 0;
+	int32 SpawnedSwordsmanCount = 0;
+	int32 SpawnedArcherCount = 0;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Wave")
 	int32 DefeatedEnemyCount = 0;
 	bool bWaveStarted = false;
+	bool bRetreating = false;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AEnemyCombatCharacter>> ActiveEnemies;
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<AEnemyCombatCharacter>, TObjectPtr<AActorPool>> EnemyPoolsByActor;
 	FTimerHandle SpawnTimerHandle;
 };

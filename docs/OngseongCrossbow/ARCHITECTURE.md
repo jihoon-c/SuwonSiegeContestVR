@@ -56,7 +56,7 @@ graph TD
 |---|---|---|
 | Feature 플러그인 | `Partial` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
 | `LV_Ongseong` | `Implemented (base)` | `/GF_OngseongCrossbow/Maps/LV_Ongseong` |
-| 옹성 성문 목표 | `Implemented (placeholder)` | `JihwaGate_Main`, Shared Health 1000, Ally Faction |
+| 옹성 성문 목표 | `Implemented (runtime + placed)` | `BP_OngseongGate`, 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health·파괴 이벤트 |
 | 적 Wave | `Implemented (prototype)` | 공용 Enemy Pool 기반 유한 Wave(기본 5명), 진행/전원 퇴치 이벤트 제공 |
 | Enemy Pool | `Implemented` | 고정 크기 8, 자동 확장 비활성; Wave 최대 활성 적 6 |
 | 총통 플레이어 조작 | `Implemented (runtime)` | 화약 → 쑤시개 3회 → 대포알 상태 머신, 양손 조준, 양손 트리거 발사, 5발 완료 |
@@ -64,8 +64,8 @@ graph TD
 | 총통 투사체 | `Implemented (runtime)` | 곡사, 직접 명중 + 350cm 범위 피해, 교체 가능한 임시 Niagara/사운드 |
 | 교관 나레이션 | `Implemented (event-driven)` | 총통 기본 컴포넌트가 공용 Pawn 나레이션 플레이어를 재사용하며 진행/상황 이벤트를 큐 재생 |
 | 쇠뇌 Actor | `Planned` | 아직 없음 |
-| 충차 Actor | `Planned` | 아직 없음 |
-| 체험 완료 조건 | `Planned` | Experience 완료 연동 필요 |
+| 충차 Actor | `Implemented (runtime)` | `AOngseongRamActor`, 접근·주기 공격·피해/파괴 정지; 임시 메시 사용 |
+| 체험 완료 조건 | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`, 180초 성공/성문 파괴 실패/퇴각 후 Experience 완료/재시도 |
 | Android VR 검증 | `Planned` | 성능 및 실제 HMD 테스트 필요 |
 
 공용 Enemy Blueprint의 현재 위치는 `/Game/Gameplay/Characters/BP_EnemySoldier`다.
@@ -109,9 +109,9 @@ graph TD
 flowchart LR
     ENTER[Main에서 체험 진입] --> INTRO[총통 조작 안내]
     INTRO --> DEFEND[3분 성문 방어 시작]
-    DEFEND --> WAVES[검병·궁병·공병 Wave]
-    WAVES --> ENGINEER[공병 충차 건설]
-    ENGINEER --> RAM[충차 전진·성문 공격]
+    DEFEND --> ASSAULT[완성된 충차·검병·궁병 동시 전진]
+    ASSAULT --> RAM[충차 대기 지점 도착]
+    RAM --> CHARGE[성문 돌진·충돌·복귀 반복]
     DEFEND --> CHECK{종료 조건}
     CHECK -->|성문 파괴| FAIL[실패·재시도 안내]
     CHECK -->|180초 경과| RETREAT[모든 적 후퇴]
@@ -130,16 +130,16 @@ flowchart LR
 
 | 유형 | 역할 | 필수 상태/행동 | 현재 상태 |
 |---|---|---|---|
-| 공병 | 충차 건설 | 성문 전방의 건설 지점으로 이동 → 건설 시도 → 충차 생성/활성화 | 미구현 |
-| 검병 | 장식·압박 연출 | 대열 간격을 유지하며 성문 방향으로 전진. 별도 공격은 하지 않음 | 공용 전진 로직만 존재 |
-| 궁병 | 총통 견제 | 전진 중 아군 총통을 표적으로 화살 투사체 발사. 명중률에 따라 명중 또는 빗나감 | 미구현 |
+| 충차 | 성문 파괴 | 병력과 함께 전진 → 성문 앞 대기 지점 → 돌진·충돌 피해·대기 지점 복귀 반복 | 구현 |
+| 검병 | 장식·압박 연출 | `BP_OngseongSwordsman`, `SwordsmanAdvance` 상태로 대열 간격을 유지하며 성문 방향으로 전진 | 구현(공용 임시 모델) |
+| 궁병 | 총통 견제 | `BP_OngseongArcher`, `ArcherAdvance` 상태와 전용 Pool로 전진 | 부분 구현(발사체 전투는 후속) |
 
-#### 공병과 충차
+#### 충차
 
-- 공병은 `ConstructionPoint`(성문 앞의 지정 거리)에 도착해야 건설을 시작한다. 도착 전에는 성문을 직접 공격하지 않는다.
-- 건설 중에는 공병의 상태를 `Construct`로 유지하고, 플레이어 HUD에 `충차 건설` ProgressBar를 표시한다. 진행도는 `0..Duration`의 실제 시간 기반으로 갱신한다.
-- 건설이 완료되면 임시 모델을 사용하는 `AOngseongRamActor`를 생성 또는 활성화한다. 임시 모델은 최종 아트 교체 전까지의 표현 자산일 뿐, 이동·체력·성문 공격 상태는 최종 계약으로 구현한다.
-- 충차는 성문을 목표로 전진하고, 공격 범위 도달 뒤 주기적으로 Shared Damage 계약을 통해 성문에 피해를 준다.
+- 방어 시작 시 `RamSpawnPoint`에서 완성된 `AOngseongRamActor`를 즉시 생성하고 검병·궁병 Wave와 함께 전진시킨다.
+- 충차는 성문 전방 `StagingDistance` 지점에 도착한 뒤 `Charging → Returning` 상태를 반복한다.
+- `Charging`에서 성문 충돌 지점에 도달할 때마다 Shared Damage 계약으로 한 번 피해를 주고, 대기 지점으로 완전히 복귀한 뒤 다시 돌진한다.
+- 성문 파괴, 방어 성공 또는 충차 자신의 파괴 시 왕복을 즉시 중단한다.
 
 #### 검병
 
@@ -165,7 +165,7 @@ flowchart LR
 
 - 180초 타이머, 성공/실패 상태 전이, 재시도·Main 복귀 요청
 - 적 유형별 Wave 구성, Spawn 위치, 최대 동시 개체 수와 퇴각 지점
-- 공병 건설/충차 활성화와 HUD 진행도 표시
+- 완성 충차의 시작 Spawn과 돌진·복귀 활성화
 - 성문 파괴, 타이머 만료, 적 퇴각 완료 이벤트의 중복 처리 방지
 - `UExperienceSubsystem` 완료/실패 보고 및 최종 HUD/나레이션 트리거
 
@@ -173,11 +173,11 @@ flowchart LR
 
 ### 4.5 남은 구현 순서
 
-1. `AOngseongGateActor`와 `AOngseongDefenseScenarioManager`를 만들고, 성문 Health/파괴 및 180초 성공·실패 흐름을 먼저 연결한다.
-2. 공병과 `AOngseongRamActor`를 구현한다. 건설 지점, ProgressBar, 임시 충차 모델, 성문 공격·파괴를 검증한다.
-3. 검병/궁병 전용 Blueprint와 유형별 Spawn 데이터를 추가한다. 궁병 화살 투사체·명중률·총통 피해를 구현한다.
-4. 성공 시 전체 적 퇴각→Pool 반환, 실패 시 전투 중지·재시도/보조 안내, 성공 시 `ExperienceSubsystem` 완료→Main 복귀를 연결한다.
-5. 각 흐름의 Automation Test와 PIE 검증을 추가하고, Android HMD에서 적 수·투사체·HUD 성능을 측정해 조정한다.
+1. `[구현]` `AOngseongGateActor`와 `AOngseongDefenseScenarioManager`: 성문 Health/파괴, 180초 성공·실패, 재시도.
+2. `[구현]` `AOngseongRamActor`: 병력과 동시 출발, 대기 지점 접근, 성문 돌진·충돌·복귀 반복. 최종 아트 연결은 남음.
+3. `[부분 구현]` 검병/궁병 구성과 유형별 행동 상태를 추가했다. 궁병 화살 투사체·명중률·총통 피해는 후속 구현한다.
+4. `[구현]` 성공 시 전체 적 퇴각→Pool 반환, 실패 시 전투 중지, 성공 시 `ExperienceSubsystem` 완료→Main 복귀.
+5. `[완료]` BP/레벨 연결, PIE에서 `Defending` 전환 및 5명 Spawn 확인, 옹성 Automation 3종 통과. 이후 Android HMD 성능을 측정한다.
 
 ---
 
