@@ -475,12 +475,21 @@ Impact Event를 제공한다. Feature는 시각 요소와 발사 정책을 파�
 
 ### 4.5 공통 UI
 
-`Status: Planned` — 프로젝트 공통 Widget 없음.
+`Status: Partial` — VR 공용 HUD 상태 계약과 Native fallback Widget 구현.
 
 현재 존재하는 위젯은 `WBP_Menu`(템플릿 VR 메뉴) 하나뿐이며,
 `BP_Menu` 액터가 `NS_MenuLaser` + `M_VRCursor`로 포인팅한다.
 
-필요한 공통 Widget (전부 Planned): Progress UI, Timer, 안내 Popup, Interaction Prompt, 체력 UI, World Space UI 기반 클래스.
+구현된 공통 기반:
+
+- `UVRHUDComponent`: Objective, Progress, Prompt, Notification 채널의 Feature-neutral 상태 관리
+- `UVRHUDWidget`: Blueprint 없이 동작하는 World Space 기본 표시와 Blueprint 확장 이벤트
+- `/Game/Gameplay/UI/Common/WBP_VRHUD`: `UVRHUDWidget` 자식 Widget Blueprint
+- `AVRPlayerPawn.StatusHUD`: 카메라 부착 공용 HUD 슬롯. 자막·나레이션 후속 Widget과 독립
+- `BP_VRPlayerPawn.StatusHUD.WidgetClass`: `WBP_VRHUD` 지정
+- 웅성 총통 장전/쑤시개/Wave/성문 경고를 첫 적용 사례로 연결
+
+남은 공통 Widget: Timer, 체력 UI, 상호작용 가능한 Modal/선택 UI, World Anchor/손목 UI 변형.
 
 공통 Widget이 특정 Game Feature를 직접 참조하는 것은 금지된다 (`CLAUDE.md` 10절).
 

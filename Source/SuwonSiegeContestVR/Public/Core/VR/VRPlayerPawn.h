@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Gameplay/UI/VRHUDTypes.h"
 #include "GameFramework/Pawn.h"
 #include "VRPlayerPawn.generated.h"
 
@@ -14,6 +15,7 @@ class USceneComponent;
 class USkeletalMeshComponent;
 class USubtitleWidget;
 class UUserWidget;
+class UVRHUDComponent;
 class UWidgetComponent;
 class UWidgetInteractionComponent;
 
@@ -25,13 +27,27 @@ class SUWONSIEGECONTESTVR_API AVRPlayerPawn : public APawn
 
 public:
 	AVRPlayerPawn();
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+	/** Feature-neutral mounted interaction contract. Keeps the tracked camera on an authored anchor. */
+	UFUNCTION(BlueprintCallable, Category = "VR|Interaction")
+	void EnterMountedInteraction(USceneComponent* CameraAnchor);
+
+	UFUNCTION(BlueprintCallable, Category = "VR|Interaction")
+	void ExitMountedInteraction(USceneComponent* CameraAnchor = nullptr);
+
+	UFUNCTION(BlueprintPure, Category = "VR|Interaction")
+	bool IsMountedInteractionActive() const { return MountedCameraAnchor.IsValid(); }
 
 	UFUNCTION(BlueprintCallable, Category = "Narration")
 	void DismissNarrationWidget(bool bContinueSequence = true);
 
 	UFUNCTION(BlueprintPure, Category = "Narration")
 	UNarrationSequenceComponent* GetNarrationSequence() const { return NarrationSequence; }
+
+	UFUNCTION(BlueprintPure, Category = "VR|UI")
+	UVRHUDComponent* GetVRHUD() const { return VRHUD; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -48,6 +64,10 @@ protected:
 	void HandleGrabRight(const struct FInputActionValue& Value);
 	void HandleReleaseLeft(const struct FInputActionValue& Value);
 	void HandleReleaseRight(const struct FInputActionValue& Value);
+	void HandleTriggerLeftPressed(const struct FInputActionValue& Value);
+	void HandleTriggerRightPressed(const struct FInputActionValue& Value);
+	void HandleTriggerLeftReleased(const struct FInputActionValue& Value);
+	void HandleTriggerRightReleased(const struct FInputActionValue& Value);
 
 	void StartTeleportTrace();
 	void UpdateTeleportTrace(const FVector2D& InputAxis);
@@ -58,9 +78,10 @@ protected:
 	void RemoveLocomotionInput();
 	void SetHandGraspAlpha(USkeletalMeshComponent* HandMesh, float Alpha) const;
 	void TryGrab(UMotionControllerComponent* MotionController, TObjectPtr<USceneComponent>& HeldComponent);
-	void TryRelease(TObjectPtr<USceneComponent>& HeldComponent);
+	void TryRelease(UMotionControllerComponent* MotionController, TObjectPtr<USceneComponent>& HeldComponent);
 	USceneComponent* FindNearestGrabComponent(const UMotionControllerComponent* MotionController) const;
 	bool InvokeGrabFunction(USceneComponent* GrabComponent, FName FunctionName, UMotionControllerComponent* MotionController) const;
+	void NotifyHeldTrigger(USceneComponent* HeldComponent, FName FunctionName, UMotionControllerComponent* MotionController) const;
 	float GetAxisX(const struct FInputActionValue& Value) const;
 
 	UFUNCTION()
@@ -71,6 +92,9 @@ protected:
 
 	UFUNCTION()
 	void HandleNarrationStarted(FName RowName);
+
+	UFUNCTION()
+	void HandleVRHUDStateChanged(FVRHUDState State);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VR|Components")
 	TObjectPtr<USceneComponent> VROrigin;
@@ -108,6 +132,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Narration")
 	TObjectPtr<UWidgetComponent> NarrationEventHUD;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VR|UI")
+	TObjectPtr<UWidgetComponent> StatusHUD;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VR|UI")
+	TObjectPtr<UVRHUDComponent> VRHUD;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Narration")
 	TObjectPtr<UAudioComponent> NarrationAudio;
@@ -161,6 +191,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> HeldComponentRight;
 
+	UPROPERTY(Transient)
+	TWeakObjectPtr<USceneComponent> MountedCameraAnchor;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VR|Grab", meta = (ClampMin = "1.0"))
 	float GrabRadiusFromGripPosition = 15.0f;
 
@@ -209,4 +242,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
 	FVector EventHUDOffset = FVector(180.0f, 0.0f, -5.0f);
+
+	/** Persistent objective/progress panel, placed above the subtitle safe area. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VR|UI")
+	FVector StatusHUDOffset = FVector(180.0f, 0.0f, 28.0f);
 };
