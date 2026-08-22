@@ -59,6 +59,7 @@ protected:
 	void FinishSuccessfulRetreat();
 	void SetDefenseState(EOngseongDefenseState NewState);
 	void UpdateHUDTime();
+	void HandleAutoRetry();
 
 	UFUNCTION()
 	void HandleGateDestroyed();
@@ -81,6 +82,11 @@ protected:
 	bool bAutoStart = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bReturnToMainOnSuccess = true;
+	/** Educational fallback: restart cleanly after showing the failure reason. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
+	bool bAutoRetryOnFailure = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario", meta=(ClampMin="1.0"))
+	float AutoRetryDelay = 6.0f;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	TObjectPtr<UOngseongNarrationComponent> Narration;
 
@@ -92,4 +98,5 @@ protected:
 	EOngseongDefenseState DefenseState = EOngseongDefenseState::Idle;
 	float RemainingDefenseTime = 0.0f;
 	FTimerHandle DefenseTimerHandle;
+	FTimerHandle AutoRetryTimerHandle;
 };

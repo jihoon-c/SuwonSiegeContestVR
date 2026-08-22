@@ -6,7 +6,7 @@
 **대상 Feature**: `GF_OngseongCrossbow`  
 **대상 Level**: `LV_Ongseong`  
 **플랫폼**: Android 스탠드얼론 VR (개발은 PC 가능)  
-**상태**: `Partial (functional prototype)`
+**상태**: `Implemented (final content/HMD verification pending)`
 
 ---
 
@@ -54,19 +54,19 @@ graph TD
 
 | 요소 | 상태 | 확인된 구성 |
 |---|---|---|
-| Feature 플러그인 | `Partial` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
+| Feature 플러그인 | `Implemented` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
 | `LV_Ongseong` | `Implemented (base)` | `/GF_OngseongCrossbow/Maps/LV_Ongseong` |
 | 옹성 성문 목표 | `Implemented (runtime + placed)` | `BP_OngseongGate`, 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health·파괴 이벤트 |
-| 적 Wave | `Implemented (prototype)` | 공용 Enemy Pool 기반 유한 Wave(기본 5명), 진행/전원 퇴치 이벤트 제공 |
+| 적 Wave | `Implemented` | 공용 Enemy Pool 기반 유한 Wave(기본 검병 3·궁병 2), 진행/전원 퇴치 이벤트 제공 |
 | Enemy Pool | `Implemented` | 고정 크기 8, 자동 확장 비활성; Wave 최대 활성 적 6 |
 | 총통 플레이어 조작 | `Implemented (runtime)` | 화약 → 쑤시개 3회 → 대포알 상태 머신, 양손 조준, 양손 트리거 발사, 5발 완료 |
 | 총통 Ally AI | `Implemented (optional)` | 기존 자동 표적 사격을 `bEnableAutomaticFire` 옵션으로 보존; 플레이어 모드 기본값은 비활성 |
 | 총통 투사체 | `Implemented (runtime)` | 곡사, 직접 명중 + 350cm 범위 피해, 교체 가능한 임시 Niagara/사운드 |
 | 교관 나레이션 | `Implemented (event-driven)` | 총통 기본 컴포넌트가 공용 Pawn 나레이션 플레이어를 재사용하며 진행/상황 이벤트를 큐 재생 |
-| 쇠뇌 Actor | `Planned` | 아직 없음 |
+| 쇠뇌 Actor | `Implemented (runtime + placed)` | `AOngseongCrossbowActor`/`BP_OngseongCrossbow`, 거치형 양손 조준·물리 볼트·12발 탄약·1.25초 자동 재장전·24발 고정 Pool |
 | 충차 Actor | `Implemented (runtime)` | `AOngseongRamActor`, 접근·주기 공격·피해/파괴 정지; 임시 메시 사용 |
 | 체험 완료 조건 | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`, 180초 성공/성문 파괴 실패/퇴각 후 Experience 완료/재시도 |
-| Android VR 검증 | `Planned` | 성능 및 실제 HMD 테스트 필요 |
+| Android VR 검증 | `Excluded from this pass` | 실제 HMD 성능·조작 검증은 별도 수행 |
 
 공용 Enemy Blueprint의 현재 위치는 `/Game/Gameplay/Characters/BP_EnemySoldier`다.
 옹성에서는 이를 부모로 하는 `/GF_OngseongCrossbow/Blueprints/BP_OngseongEnemySoldier`를 사용한다.
@@ -132,7 +132,7 @@ flowchart LR
 |---|---|---|---|
 | 충차 | 성문 파괴 | 병력과 함께 전진 → 성문 앞 대기 지점 → 돌진·충돌 피해·대기 지점 복귀 반복 | 구현 |
 | 검병 | 장식·압박 연출 | `BP_OngseongSwordsman`, `SwordsmanAdvance` 상태로 대열 간격을 유지하며 성문 방향으로 전진 | 구현(공용 임시 모델) |
-| 궁병 | 총통 견제 | `BP_OngseongArcher`, `ArcherAdvance` 상태와 전용 Pool로 전진 | 부분 구현(발사체 전투는 후속) |
+| 궁병 | 총통 견제 | `BP_OngseongArcher`, `ArcherAdvance/ArcherFiring`, 물리 화살과 전용 Pool | 구현 |
 
 #### 충차
 
@@ -171,25 +171,23 @@ flowchart LR
 
 `AOngseongEnemyWaveManager`는 공용 Pool에서 적을 획득·반납하는 저수준 역할을 유지한다. 종료 규칙과 유형별 연출은 이 시나리오 Manager가 담당한다.
 
-### 4.5 남은 구현 순서
+### 4.5 구현 완료 기록
 
 1. `[구현]` `AOngseongGateActor`와 `AOngseongDefenseScenarioManager`: 성문 Health/파괴, 180초 성공·실패, 재시도.
 2. `[구현]` `AOngseongRamActor`: 병력과 동시 출발, 대기 지점 접근, 성문 돌진·충돌·복귀 반복. 최종 아트 연결은 남음.
-3. `[부분 구현]` 검병/궁병 구성과 유형별 행동 상태를 추가했다. 궁병 화살 투사체·명중률·총통 피해는 후속 구현한다.
+3. `[구현]` 검병/궁병 구성과 유형별 행동 상태, 궁병 물리 화살·총통 우선 표적·명중률/빗나감·피해를 연결했다.
 4. `[구현]` 성공 시 전체 적 퇴각→Pool 반환, 실패 시 전투 중지, 성공 시 `ExperienceSubsystem` 완료→Main 복귀.
-5. `[완료]` BP/레벨 연결, PIE에서 `Defending` 전환 및 5명 Spawn 확인, 옹성 Automation 3종 통과. 이후 Android HMD 성능을 측정한다.
+5. `[완료]` 쇠뇌/볼트 BP와 24발 Pool, 궁병 표적/화살 Pool을 레벨에 연결하고 자산 검증 및 옹성 Automation 4종을 통과했다. Android HMD 성능 측정은 별도 범위다.
 
 ---
 
-## 5. 구현 전 결정할 항목
+## 5. 확정된 구현 정책과 별도 범위
 
-1. 쇠뇌 조작: 양손 파지 조준 또는 거치형 회전 조작, 장전 방식, 탄약 유무
-2. 쇠뇌 발사: 실제 투사체 사용을 기본안으로 한다. 비행 궤적이 교육·연출 요소다.
-3. Wave: 수, Wave당 적 수, 스폰 위치, 경로, 난이도 곡선
-4. 충차: 파괴 대상인지, 성문 도달 시 실패인지, 병사가 미는 연출이 필요한지
-5. 완료·실패: 총통은 5발 발사 시 완료 이벤트를 제공. Experience/Main 복귀 연결 시점은 별도 결정
-6. 이동: 성벽 위 고정 위치인지, 제한된 지점 텔레포트인지
-7. 성능 예산: Android에서 동시 적 수·동시 투사체 수·드로우콜 상한
+1. 쇠뇌는 거치형 양손 조준, 실제 물리 볼트, 12발 탄약, 발사 후 1.25초 자동 재장전을 사용한다.
+2. Wave 기본값은 검병 3·궁병 2이며, 궁병은 총통 우선/보조 목표 순서와 65% 명중률을 사용한다.
+3. 충차는 파괴 가능하며 지정 성문에 반복 충돌 피해를 준다. 성문 Health 0이 실패의 단일 기준이다.
+4. 성공은 180초 생존 후 적 퇴각과 Main 복귀, 실패는 명확한 HUD 안내 후 6초 자동 재시도다.
+5. 동시 적과 투사체는 고정 Pool로 제한한다. Android 실측 예산, 최종 메시·애니메이션·VFX·SFX·녹음 음성 교체는 별도 범위다.
 
 ---
 

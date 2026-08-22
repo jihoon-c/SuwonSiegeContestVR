@@ -78,7 +78,6 @@ void AOngseongDefenseScenarioManager::TickDefenseTimer()
 {
 	if (DefenseState != EOngseongDefenseState::Defending) return;
 	RemainingDefenseTime = FMath::Max(0.0f, RemainingDefenseTime - 1.0f);
-	OnDefenseTimeChanged.Broadcast(FMath::CeilToInt(RemainingDefenseTime));
 	UpdateHUDTime();
 	if (RemainingDefenseTime <= 0.0f) SucceedDefense();
 }
@@ -90,7 +89,11 @@ void AOngseongDefenseScenarioManager::SucceedDefense()
 	if (ActiveRam) ActiveRam->StopRam();
 	SetDefenseState(EOngseongDefenseState::Succeeded);
 	Narration->ReportScenarioEvent(TEXT("DefenseSucceeded"), this);
-	if (VRHUD) VRHUD->ShowNotification(FText::FromString(TEXT("옹성 방어 성공")), EVRHUDNotificationType::Success, 5.0f);
+	if (VRHUD)
+	{
+		VRHUD->SetObjective(FText::FromString(TEXT("옹성 방어 성공")), FText::FromString(TEXT("적이 퇴각하고 있습니다")));
+		VRHUD->ShowNotification(FText::FromString(TEXT("성문을 지켜냈습니다")), EVRHUDNotificationType::Success, 5.0f);
+	}
 	if (WaveManager)
 	{
 		const FVector RetreatLocation = RetreatPoint ? RetreatPoint->GetActorLocation() : GetActorLocation();
@@ -121,8 +124,15 @@ void AOngseongDefenseScenarioManager::HandleGateDestroyed()
 	Narration->ReportScenarioEvent(TEXT("GateDestroyed"), GateActor);
 	if (VRHUD)
 	{
-		VRHUD->SetObjective(FText::FromString(TEXT("옹성 방어 실패")), FText::FromString(TEXT("다시 시도할 수 있습니다")));
+		const FText RetryDetail = bAutoRetryOnFailure
+			? FText::Format(FText::FromString(TEXT("{0}초 후 자동으로 다시 시작합니다")), FText::AsNumber(FMath::CeilToInt(AutoRetryDelay)))
+			: FText::FromString(TEXT("재시도 동작으로 다시 시작할 수 있습니다"));
+		VRHUD->SetObjective(FText::FromString(TEXT("옹성 방어 실패")), RetryDetail);
 		VRHUD->ShowNotification(FText::FromString(TEXT("성문이 파괴되었습니다")), EVRHUDNotificationType::Error, 5.0f);
+	}
+	if (bAutoRetryOnFailure)
+	{
+		GetWorldTimerManager().SetTimer(AutoRetryTimerHandle, this, &AOngseongDefenseScenarioManager::HandleAutoRetry, FMath::Max(1.0f, AutoRetryDelay), false);
 	}
 }
 
@@ -142,5 +152,14 @@ void AOngseongDefenseScenarioManager::UpdateHUDTime()
 {
 	const int32 Seconds = FMath::CeilToInt(RemainingDefenseTime);
 	OnDefenseTimeChanged.Broadcast(Seconds);
-	if (VRHUD) VRHUD->SetObjective(FText::FromString(TEXT("옹성을 방어하십시오")), FText::Format(FText::FromString(TEXT("남은 시간 {0}초")), FText::AsNumber(Seconds)));
+	if (VRHUD)
+	{
+		const FString TimeText = FString::Printf(TEXT("%02d:%02d"), Seconds / 60, Seconds % 60);
+		VRHUD->SetObjective(FText::FromString(TEXT("옹성을 방어하십시오")), FText::Format(FText::FromString(TEXT("남은 시간 {0}")), FText::FromString(TimeText)));
+	}
+}
+
+void AOngseongDefenseScenarioManager::HandleAutoRetry()
+{
+	if (DefenseState == EOngseongDefenseState::Failed) RetryDefense();
 }

@@ -11,12 +11,12 @@ AOngseongGateActor::AOngseongGateActor()
 	SetRootComponent(GateMesh);
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	FactionComponent = CreateDefaultSubobject<UCombatFactionComponent>(TEXT("FactionComponent"));
+	FactionComponent->SetFaction(ECombatFaction::Ally);
 }
 
 void AOngseongGateActor::BeginPlay()
 {
 	Super::BeginPlay();
-	FactionComponent->SetFaction(ECombatFaction::Ally);
 	HealthComponent->OnHealthChanged.AddUniqueDynamic(this, &AOngseongGateActor::HandleHealthChanged);
 	HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongGateActor::HandleDeath);
 	HandleHealthChanged(HealthComponent, HealthComponent->GetCurrentHealth(), HealthComponent->GetCurrentHealth(), 0.0f);

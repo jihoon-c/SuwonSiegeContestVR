@@ -155,34 +155,11 @@ bool AChongtongCannonActor::TryFire()
 		return false;
 	}
 
-	AGameplayProjectileActor* Projectile = nullptr;
-	if (ProjectilePool)
-	{
-		AActor* AcquiredActor = ProjectilePool->AcquireActor(FTransform(Direction.Rotation(), MuzzleLocation));
-		Projectile = Cast<AGameplayProjectileActor>(AcquiredActor);
-		if (!Projectile && AcquiredActor)
-		{
-			ProjectilePool->ReleaseActor(AcquiredActor);
-		}
-	}
-	else
-	{
-		FActorSpawnParameters SpawnParameters;
-		SpawnParameters.Owner = this;
-		SpawnParameters.Instigator = nullptr;
-		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		Projectile = GetWorld()->SpawnActor<AGameplayProjectileActor>(ProjectileClass, MuzzleLocation, Direction.Rotation(), SpawnParameters);
-	}
+	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction);
 	if (!Projectile)
 	{
 		return false;
 	}
-
-	FCombatDamageSpec DamageSpec;
-	DamageSpec.Amount = ProjectileDamage;
-	DamageSpec.InstigatorActor = this;
-	DamageSpec.DamageCauser = Projectile;
-	Projectile->LaunchProjectile(Direction, ProjectileSpeed, DamageSpec);
 	OnFired.Broadcast(Target, Projectile);
 	return true;
 }
@@ -190,7 +167,7 @@ bool AChongtongCannonActor::TryFire()
 AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& Direction)
 {
 	if (!ProjectileClass || Direction.IsNearlyZero()) return nullptr;
-	const FVector MuzzleLocation = Muzzle->GetComponentLocation();
+	const FVector MuzzleLocation = Muzzle->GetComponentLocation() + Direction.GetSafeNormal() * ProjectileSpawnClearance;
 	AGameplayProjectileActor* Projectile = nullptr;
 	if (ProjectilePool)
 	{

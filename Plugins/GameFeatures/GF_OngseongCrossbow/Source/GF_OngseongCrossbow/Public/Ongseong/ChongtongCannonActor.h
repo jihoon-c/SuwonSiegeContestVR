@@ -183,6 +183,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
 	float ProjectileDamage = 40.0f;
 
+	/** Starts the projectile beyond the carriage/barrel collision envelope. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
+	float ProjectileSpawnClearance = 90.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Player")
 	bool bEnableAutomaticFire = false;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="1"))

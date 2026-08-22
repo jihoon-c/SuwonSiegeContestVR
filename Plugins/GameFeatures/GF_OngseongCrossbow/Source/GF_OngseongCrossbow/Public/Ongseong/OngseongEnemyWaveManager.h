@@ -8,6 +8,7 @@
 class AActorPool;
 class AEnemyCombatCharacter;
 class UHealthComponent;
+class UOngseongArcherCombatComponent;
 
 UENUM(BlueprintType)
 enum class EOngseongEnemyType : uint8
@@ -63,6 +64,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
 	void SetObjectiveTarget(AActor* NewObjectiveTarget) { ObjectiveTarget = NewObjectiveTarget; }
 
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Wave")
+	void SetArcherPrimaryTarget(AActor* NewArcherPrimaryTarget) { ArcherPrimaryTarget = NewArcherPrimaryTarget; }
+
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Wave")
 	bool IsSpawnConfigured() const;
 
@@ -115,6 +119,26 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave")
 	TObjectPtr<AActor> ObjectiveTarget;
+
+	/** Allied cannon preferred by archers. Falls back to ObjectiveTarget when unavailable. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Wave|Archer")
+	TObjectPtr<AActor> ArcherPrimaryTarget;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Wave|Archer")
+	TObjectPtr<AActorPool> ArcherProjectilePool;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave|Archer", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float ArcherHitChance = 0.65f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave|Archer", meta=(ClampMin="100.0"))
+	float ArcherRange = 3500.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave|Archer", meta=(ClampMin="0.1"))
+	float ArcherFireInterval = 2.75f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave|Archer", meta=(ClampMin="0.0"))
+	float ArcherMissRadius = 275.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave|Archer", meta=(ClampMin="0.0"))
+	float ArcherDamage = 12.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave|Archer", meta=(ClampMin="1.0"))
+	float ArcherProjectileSpeed = 6500.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0.0"))
 	float InitialDelay = 1.0f;

@@ -3,6 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Gameplay/Combat/CombatDamageLibrary.h"
 #include "Gameplay/Combat/CombatFactionComponent.h"
+#include "Gameplay/Combat/DamageReceiverInterface.h"
 #include "Gameplay/Combat/HealthComponent.h"
 
 AOngseongRamActor::AOngseongRamActor()
@@ -13,12 +14,12 @@ AOngseongRamActor::AOngseongRamActor()
 	RamMesh->SetMobility(EComponentMobility::Movable);
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	FactionComponent = CreateDefaultSubobject<UCombatFactionComponent>(TEXT("FactionComponent"));
+	FactionComponent->SetFaction(ECombatFaction::Enemy);
 }
 
 void AOngseongRamActor::BeginPlay()
 {
 	Super::BeginPlay();
-	FactionComponent->SetFaction(ECombatFaction::Enemy);
 	HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongRamActor::HandleDeath);
 	if (GateTarget) ActivateRam(GateTarget);
 }
@@ -113,7 +114,17 @@ void AOngseongRamActor::ImpactGate()
 	Damage.Amount = AttackDamage;
 	Damage.InstigatorActor = this;
 	Damage.DamageCauser = this;
-	UCombatDamageLibrary::ApplyCombatDamage(GateTarget, Damage);
+	// The ram can only strike its explicitly assigned gate target, so faction
+	// filtering must not suppress this scripted objective interaction.
+	Damage.bIgnoreFaction = true;
+	if (IDamageReceiverInterface* DamageReceiver = Cast<IDamageReceiverInterface>(GateTarget))
+	{
+		DamageReceiver->ReceiveCombatDamage_Implementation(Damage);
+	}
+	else
+	{
+		UCombatDamageLibrary::ApplyCombatDamage(GateTarget, Damage);
+	}
 	if (RamState == EOngseongRamState::Charging)
 	{
 		RamState = EOngseongRamState::Returning;
