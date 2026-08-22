@@ -107,22 +107,77 @@ graph TD
 
 ```mermaid
 flowchart LR
-    ENTER[Main에서 체험 진입] --> INTRO[옹성·쇠뇌 안내]
-    INTRO --> DEFEND[성문 방어]
-    DEFEND --> WAVE[적 Wave / 충차 위협]
-    WAVE --> FIRE[쇠뇌·총통 발사]
-    FIRE --> CHECK{완료 조건}
-    CHECK -->|미완료| WAVE
-    CHECK -->|완료| COMPLETE[Experience 완료 후 Main 복귀]
+    ENTER[Main에서 체험 진입] --> INTRO[총통 조작 안내]
+    INTRO --> DEFEND[3분 성문 방어 시작]
+    DEFEND --> WAVES[검병·궁병·공병 Wave]
+    WAVES --> ENGINEER[공병 충차 건설]
+    ENGINEER --> RAM[충차 전진·성문 공격]
+    DEFEND --> CHECK{종료 조건}
+    CHECK -->|성문 파괴| FAIL[실패·재시도 안내]
+    CHECK -->|180초 경과| RETREAT[모든 적 후퇴]
+    RETREAT --> COMPLETE[Experience 완료 후 Main 복귀]
 ```
 
-아직 확정되지 않은 완료 조건은 다음 중 하나를 선택해 별도 계획 문서에서 결정한다.
+### 4.1 확정된 종료 규칙
 
-- 정해진 Wave 방어 성공
-- 충차 파괴
-- 제한 시간 방어 성공
+- 체험 시작과 함께 **180초 방어 타이머**를 시작한다. HUD에는 남은 방어 시간 또는 경과 시간을 명확히 표시한다.
+- 적 충차의 공격으로 `AOngseongGateActor`의 Health가 0이 되면 즉시 타이머를 중단하고 **실패**로 전환한다.
+- 타이머가 끝날 때 성문이 생존해 있으면 **성공**이다. 살아 있는 모든 적은 `Retreat` 상태로 전환해 지정된 퇴각 지점으로 이동한 뒤 Pool에 반환한다.
+- 성공 또는 실패를 `UExperienceSubsystem`에 보고한다. 성공은 Main 복귀를 진행하고, 실패는 교육 흐름에 맞게 재시도 또는 보조 안내를 제공한다.
+- 기존 총통의 5발 `OnExperienceCompleted` 이벤트는 전체 체험 완료 신호로 사용하지 않는다. 총통 조작 숙련/진행도 이벤트로만 유지하거나 이름을 분리한다.
 
-교육 콘텐츠 특성상 실패 시 즉시 종료보다 재시도 또는 보조 안내를 우선한다.
+### 4.2 적 역할과 구현 계약
+
+| 유형 | 역할 | 필수 상태/행동 | 현재 상태 |
+|---|---|---|---|
+| 공병 | 충차 건설 | 성문 전방의 건설 지점으로 이동 → 건설 시도 → 충차 생성/활성화 | 미구현 |
+| 검병 | 장식·압박 연출 | 대열 간격을 유지하며 성문 방향으로 전진. 별도 공격은 하지 않음 | 공용 전진 로직만 존재 |
+| 궁병 | 총통 견제 | 전진 중 아군 총통을 표적으로 화살 투사체 발사. 명중률에 따라 명중 또는 빗나감 | 미구현 |
+
+#### 공병과 충차
+
+- 공병은 `ConstructionPoint`(성문 앞의 지정 거리)에 도착해야 건설을 시작한다. 도착 전에는 성문을 직접 공격하지 않는다.
+- 건설 중에는 공병의 상태를 `Construct`로 유지하고, 플레이어 HUD에 `충차 건설` ProgressBar를 표시한다. 진행도는 `0..Duration`의 실제 시간 기반으로 갱신한다.
+- 건설이 완료되면 임시 모델을 사용하는 `AOngseongRamActor`를 생성 또는 활성화한다. 임시 모델은 최종 아트 교체 전까지의 표현 자산일 뿐, 이동·체력·성문 공격 상태는 최종 계약으로 구현한다.
+- 충차는 성문을 목표로 전진하고, 공격 범위 도달 뒤 주기적으로 Shared Damage 계약을 통해 성문에 피해를 준다.
+
+#### 검병
+
+- 검병은 장식용 적이다. Spawn 순서에 따른 열/행 오프셋을 사용해 대열을 만들고 성문 쪽으로 전진한다.
+- 성문 또는 총통에 피해를 주지 않으며, 전투 AI·근접 BT는 이 유형에 요구하지 않는다.
+
+#### 궁병
+
+- 궁병은 살아 있는 아군 총통을 우선 표적으로 삼고, 표적이 없을 때만 지정된 보조 목표를 사용한다.
+- 각 발사마다 명중 확률을 판정한다. 명중 시 총통에 피해를 주고, 실패 시 총통 주변의 무작위 편차 지점으로 화살 투사체를 발사해 빗나감을 시각적으로 보인다.
+- 명중률, 사거리, 발사 간격, 편차 반경, 피해량은 Blueprint/데이터에서 조절 가능한 값으로 둔다.
+
+### 4.3 성문 Actor 계약
+
+- `AOngseongGateActor`(또는 이를 부모로 하는 `BP_OngseongGate`)를 Feature에 만든다. 현재 레벨의 구조물 Mesh에 임시로 붙은 Health/Faction 설정을 이 Actor로 이전한다.
+- 성문 Actor는 Shared `UHealthComponent`, `UCombatFactionComponent`, `IDamageReceiverInterface`를 사용한다. 피해·진영 판정을 자체 구현하거나 특정 적 클래스 검사로 분기하지 않는다.
+- Health 변경과 파괴 이벤트를 외부에 제공한다. HUD 성문 경고, 나레이션 이벤트, 충차의 공격, 실패 판정 Manager가 이 이벤트를 구독한다.
+- 파괴 시 충차 공격을 중지하고, Wave/궁병/검병을 정리하며 실패 UI를 표시한다. Actor 파괴 자체는 연출 정책에 따라 선택하며, Health 0 이벤트가 실패 판정의 단일 기준이다.
+
+### 4.4 시나리오 제어 Actor
+
+`AOngseongDefenseScenarioManager`(Blueprint 가능)를 Feature에 두어 다음을 한 곳에서 소유한다.
+
+- 180초 타이머, 성공/실패 상태 전이, 재시도·Main 복귀 요청
+- 적 유형별 Wave 구성, Spawn 위치, 최대 동시 개체 수와 퇴각 지점
+- 공병 건설/충차 활성화와 HUD 진행도 표시
+- 성문 파괴, 타이머 만료, 적 퇴각 완료 이벤트의 중복 처리 방지
+- `UExperienceSubsystem` 완료/실패 보고 및 최종 HUD/나레이션 트리거
+
+`AOngseongEnemyWaveManager`는 공용 Pool에서 적을 획득·반납하는 저수준 역할을 유지한다. 종료 규칙과 유형별 연출은 이 시나리오 Manager가 담당한다.
+
+### 4.5 남은 구현 순서
+
+1. `AOngseongGateActor`와 `AOngseongDefenseScenarioManager`를 만들고, 성문 Health/파괴 및 180초 성공·실패 흐름을 먼저 연결한다.
+2. 공병과 `AOngseongRamActor`를 구현한다. 건설 지점, ProgressBar, 임시 충차 모델, 성문 공격·파괴를 검증한다.
+3. 검병/궁병 전용 Blueprint와 유형별 Spawn 데이터를 추가한다. 궁병 화살 투사체·명중률·총통 피해를 구현한다.
+4. 성공 시 전체 적 퇴각→Pool 반환, 실패 시 전투 중지·재시도/보조 안내, 성공 시 `ExperienceSubsystem` 완료→Main 복귀를 연결한다.
+5. 각 흐름의 Automation Test와 PIE 검증을 추가하고, Android HMD에서 적 수·투사체·HUD 성능을 측정해 조정한다.
 
 ---
 
