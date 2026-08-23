@@ -29,6 +29,8 @@ bool UTwoHandCarryComponent::BeginGrip(const ECarryGripSide Side, USceneComponen
 
     if (IsBeingCarried())
     {
+        // Re-capture whenever a hand is added so switching between one- and
+        // two-hand input never teleports the carried actor.
         CaptureGripBaseline();
         SetComponentTickEnabled(true);
         if (!bLastBroadcastCarryState)
@@ -47,6 +49,13 @@ void UTwoHandCarryComponent::EndGrip(const ECarryGripSide Side, USceneComponent*
     if (!HandTransform || Grip.Get() == HandTransform)
     {
         Grip.Reset();
+    }
+
+    if (IsBeingCarried())
+    {
+        CaptureGripBaseline();
+        SetComponentTickEnabled(true);
+        return;
     }
 
     bHasBaseline = false;
@@ -74,7 +83,14 @@ void UTwoHandCarryComponent::SetCarryEnabled(const bool bEnabled)
 
 bool UTwoHandCarryComponent::IsBeingCarried() const
 {
-    return bCarryEnabled && LeftHand.IsValid() && RightHand.IsValid();
+    if (!bCarryEnabled)
+    {
+        return false;
+    }
+
+    return bAllowSingleHandCarry
+        ? LeftHand.IsValid() || RightHand.IsValid()
+        : LeftHand.IsValid() && RightHand.IsValid();
 }
 
 void UTwoHandCarryComponent::CaptureGripBaseline()
@@ -85,14 +101,24 @@ void UTwoHandCarryComponent::CaptureGripBaseline()
         return;
     }
 
-    const FVector LeftLocation = LeftHand->GetComponentLocation();
-    const FVector RightLocation = RightHand->GetComponentLocation();
     BaselineActorTransform = GetOwner()->GetActorTransform();
-    BaselineHandMidpoint = (LeftLocation + RightLocation) * 0.5f;
-    BaselineHandDirection = bYawRotationOnly
-        ? (RightLocation - LeftLocation).GetSafeNormal2D()
-        : (RightLocation - LeftLocation).GetSafeNormal();
-    bHasBaseline = !BaselineHandDirection.IsNearlyZero();
+    bBaselineUsesTwoHands = LeftHand.IsValid() && RightHand.IsValid();
+    if (bBaselineUsesTwoHands)
+    {
+        const FVector LeftLocation = LeftHand->GetComponentLocation();
+        const FVector RightLocation = RightHand->GetComponentLocation();
+        BaselineHandMidpoint = (LeftLocation + RightLocation) * 0.5f;
+        BaselineHandDirection = bYawRotationOnly
+            ? (RightLocation - LeftLocation).GetSafeNormal2D()
+            : (RightLocation - LeftLocation).GetSafeNormal();
+        bHasBaseline = !BaselineHandDirection.IsNearlyZero();
+        return;
+    }
+
+    const USceneComponent* ActiveHand = LeftHand.IsValid() ? LeftHand.Get() : RightHand.Get();
+    BaselineHandMidpoint = ActiveHand->GetComponentLocation();
+    BaselineHandDirection = FVector::ForwardVector;
+    bHasBaseline = true;
 }
 
 void UTwoHandCarryComponent::TickComponent(const float DeltaTime, ELevelTick TickType,
@@ -106,9 +132,22 @@ void UTwoHandCarryComponent::TickComponent(const float DeltaTime, ELevelTick Tic
         return;
     }
 
-    const FVector CurrentLeft = LeftHand->GetComponentLocation();
-    const FVector CurrentRight = RightHand->GetComponentLocation();
-    const FVector CurrentMidpoint = (CurrentLeft + CurrentRight) * 0.5f;
+    const bool bCurrentlyTwoHands = LeftHand.IsValid() && RightHand.IsValid();
+    if (bCurrentlyTwoHands != bBaselineUsesTwoHands)
+    {
+        CaptureGripBaseline();
+        return;
+    }
+
+    const FVector CurrentLeft = LeftHand.IsValid()
+        ? LeftHand->GetComponentLocation()
+        : FVector::ZeroVector;
+    const FVector CurrentRight = RightHand.IsValid()
+        ? RightHand->GetComponentLocation()
+        : FVector::ZeroVector;
+    const FVector CurrentMidpoint = bCurrentlyTwoHands
+        ? (CurrentLeft + CurrentRight) * 0.5f
+        : (LeftHand.IsValid() ? CurrentLeft : CurrentRight);
     FVector DesiredLocation = BaselineActorTransform.GetLocation() + (CurrentMidpoint - BaselineHandMidpoint);
     if (bConstrainToGroundPlane)
     {
@@ -116,29 +155,34 @@ void UTwoHandCarryComponent::TickComponent(const float DeltaTime, ELevelTick Tic
     }
 
     FQuat DesiredRotation = BaselineActorTransform.GetRotation();
-    const FVector CurrentDirection = bYawRotationOnly
-        ? (CurrentRight - CurrentLeft).GetSafeNormal2D()
-        : (CurrentRight - CurrentLeft).GetSafeNormal();
-    if (!CurrentDirection.IsNearlyZero())
+    if (bCurrentlyTwoHands)
     {
-        if (bYawRotationOnly)
+        const FVector CurrentDirection = bYawRotationOnly
+            ? (CurrentRight - CurrentLeft).GetSafeNormal2D()
+            : (CurrentRight - CurrentLeft).GetSafeNormal();
+        if (!CurrentDirection.IsNearlyZero())
         {
-            const float CrossZ = FVector::CrossProduct(BaselineHandDirection, CurrentDirection).Z;
-            const float Dot = FVector::DotProduct(BaselineHandDirection, CurrentDirection);
-            const float DeltaYawDegrees = FMath::RadiansToDegrees(FMath::Atan2(CrossZ, Dot));
-            const FQuat YawDelta(FVector::UpVector, FMath::DegreesToRadians(DeltaYawDegrees));
-            DesiredRotation = YawDelta * BaselineActorTransform.GetRotation();
-        }
-        else
-        {
-            DesiredRotation = FQuat::FindBetweenNormals(BaselineHandDirection, CurrentDirection) *
-                BaselineActorTransform.GetRotation();
+            if (bYawRotationOnly)
+            {
+                const float CrossZ = FVector::CrossProduct(BaselineHandDirection, CurrentDirection).Z;
+                const float Dot = FVector::DotProduct(BaselineHandDirection, CurrentDirection);
+                const float DeltaYawDegrees = FMath::RadiansToDegrees(FMath::Atan2(CrossZ, Dot));
+                const FQuat YawDelta(FVector::UpVector, FMath::DegreesToRadians(DeltaYawDegrees));
+                DesiredRotation = YawDelta * BaselineActorTransform.GetRotation();
+            }
+            else
+            {
+                DesiredRotation = FQuat::FindBetweenNormals(BaselineHandDirection, CurrentDirection) *
+                    BaselineActorTransform.GetRotation();
+            }
         }
     }
 
     const FVector CurrentActorLocation = GetOwner()->GetActorLocation();
-    const FVector NewLocation = CurrentActorLocation +
-        (DesiredLocation - CurrentActorLocation).GetClampedToMaxSize(MaxLinearSpeed * DeltaTime);
+    const FVector NewLocation = bFollowHandWithoutLag
+        ? DesiredLocation
+        : CurrentActorLocation +
+            (DesiredLocation - CurrentActorLocation).GetClampedToMaxSize(MaxLinearSpeed * DeltaTime);
 
     const FQuat CurrentRotation = GetOwner()->GetActorQuat();
     const float MaxAngleRadians = FMath::DegreesToRadians(MaxAngularSpeed * DeltaTime);
@@ -148,7 +192,12 @@ void UTwoHandCarryComponent::TickComponent(const float DeltaTime, ELevelTick Tic
         FMath::Min(1.0f, MaxAngleRadians / FMath::Max(CurrentRotation.AngularDistance(DesiredRotation), KINDA_SMALL_NUMBER)));
 
     FHitResult SweepResult;
-    GetOwner()->SetActorLocationAndRotation(NewLocation, NewRotation, true, &SweepResult, ETeleportType::TeleportPhysics);
+    GetOwner()->SetActorLocationAndRotation(
+        NewLocation,
+        NewRotation,
+        bSweepMovement,
+        bSweepMovement ? &SweepResult : nullptr,
+        ETeleportType::TeleportPhysics);
 }
 
 void UTwoHandCarryComponent::ClearGrips()
@@ -156,6 +205,7 @@ void UTwoHandCarryComponent::ClearGrips()
     LeftHand.Reset();
     RightHand.Reset();
     bHasBaseline = false;
+    bBaselineUsesTwoHands = false;
     SetComponentTickEnabled(false);
     if (bLastBroadcastCarryState)
     {

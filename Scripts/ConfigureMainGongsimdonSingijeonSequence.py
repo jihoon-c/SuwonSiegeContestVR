@@ -1,4 +1,14 @@
+import sys
+from pathlib import Path
+
 import unreal
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from GongsimdonNarratedScenarioData import (  # noqa: E402
+    create_or_update_narration_table,
+    make_gongsimdon_stage,
+)
 
 
 ASSET_TOOLS = unreal.AssetToolsHelpers.get_asset_tools()
@@ -154,6 +164,8 @@ gongsimdon_stage.set_editor_property("interactions", [
         target_id="OBS_FINAL_AREA",
     ),
 ])
+gongsimdon_narration_table = create_or_update_narration_table(unreal)
+gongsimdon_stage = make_gongsimdon_stage(unreal)
 gongsimdon_scenario = create_or_load_data_asset(
     GONGSIMDON_SCENARIO_PATH, "/Script/SuwonSiegeContestVR.ScenarioDefinition"
 )
@@ -161,7 +173,7 @@ gongsimdon_scenario.set_editor_property("scenario_id", "SCENARIO_Gongsimdon")
 gongsimdon_scenario.set_editor_property("scenario_name", "공심돈 야간 경계")
 gongsimdon_scenario.set_editor_property("stages", [gongsimdon_stage])
 gongsimdon_scenario.set_editor_property("start_stage_id", "GONGSIMDON_STAGE_01")
-gongsimdon_scenario.set_editor_property("narration_table", None)
+gongsimdon_scenario.set_editor_property("narration_table", gongsimdon_narration_table)
 unreal.EditorAssetLibrary.save_loaded_asset(gongsimdon_scenario, only_if_is_dirty=False)
 
 main_experience = create_or_load_data_asset(
@@ -211,6 +223,7 @@ def configure_manager_and_player_start(level_path, experience, player_location):
     manager.set_actor_label("BP_ScenarioManager")
     manager.set_editor_property("experience_definition", experience)
     manager.set_editor_property("standalone_scenario_definition", None)
+    manager.set_editor_property("level_narration_table", None)
     manager.set_editor_property("activate_experience_when_opened_directly", True)
     manager.set_editor_property("restore_scenario_checkpoint", True)
     manager.refresh_resolved_configuration()

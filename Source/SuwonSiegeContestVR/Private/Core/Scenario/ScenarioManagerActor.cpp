@@ -3,9 +3,14 @@
 #include "Components/SceneComponent.h"
 #include "Core/Experience/ExperienceDefinition.h"
 #include "Core/Scenario/ScenarioExperienceBridgeComponent.h"
+#include "Core/Scenario/ScenarioInteractionGuideComponent.h"
 #include "Core/Scenario/ScenarioDefinition.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Core/Scenario/ScenarioNarrationBridgeComponent.h"
+#include "Components/InputComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
 
 AScenarioManagerActor::AScenarioManagerActor()
 {
@@ -15,6 +20,7 @@ AScenarioManagerActor::AScenarioManagerActor()
 	ScenarioManager = CreateDefaultSubobject<UScenarioManagerComponent>(TEXT("ScenarioManager"));
 	NarrationBridge = CreateDefaultSubobject<UScenarioNarrationBridgeComponent>(TEXT("NarrationBridge"));
 	ExperienceBridge = CreateDefaultSubobject<UScenarioExperienceBridgeComponent>(TEXT("ExperienceBridge"));
+	InteractionGuide = CreateDefaultSubobject<UScenarioInteractionGuideComponent>(TEXT("InteractionGuide"));
 }
 
 void AScenarioManagerActor::OnConstruction(const FTransform& Transform)
@@ -33,6 +39,7 @@ void AScenarioManagerActor::BeginPlay()
 {
 	Super::BeginPlay();
 	ApplyConfiguration();
+	SetupDebugInput();
 	if (bAutoStartScenario)
 	{
 		if (StartConfiguredScenario() && ExperienceBridge)
@@ -40,6 +47,61 @@ void AScenarioManagerActor::BeginPlay()
 			ExperienceBridge->RestoreScenarioCheckpoint();
 		}
 	}
+}
+
+void AScenarioManagerActor::SetupDebugInput()
+{
+#if !UE_BUILD_SHIPPING
+	if (!bEnableSpacebarDebugAdvance || bDebugInputBound)
+	{
+		return;
+	}
+
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		EnableInput(PlayerController);
+		if (InputComponent)
+		{
+			FInputKeyBinding& Binding = InputComponent->BindKey(
+				EKeys::SpaceBar, IE_Pressed, this, &ThisClass::HandleSpacebarDebugAdvance);
+			Binding.bConsumeInput = false;
+			bDebugInputBound = true;
+		}
+	}
+#endif
+}
+
+void AScenarioManagerActor::HandleSpacebarDebugAdvance()
+{
+	DebugAdvanceCurrentInteraction();
+}
+
+bool AScenarioManagerActor::DebugAdvanceCurrentInteraction()
+{
+#if UE_BUILD_SHIPPING
+	return false;
+#else
+	if (!bEnableSpacebarDebugAdvance || !ScenarioManager)
+	{
+		return false;
+	}
+
+	const FScenarioDebugSnapshot Before = ScenarioManager->GetDebugSnapshot();
+	if (Before.InteractionState != EScenarioInteractionState::Running)
+	{
+		return false;
+	}
+
+	if (NarrationBridge)
+	{
+		NarrationBridge->CancelPendingNarration();
+	}
+	const bool bAdvanced = ScenarioManager->CompleteCurrentInteraction();
+	UE_LOG(LogTemp, Display, TEXT("Scenario debug Space advance: %s/%s/%s -> %s"),
+		*Before.ScenarioID.ToString(), *Before.SceneID.ToString(), *Before.InteractionID.ToString(),
+		bAdvanced ? TEXT("Success") : TEXT("Rejected"));
+	return bAdvanced;
+#endif
 }
 
 bool AScenarioManagerActor::StartConfiguredScenario()

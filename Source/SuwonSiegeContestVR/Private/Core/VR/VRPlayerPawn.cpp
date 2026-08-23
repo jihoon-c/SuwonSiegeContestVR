@@ -4,6 +4,7 @@
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -21,8 +22,6 @@
 #include "Core/Scenario/ScenarioInteractableComponent.h"
 #include "Core/Scenario/ScenarioTypes.h"
 #include "Core/Narration/SubtitleWidget.h"
-#include "Gameplay/UI/VRHUDComponent.h"
-#include "Gameplay/UI/VRHUDWidget.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -35,6 +34,7 @@
 AVRPlayerPawn::AVRPlayerPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -114,12 +114,16 @@ AVRPlayerPawn::AVRPlayerPawn()
 	SubtitleHUD->SetupAttachment(VRCamera);
 	SubtitleHUD->SetRelativeLocation(SubtitleHUDOffset);
 	SubtitleHUD->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	// Screen-space WidgetComponents are not consistently composited into OpenXR
+	// HMD views. Keep this camera-attached in world space and close enough that
+	// level geometry cannot normally pass between the player and the subtitle.
 	SubtitleHUD->SetWidgetSpace(EWidgetSpace::World);
 	SubtitleHUD->SetDrawSize(FVector2D(900.0f, 180.0f));
-	SubtitleHUD->SetRelativeScale3D(FVector(0.07f));
+	SubtitleHUD->SetRelativeScale3D(FVector(0.05f));
 	SubtitleHUD->SetPivot(FVector2D(0.5f, 0.5f));
 	SubtitleHUD->SetBlendMode(EWidgetBlendMode::Transparent);
 	SubtitleHUD->SetTwoSided(true);
+	SubtitleHUD->SetTranslucentSortPriority(10000);
 	SubtitleHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SubtitleHUD->SetWidgetClass(USubtitleWidget::StaticClass());
 	SubtitleHUD->SetVisibility(false);
@@ -135,20 +139,6 @@ AVRPlayerPawn::AVRPlayerPawn()
 	NarrationEventHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	NarrationEventHUD->SetVisibility(false);
 
-	StatusHUD = CreateDefaultSubobject<UWidgetComponent>(TEXT("StatusHUD"));
-	StatusHUD->SetupAttachment(VRCamera);
-	StatusHUD->SetRelativeLocation(StatusHUDOffset);
-	StatusHUD->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
-	StatusHUD->SetWidgetSpace(EWidgetSpace::World);
-	StatusHUD->SetDrawSize(FVector2D(720.0f, 360.0f));
-	StatusHUD->SetRelativeScale3D(FVector(0.07f));
-	StatusHUD->SetPivot(FVector2D(0.5f, 0.5f));
-	StatusHUD->SetBlendMode(EWidgetBlendMode::Transparent);
-	StatusHUD->SetTwoSided(true);
-	StatusHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	StatusHUD->SetWidgetClass(UVRHUDWidget::StaticClass());
-	StatusHUD->SetVisibility(false);
-
 	NarrationAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("NarrationAudio"));
 	NarrationAudio->SetupAttachment(VRCamera);
 	NarrationAudio->bAutoActivate = false;
@@ -156,7 +146,6 @@ AVRPlayerPawn::AVRPlayerPawn()
 	NarrationAudio->bAllowSpatialization = false;
 
 	NarrationSequence = CreateDefaultSubobject<UNarrationSequenceComponent>(TEXT("NarrationSequence"));
-	VRHUD = CreateDefaultSubobject<UVRHUDComponent>(TEXT("VRHUD"));
 
 	static ConstructorHelpers::FObjectFinder<UInputAction> TeleportActionFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Move.IA_Move"));
 	static ConstructorHelpers::FObjectFinder<UInputAction> TurnActionFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Turn.IA_Turn"));
@@ -168,6 +157,7 @@ AVRPlayerPawn::AVRPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReleaseLeftFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Grab_Left_Released.IA_Grab_Left_Released"));
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReleaseRightFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Grab_Right_Released.IA_Grab_Right_Released"));
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> DefaultMappingContextFinder(TEXT("/Game/XRFramework/Input/IMC_Default.IMC_Default"));
+	static ConstructorHelpers::FObjectFinder<UInputMappingContext> HandMappingContextFinder(TEXT("/Game/XRFramework/Input/IMC_Hands.IMC_Hands"));
 	static ConstructorHelpers::FClassFinder<USceneComponent> GrabComponentFinder(TEXT("/Game/XRFramework/Blueprints/BP_GrabComponent"));
 	static ConstructorHelpers::FClassFinder<AActor> TeleportVisualizerFinder(TEXT("/Game/XRFramework/Blueprints/BP_TeleportVisualizer"));
 
@@ -184,6 +174,7 @@ AVRPlayerPawn::AVRPlayerPawn()
 	ReleaseLeftAction = ReleaseLeftFinder.Object;
 	ReleaseRightAction = ReleaseRightFinder.Object;
 	DefaultMappingContext = DefaultMappingContextFinder.Object;
+	HandMappingContext = HandMappingContextFinder.Object;
 	GrabComponentClass = GrabComponentFinder.Class;
 	TeleportVisualizerClass = TeleportVisualizerFinder.Class;
 	AutoPossessPlayer = EAutoReceiveInput::Disabled;
@@ -217,29 +208,17 @@ void AVRPlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		EnhancedInput->BindAction(ViewTurnAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTurnCompleted);
 	}
 
-	if (GrabLeftAction)
-	{
-		EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabLeft);
-		EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseLeft);
-		EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseLeft);
-	}
-	if (GrabRightAction)
-	{
-		EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabRight);
-		EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseRight);
-		EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseRight);
-	}
 	if (TriggerGrabLeftAction)
 	{
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTriggerLeftPressed);
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTriggerLeftReleased);
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTriggerLeftReleased);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabLeft);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseLeft);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseLeft);
 	}
 	if (TriggerGrabRightAction)
 	{
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTriggerRightPressed);
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTriggerRightReleased);
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTriggerRightReleased);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabRight);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseRight);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseRight);
 	}
 
 	ConfigureLocomotionInput();
@@ -250,29 +229,42 @@ void AVRPlayerPawn::Tick(const float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (!MountedCameraAnchor.IsValid() || !VRCamera)
 	{
+		SetActorTickEnabled(false);
 		return;
 	}
 
 	const FTransform AnchorTransform = MountedCameraAnchor->GetComponentTransform();
 	const FVector CameraOffset = VRCamera->GetComponentLocation() - GetActorLocation();
 	SetActorLocationAndRotation(
-		AnchorTransform.GetLocation() - FVector(CameraOffset.X, CameraOffset.Y, CameraOffset.Z),
-		FRotator(0.0f, AnchorTransform.Rotator().Yaw, 0.0f), false, nullptr, ETeleportType::TeleportPhysics);
+		AnchorTransform.GetLocation() - CameraOffset,
+		FRotator(0.0f, AnchorTransform.Rotator().Yaw, 0.0f),
+		false, nullptr, ETeleportType::TeleportPhysics);
 }
 
 void AVRPlayerPawn::EnterMountedInteraction(USceneComponent* CameraAnchor)
 {
-	if (!IsValid(CameraAnchor)) return;
+	if (!IsValid(CameraAnchor))
+	{
+		return;
+	}
+
+	bMoveEnabledBeforeMountedInteraction = bEnableMove;
 	MountedCameraAnchor = CameraAnchor;
 	bEnableMove = false;
+	SetActorTickEnabled(true);
 	Tick(0.0f);
 }
 
 void AVRPlayerPawn::ExitMountedInteraction(USceneComponent* CameraAnchor)
 {
-	if (CameraAnchor && MountedCameraAnchor.Get() != CameraAnchor) return;
+	if (CameraAnchor && MountedCameraAnchor.Get() != CameraAnchor)
+	{
+		return;
+	}
+
 	MountedCameraAnchor.Reset();
-	bEnableMove = true;
+	bEnableMove = bMoveEnabledBeforeMountedInteraction;
+	SetActorTickEnabled(false);
 }
 
 void AVRPlayerPawn::BeginPlay()
@@ -289,28 +281,28 @@ void AVRPlayerPawn::BeginPlay()
 				{
 					InputSubsystem->AddMappingContext(DefaultMappingContext, 0);
 				}
+				if (HandMappingContext && !InputSubsystem->HasMappingContext(HandMappingContext))
+				{
+					InputSubsystem->AddMappingContext(HandMappingContext, 1);
+				}
 			}
 		}
 	}
 
 	SubtitleHUD->SetRelativeLocation(SubtitleHUDOffset);
 	NarrationEventHUD->SetRelativeLocation(EventHUDOffset);
-	StatusHUD->SetRelativeLocation(StatusHUDOffset);
 	SubtitleHUD->InitWidget();
-	StatusHUD->InitWidget();
 	NarrationSequence->SetAudioComponent(NarrationAudio);
 	NarrationSequence->OnSubtitleChanged.AddUniqueDynamic(this, &AVRPlayerPawn::HandleSubtitleChanged);
 	NarrationSequence->OnNarrationStarted.AddUniqueDynamic(this, &AVRPlayerPawn::HandleNarrationStarted);
 	NarrationSequence->OnWidgetRequested.AddUniqueDynamic(this, &AVRPlayerPawn::HandleNarrationWidgetRequested);
-	VRHUD->OnHUDStateChanged.AddUniqueDynamic(this, &AVRPlayerPawn::HandleVRHUDStateChanged);
-	HandleVRHUDStateChanged(VRHUD->GetHUDState());
 }
 
 void AVRPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	RemoveLocomotionInput();
-	TryRelease(MotionControllerLeftGrip, HeldComponentLeft);
-	TryRelease(MotionControllerRightGrip, HeldComponentRight);
+	TryRelease(HeldComponentLeft);
+	TryRelease(HeldComponentRight);
 
 	if (TeleportVisualizer)
 	{
@@ -402,33 +394,13 @@ void AVRPlayerPawn::HandleGrabRight(const FInputActionValue& Value)
 void AVRPlayerPawn::HandleReleaseLeft(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(LeftHandMesh, 0.0f);
-	TryRelease(MotionControllerLeftGrip, HeldComponentLeft);
+	TryRelease(HeldComponentLeft);
 }
 
 void AVRPlayerPawn::HandleReleaseRight(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(RightHandMesh, 0.0f);
-	TryRelease(MotionControllerRightGrip, HeldComponentRight);
-}
-
-void AVRPlayerPawn::HandleTriggerLeftPressed(const FInputActionValue& Value)
-{
-	NotifyHeldTrigger(HeldComponentLeft, TEXT("TriggerPressed"), MotionControllerLeftGrip);
-}
-
-void AVRPlayerPawn::HandleTriggerRightPressed(const FInputActionValue& Value)
-{
-	NotifyHeldTrigger(HeldComponentRight, TEXT("TriggerPressed"), MotionControllerRightGrip);
-}
-
-void AVRPlayerPawn::HandleTriggerLeftReleased(const FInputActionValue& Value)
-{
-	NotifyHeldTrigger(HeldComponentLeft, TEXT("TriggerReleased"), MotionControllerLeftGrip);
-}
-
-void AVRPlayerPawn::HandleTriggerRightReleased(const FInputActionValue& Value)
-{
-	NotifyHeldTrigger(HeldComponentRight, TEXT("TriggerReleased"), MotionControllerRightGrip);
+	TryRelease(HeldComponentRight);
 }
 
 void AVRPlayerPawn::ConfigureLocomotionInput()
@@ -446,6 +418,10 @@ void AVRPlayerPawn::ConfigureLocomotionInput()
 	if (DefaultMappingContext && !InputSubsystem->HasMappingContext(DefaultMappingContext))
 	{
 		InputSubsystem->AddMappingContext(DefaultMappingContext, 0);
+	}
+	if (HandMappingContext && !InputSubsystem->HasMappingContext(HandMappingContext))
+	{
+		InputSubsystem->AddMappingContext(HandMappingContext, 1);
 	}
 
 	if (!RuntimeLocomotionMappingContext)
@@ -472,10 +448,8 @@ void AVRPlayerPawn::ConfigureLocomotionInput()
 		FEnhancedActionKeyMapping& TurnLeftMapping = RuntimeLocomotionMappingContext->MapKey(ViewTurnAction, EKeys::Q);
 		TurnLeftMapping.Modifiers.Add(NewObject<UInputModifierNegate>(RuntimeLocomotionMappingContext));
 
-		RuntimeLocomotionMappingContext->MapKey(GrabLeftAction, EKeys::F);
-		RuntimeLocomotionMappingContext->MapKey(GrabRightAction, EKeys::G);
-		RuntimeLocomotionMappingContext->MapKey(TriggerGrabLeftAction, EKeys::T);
-		RuntimeLocomotionMappingContext->MapKey(TriggerGrabRightAction, EKeys::Y);
+		RuntimeLocomotionMappingContext->MapKey(TriggerGrabLeftAction, EKeys::F);
+		RuntimeLocomotionMappingContext->MapKey(TriggerGrabRightAction, EKeys::G);
 	}
 
 	if (!InputSubsystem->HasMappingContext(RuntimeLocomotionMappingContext))
@@ -640,7 +614,12 @@ void AVRPlayerPawn::TryGrab(UMotionControllerComponent* MotionController, TObjec
 
 	if (USceneComponent* Candidate = FindNearestGrabComponent(MotionController))
 	{
-		if (InvokeGrabFunction(Candidate, TEXT("TryGrab"), MotionController))
+		const bool bUsesGrabComponent = Candidate->FindFunction(TEXT("TryGrab")) != nullptr;
+		const bool bGrabbed = bUsesGrabComponent
+			? InvokeGrabFunction(Candidate, TEXT("TryGrab"), MotionController)
+			: Candidate->ComponentHasTag(TEXT("VRGrab"));
+		if (bGrabbed && InvokeGrabOwnerFunction(
+			Candidate, TEXT("HandleVRGrabbed"), MotionController, true))
 		{
 			HeldComponent = Candidate;
 			if (AActor* GrabbedActor = Candidate->GetOwner())
@@ -655,17 +634,28 @@ void AVRPlayerPawn::TryGrab(UMotionControllerComponent* MotionController, TObjec
 				}
 			}
 		}
+		else if (bGrabbed && bUsesGrabComponent)
+		{
+			// The owning Actor may reject a context-sensitive grab (for example,
+			// equipment that cannot move until it has been loaded).
+			InvokeGrabFunction(Candidate, TEXT("TryRelease"), nullptr);
+		}
 	}
 }
 
-void AVRPlayerPawn::TryRelease(UMotionControllerComponent* MotionController, TObjectPtr<USceneComponent>& HeldComponent)
+void AVRPlayerPawn::TryRelease(TObjectPtr<USceneComponent>& HeldComponent)
 {
 	if (!HeldComponent)
 	{
 		return;
 	}
 
-	InvokeGrabFunction(HeldComponent, TEXT("TryRelease"), MotionController);
+	USceneComponent* ReleasedComponent = HeldComponent.Get();
+	if (ReleasedComponent->FindFunction(TEXT("TryRelease")))
+	{
+		InvokeGrabFunction(ReleasedComponent, TEXT("TryRelease"), nullptr);
+	}
+	InvokeGrabOwnerFunction(ReleasedComponent, TEXT("HandleVRReleased"), nullptr, true);
 	HeldComponent = nullptr;
 }
 
@@ -685,17 +675,26 @@ USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionController
 		TInlineComponentArray<USceneComponent*> SceneComponents(*ActorIterator);
 		for (USceneComponent* SceneComponent : SceneComponents)
 		{
-			if (!SceneComponent || !SceneComponent->FindFunction(TEXT("TryGrab")))
+			if (!SceneComponent || SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
 			{
 				continue;
 			}
-			if (SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
+			const bool bIsConfiguredGrabComponent = GrabComponentClass && SceneComponent->IsA(GrabComponentClass);
+			if (!bIsConfiguredGrabComponent && !SceneComponent->ComponentHasTag(TEXT("VRGrab")))
 			{
-				const FBoolProperty* TwoHandProperty = FindFProperty<FBoolProperty>(SceneComponent->GetClass(), TEXT("bAllowTwoHandedGrab"));
-				if (!TwoHandProperty || !TwoHandProperty->GetPropertyValue_InContainer(SceneComponent)) continue;
+				continue;
 			}
 
-			const float DistanceSquared = FVector::DistSquared(GripLocation, SceneComponent->GetComponentLocation());
+			float DistanceSquared = FVector::DistSquared(
+				GripLocation, SceneComponent->GetComponentLocation());
+			if (const UPrimitiveComponent* PrimitiveComponent =
+				Cast<UPrimitiveComponent>(SceneComponent))
+			{
+				// Tagged visual handles can be long. Measure from their rendered
+				// bounds rather than requiring the controller near the pivot.
+				DistanceSquared = PrimitiveComponent->Bounds.GetBox()
+					.ComputeSquaredDistanceToPoint(GripLocation);
+			}
 			if (DistanceSquared <= NearestDistanceSquared)
 			{
 				NearestDistanceSquared = DistanceSquared;
@@ -705,14 +704,6 @@ USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionController
 	}
 
 	return NearestComponent;
-}
-
-void AVRPlayerPawn::NotifyHeldTrigger(USceneComponent* HeldComponent, const FName FunctionName, UMotionControllerComponent* MotionController) const
-{
-	if (HeldComponent && HeldComponent->FindFunction(FunctionName))
-	{
-		InvokeGrabFunction(HeldComponent, FunctionName, MotionController);
-	}
 }
 
 bool AVRPlayerPawn::InvokeGrabFunction(
@@ -773,6 +764,63 @@ bool AVRPlayerPawn::InvokeGrabFunction(
 	return true;
 }
 
+bool AVRPlayerPawn::InvokeGrabOwnerFunction(
+	USceneComponent* GrabComponent,
+	const FName FunctionName,
+	UMotionControllerComponent* MotionController,
+	const bool bDefaultResult) const
+{
+	AActor* OwnerActor = GrabComponent ? GrabComponent->GetOwner() : nullptr;
+	UFunction* Function = OwnerActor ? OwnerActor->FindFunction(FunctionName) : nullptr;
+	if (!Function)
+	{
+		return bDefaultResult;
+	}
+
+	FStructOnScope ParameterScope(Function);
+	uint8* Parameters = ParameterScope.GetStructMemory();
+	for (TFieldIterator<FProperty> PropertyIterator(Function); PropertyIterator; ++PropertyIterator)
+	{
+		FProperty* Property = *PropertyIterator;
+		if (!Property->HasAnyPropertyFlags(CPF_Parm) ||
+			Property->HasAnyPropertyFlags(CPF_OutParm | CPF_ReturnParm))
+		{
+			continue;
+		}
+
+		if (FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+		{
+			UObject* Value = nullptr;
+			// Prefer the actual grab point for base SceneComponent parameters.
+			// Motion controllers also derive from SceneComponent, so checking them
+			// first would incorrectly replace the GrabComponent argument.
+			if (GrabComponent->IsA(ObjectProperty->PropertyClass))
+			{
+				Value = GrabComponent;
+			}
+			else if (MotionController && MotionController->IsA(ObjectProperty->PropertyClass))
+			{
+				Value = MotionController;
+			}
+			ObjectProperty->SetObjectPropertyValue_InContainer(Parameters, Value);
+		}
+	}
+
+	OwnerActor->ProcessEvent(Function, Parameters);
+	for (TFieldIterator<FProperty> PropertyIterator(Function); PropertyIterator; ++PropertyIterator)
+	{
+		FProperty* Property = *PropertyIterator;
+		if (Property->HasAnyPropertyFlags(CPF_ReturnParm))
+		{
+			if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+			{
+				return BoolProperty->GetPropertyValue_InContainer(Parameters);
+			}
+		}
+	}
+	return bDefaultResult;
+}
+
 float AVRPlayerPawn::GetAxisX(const FInputActionValue& Value) const
 {
 	switch (Value.GetValueType())
@@ -799,20 +847,6 @@ void AVRPlayerPawn::HandleSubtitleChanged(const FText SpeakerName, const FText S
 	if (USubtitleWidget* Widget = Cast<USubtitleWidget>(SubtitleHUD->GetUserWidgetObject()))
 	{
 		Widget->SetSubtitle(SpeakerName, Subtitle);
-	}
-}
-
-void AVRPlayerPawn::HandleVRHUDStateChanged(const FVRHUDState State)
-{
-	if (!StatusHUD)
-	{
-		return;
-	}
-
-	StatusHUD->SetVisibility(State.HasVisibleContent());
-	if (UVRHUDWidget* Widget = Cast<UVRHUDWidget>(StatusHUD->GetUserWidgetObject()))
-	{
-		Widget->ApplyHUDState(State);
 	}
 }
 

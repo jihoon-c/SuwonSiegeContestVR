@@ -34,6 +34,15 @@ bool UScenarioNarrationBridgeComponent::InitializeBridge()
 	return true;
 }
 
+void UScenarioNarrationBridgeComponent::CancelPendingNarration()
+{
+	PendingInteractionID = NAME_None;
+	if (NarrationSequence)
+	{
+		NarrationSequence->StopSequence();
+	}
+}
+
 void UScenarioNarrationBridgeComponent::HandleNarrationRequested(
 	const FName NarrationID,
 	const FName InteractionID)

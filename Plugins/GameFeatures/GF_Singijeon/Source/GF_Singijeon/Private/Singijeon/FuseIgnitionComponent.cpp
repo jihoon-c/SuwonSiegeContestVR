@@ -2,12 +2,15 @@
 
 #include "Engine/World.h"
 #include "Interaction/IgnitionSourceInterface.h"
+#include "Singijeon/SingijeonHwachaActor.h"
 
 UFuseIgnitionComponent::UFuseIgnitionComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
-    InitSphereRadius(12.0f);
+    // A 12 cm target was too small for a held torch in VR. The wider overlap
+    // still requires an active IgnitionSource, so it does not weaken ordering.
+    InitSphereRadius(24.0f);
     SetCollisionProfileName(TEXT("Trigger"));
     SetGenerateOverlapEvents(true);
 }
@@ -53,7 +56,12 @@ void UFuseIgnitionComponent::HandleEndOverlap(UPrimitiveComponent*, AActor* Othe
 
 bool UFuseIgnitionComponent::TryBeginIgnition(AActor* SourceActor)
 {
+    const ASingijeonHwachaActor* Hwacha = Cast<ASingijeonHwachaActor>(GetOwner());
     if (!bIgnitionEnabled || IsValid(ActiveSource) || !IsValidActiveSource(SourceActor))
+    {
+        return false;
+    }
+    if (Hwacha && !Hwacha->CanBeginFuseIgnitionNow())
     {
         return false;
     }

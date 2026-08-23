@@ -20,6 +20,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Narration")
 	bool InitializeBridge();
 
+	/** Stops active narration and clears its pending Scenario completion callback. */
+	UFUNCTION(BlueprintCallable, Category = "Scenario|Narration")
+	void CancelPendingNarration();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Narration")
 	TObjectPtr<UDataTable> NarrationTable;
 

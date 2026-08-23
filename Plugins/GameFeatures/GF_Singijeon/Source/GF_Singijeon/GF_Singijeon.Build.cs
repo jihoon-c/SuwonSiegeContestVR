@@ -14,5 +14,11 @@ public class GF_Singijeon : ModuleRules
             "NavigationSystem",
             "SuwonSiegeContestVR"
         });
+
+        PrivateDependencyModuleNames.AddRange(new[]
+        {
+            "HeadMountedDisplay",
+            "Niagara"
+        });
     }
 }

@@ -244,14 +244,22 @@ bool UScenarioManagerComponent::ReportInteractionResult(
 	const EScenarioInteractionType InteractionType,
 	const bool bSuccess)
 {
-	const FScenarioInteraction* Interaction = FindCurrentInteraction();
-	if (!Interaction || GetInteractionState(CurrentInteractionID) != EScenarioInteractionState::Running ||
-		Interaction->InteractionType != InteractionType ||
-		(!Interaction->TargetID.IsNone() && Interaction->TargetID != TargetID))
+	if (!CanReportInteractionResult(TargetID, InteractionType))
 	{
 		return false;
 	}
 	return bSuccess ? CompleteInteraction(CurrentInteractionID) : FailInteraction(CurrentInteractionID);
+}
+
+bool UScenarioManagerComponent::CanReportInteractionResult(
+	const FName TargetID,
+	const EScenarioInteractionType InteractionType) const
+{
+	const FScenarioInteraction* Interaction = FindCurrentInteraction();
+	return Interaction &&
+		GetInteractionState(CurrentInteractionID) == EScenarioInteractionState::Running &&
+		Interaction->InteractionType == InteractionType &&
+		(Interaction->TargetID.IsNone() || Interaction->TargetID == TargetID);
 }
 
 void UScenarioManagerComponent::AdvanceAfterInteraction()

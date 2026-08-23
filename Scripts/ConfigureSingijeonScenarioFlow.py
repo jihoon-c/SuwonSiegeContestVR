@@ -49,6 +49,16 @@ next_by_gameplay_id = {
     "INT_06": "NAR_16",
     "INT_07": "NAR_17",
 }
+guide_by_gameplay_id = {
+    "INT_01": (unreal.ScenarioGuideAction.GRAB, "신기전을 집으세요."),
+    "INT_02": (unreal.ScenarioGuideAction.DRAG, "신기전을 화차 장전 위치로 가져가세요."),
+    "INT_03": (unreal.ScenarioGuideAction.DRAG, "화차 손잡이를 잡고 표시된 위치로 이동하세요."),
+    "INT_04": (unreal.ScenarioGuideAction.GRAB, "횃불을 집으세요."),
+    "INT_05": (unreal.ScenarioGuideAction.DRAG, "횃불을 화로의 불에 가져가세요."),
+    "INT_06": (unreal.ScenarioGuideAction.DRAG, "불붙은 횃불을 신기전 도화선에 가져가세요."),
+    # 발사는 도화선 점화 후 자동 진행되므로 별도 입력 가이드를 표시하지 않는다.
+    "INT_07": (unreal.ScenarioGuideAction.HIDDEN, ""),
+}
 for interaction_id in gameplay_ids:
     interaction = existing[interaction_id]
     interaction.set_editor_property(
@@ -56,6 +66,9 @@ for interaction_id in gameplay_ids:
     )
     interaction.set_editor_property("success_interaction_id", "")
     interaction.set_editor_property("fail_interaction_id", interaction_id)
+    guide_action, guide_text = guide_by_gameplay_id[interaction_id]
+    interaction.set_editor_property("guide_action", guide_action)
+    interaction.set_editor_property("guide_text", guide_text)
 
 next_by_narration_index = {
     1: "NAR_02",

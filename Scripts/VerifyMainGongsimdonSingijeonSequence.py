@@ -1,4 +1,13 @@
+import sys
+from pathlib import Path
+
 import unreal
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from GongsimdonNarratedScenarioData import (  # noqa: E402
+    NARRATION_TABLE_PATH,
+    ORDERED_INTERACTION_IDS,
+)
 
 
 errors = []
@@ -45,15 +54,11 @@ if gongsimdon_scenario:
     stages = list(gongsimdon_scenario.get_editor_property("stages"))
     interactions = list(stages[0].get_editor_property("interactions")) if stages else []
     ids = [str(item.get_editor_property("interaction_id")) for item in interactions]
-    check(ids == [
-        "GONG_ACT_SCAN_PERIMETER", "GONG_ACT_SOUND_ANIMAL",
-        "GONG_ACT_CHECK_ANIMAL", "GONG_ACT_SOUND_METAL",
-        "GONG_ACT_CHECK_METAL", "GONG_ACT_REVEAL_ENEMY",
-        "GONG_ACT_IDENTIFY_ENEMY", "GONG_ACT_REPORT_ENEMY",
-        "GONG_ACT_ENABLE_BEACON", "GONG_ACT_CHECK_BEACON",
-        "GONG_ACT_RETREAT_ENEMY", "GONG_ACT_SHOOT_RETREATING",
-        "GONG_ACT_FINAL_SCAN",
-    ], "Gongsimdon Scenario 01 action flow is configured")
+    check(ids == ORDERED_INTERACTION_IDS,
+          "Gongsimdon narrated 27 + action 13 flow is configured")
+    check(gongsimdon_scenario.get_editor_property("narration_table") ==
+          unreal.load_asset(NARRATION_TABLE_PATH),
+          "Gongsimdon Scenario owns its narration table")
     check(str(gongsimdon_scenario.get_editor_property("scenario_id")) ==
           "SCENARIO_Gongsimdon", "Gongsimdon Scenario ID is configured")
 
@@ -81,6 +86,9 @@ if managers:
           "Gongsimdon Manager references its Experience")
     check(managers[0].get_editor_property("scenario_definition") == gongsimdon_scenario,
           "Gongsimdon Manager resolves its Scenario")
+    check(managers[0].get_editor_property("narration_table") ==
+          unreal.load_asset(NARRATION_TABLE_PATH),
+          "Gongsimdon Manager resolves the Scenario-owned narration table")
 
 unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/Main/L_Main")
 actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()

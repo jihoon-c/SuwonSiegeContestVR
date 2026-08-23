@@ -108,13 +108,16 @@ for blueprint in (hwacha_bp, arrow_bp, torch_bp):
     unreal.EditorAssetLibrary.save_loaded_asset(blueprint)
 
 
-def make_interaction(interaction_id, interaction_type, target_id="", next_id=""):
+def make_interaction(interaction_id, interaction_type, target_id="", next_id="",
+                     guide_action=unreal.ScenarioGuideAction.AUTO, guide_text=""):
     interaction = unreal.ScenarioInteraction()
     interaction.set_editor_property("interaction_id", interaction_id)
     interaction.set_editor_property("interaction_type", interaction_type)
     interaction.set_editor_property("target_id", target_id)
     interaction.set_editor_property("next_interaction_id", next_id)
     interaction.set_editor_property("required", True)
+    interaction.set_editor_property("guide_action", guide_action)
+    interaction.set_editor_property("guide_text", guide_text)
     return interaction
 
 
@@ -135,23 +138,27 @@ by_id = {
 gameplay_flow = [
     make_interaction(
         "INT_GrabAmmo", unreal.ScenarioInteractionType.GRAB,
-        "Singijeon_Ammo", "INT_LoadHwacha"
+        "Singijeon_Ammo", "INT_LoadHwacha",
+        unreal.ScenarioGuideAction.GRAB, "신기전을 집으세요."
     ),
     make_interaction(
         "INT_LoadHwacha", unreal.ScenarioInteractionType.CUSTOM,
-        "Hwacha_Load", "INT_GrabTorch"
+        "Hwacha_Load", "INT_GrabTorch",
+        unreal.ScenarioGuideAction.DRAG, "신기전을 화차 장전 위치로 가져가세요."
     ),
     make_interaction(
         "INT_GrabTorch", unreal.ScenarioInteractionType.GRAB,
-        "Singijeon_Torch", "INT_IgniteHwacha"
+        "Singijeon_Torch", "INT_IgniteHwacha",
+        unreal.ScenarioGuideAction.GRAB, "횃불을 집으세요."
     ),
     make_interaction(
         "INT_IgniteHwacha", unreal.ScenarioInteractionType.TRIGGER,
-        "Hwacha_Fuse", "INT_FireHwacha"
+        "Hwacha_Fuse", "INT_FireHwacha",
+        unreal.ScenarioGuideAction.DRAG, "불붙은 횃불을 신기전 도화선에 가져가세요."
     ),
     make_interaction(
         "INT_FireHwacha", unreal.ScenarioInteractionType.COMBAT,
-        "Hwacha_Fire", ""
+        "Hwacha_Fire", "", unreal.ScenarioGuideAction.HIDDEN, ""
     ),
 ]
 

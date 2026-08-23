@@ -22,6 +22,23 @@ enum class EScenarioInteractionType : uint8
 	Custom
 };
 
+/** Input hint shown above the active Scenario target. Auto derives a sensible hint from InteractionType. */
+UENUM(BlueprintType)
+enum class EScenarioGuideAction : uint8
+{
+	Auto,
+	Hidden,
+	Grab,
+	Drag,
+	Trigger,
+	Press,
+	Observe,
+	Select,
+	Speak,
+	Combat,
+	Interact
+};
+
 UENUM(BlueprintType)
 enum class EScenarioInteractionState : uint8
 {
@@ -67,6 +84,16 @@ struct SUWONSIEGECONTESTVR_API FScenarioInteraction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction",
 		meta = (EditCondition = "InteractionType != EScenarioInteractionType::Narration && InteractionType != EScenarioInteractionType::Objective && InteractionType != EScenarioInteractionType::Wait", EditConditionHides))
 	FName TargetID;
+
+	/** World guide shown above the matching Target Actor while this interaction is active. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guide",
+		meta = (EditCondition = "InteractionType != EScenarioInteractionType::Narration && InteractionType != EScenarioInteractionType::Objective && InteractionType != EScenarioInteractionType::Wait && InteractionType != EScenarioInteractionType::Sequence && InteractionType != EScenarioInteractionType::Spawn", EditConditionHides))
+	EScenarioGuideAction GuideAction = EScenarioGuideAction::Auto;
+
+	/** Optional instruction override. Empty uses the localized text for GuideAction. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guide",
+		meta = (EditCondition = "GuideAction != EScenarioGuideAction::Hidden && InteractionType != EScenarioInteractionType::Narration && InteractionType != EScenarioInteractionType::Objective && InteractionType != EScenarioInteractionType::Wait && InteractionType != EScenarioInteractionType::Sequence && InteractionType != EScenarioInteractionType::Spawn", EditConditionHides))
+	FText GuideText;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Objective",
 		meta = (EditCondition = "InteractionType == EScenarioInteractionType::Objective", EditConditionHides, MultiLine = true))

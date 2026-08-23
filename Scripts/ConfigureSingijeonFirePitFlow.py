@@ -14,7 +14,14 @@ IGNITION_HEIGHT = 102.0
 # NS_Fire has symmetric -100..100 fixed bounds. At 0.55 scale its sprite lower
 # edge extends about 55 cm below the component origin, so place the visual origin
 # above the 100 cm Fire Pit rim instead of using the ignition overlap height.
-FIRE_EFFECT_HEIGHT = 155.0
+# Keep the flame origin clearly above the imported bowl rim. This is applied to
+# both the Blueprint and the placed actor; the placed actor can otherwise retain
+# an older component override after the Blueprint is reconfigured.
+# The imported Fire Pit root has a -68.664 cm pivot offset. 280 cm local
+# therefore places the NS_Fire origin at about 210 cm world height, keeping its
+# lower particle bound above the bowl rather than at the actor/world origin.
+FIRE_EFFECT_HEIGHT = 280.0
+FIRE_EFFECT_WORLD_HEIGHT = 210.0
 
 
 def create_or_load_blueprint(name, parent_path):
@@ -72,6 +79,12 @@ fire_system = unreal.load_asset(FIRE_SYSTEM_PATH)
 if not firepit_mesh or not fire_system:
     raise RuntimeError("Fire Pit mesh or NS_Fire is missing")
 
+# NS_Fire samples the imported Fire Pit mesh during its CPU-side location
+# evaluation. Without this flag its particles can fall back to world origin in
+# PIE/packaged builds even when the Niagara component itself is attached.
+firepit_mesh.set_editor_property("allow_cpu_access", True)
+unreal.EditorAssetLibrary.save_loaded_asset(firepit_mesh, only_if_is_dirty=False)
+
 torch_cdo = unreal.get_default_object(torch_bp.generated_class())
 torch_cdo.set_editor_property("ignition_active", False)
 torch_effect = find_or_add_niagara_component(torch_bp, "FireEffect")
@@ -95,6 +108,7 @@ firepit_cdo.get_editor_property("ignition_area").set_editor_property(
 firepit_effect = find_or_add_niagara_component(firepit_bp, "FireEffect")
 firepit_effect.set_editor_property("asset", fire_system)
 firepit_effect.set_editor_property("auto_activate", True)
+firepit_effect.set_editor_property("absolute_location", False)
 firepit_effect.set_editor_property(
     "relative_location", unreal.Vector(0.0, 0.0, FIRE_EFFECT_HEIGHT)
 )
@@ -128,8 +142,11 @@ for level_path in (LEVEL_PATH, "/GF_Singijeon/Maps/LV_Singijeon"):
         firepit_actor.set_actor_label("BP_SingijeonFirePit_Playable")
     for component in firepit_actor.get_components_by_class(unreal.NiagaraComponent):
         if component.get_name() == "FireEffect":
-            component.set_editor_property(
-                "relative_location", unreal.Vector(0.0, 0.0, FIRE_EFFECT_HEIGHT)
+            component.set_editor_property("absolute_location", False)
+            component.set_world_location(
+                firepit_actor.get_actor_location() + unreal.Vector(0.0, 0.0, FIRE_EFFECT_WORLD_HEIGHT),
+                False,
+                True,
             )
             component.reinitialize_system()
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)

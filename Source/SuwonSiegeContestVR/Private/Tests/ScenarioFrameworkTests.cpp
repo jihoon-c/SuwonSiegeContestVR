@@ -7,6 +7,8 @@
 #include "Core/Experience/ExperienceSubsystem.h"
 #include "Core/Experience/ExperienceTravelTriggerActor.h"
 #include "Core/Scenario/ScenarioDefinition.h"
+#include "Core/Scenario/ScenarioInteractableComponent.h"
+#include "Core/Scenario/ScenarioInteractionGuideComponent.h"
 #include "Core/Scenario/ScenarioManagerActor.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Core/Scenario/ScenarioSceneData.h"
@@ -18,6 +20,7 @@
 #include "Engine/World.h"
 #include "InputAction.h"
 #include "InputCoreTypes.h"
+#include "InputMappingContext.h"
 #include "UObject/UnrealType.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -91,12 +94,38 @@ bool FVRPawnInputAndHandAnimationConfigurationTest::RunTest(const FString& Param
 		EKeys::GetKeyDetails(FKey(TEXT("OculusTouch_Right_Trigger_Axis"))).IsValid());
 	TestTrue(TEXT("PIE movement key W is registered"), EKeys::GetKeyDetails(EKeys::W).IsValid());
 	TestTrue(TEXT("PIE left grab key F is registered"), EKeys::GetKeyDetails(EKeys::F).IsValid());
+	UInputAction* LeftTriggerAction = LoadObject<UInputAction>(
+		nullptr,
+		TEXT("/Game/XRFramework/Input/Actions/Hands/IA_Hand_IndexCurl_Left.IA_Hand_IndexCurl_Left"));
+	UInputAction* RightTriggerAction = LoadObject<UInputAction>(
+		nullptr,
+		TEXT("/Game/XRFramework/Input/Actions/Hands/IA_Hand_IndexCurl_Right.IA_Hand_IndexCurl_Right"));
 	TestNotNull(
 		TEXT("Startup-registered right thumbstick action exists"),
 		LoadObject<UInputAction>(nullptr, TEXT("/Game/XRFramework/Input/Actions/IA_Menu_Cursor_Right.IA_Menu_Cursor_Right")));
-	TestNotNull(
-		TEXT("Startup-registered left trigger action exists"),
-		LoadObject<UInputAction>(nullptr, TEXT("/Game/XRFramework/Input/Actions/Hands/IA_Hand_IndexCurl_Left.IA_Hand_IndexCurl_Left")));
+	TestNotNull(TEXT("Startup-registered left trigger action exists"), LeftTriggerAction);
+	TestNotNull(TEXT("Startup-registered right trigger action exists"), RightTriggerAction);
+
+	UInputMappingContext* HandMappingContext = LoadObject<UInputMappingContext>(
+		nullptr,
+		TEXT("/Game/XRFramework/Input/IMC_Hands.IMC_Hands"));
+	if (TestNotNull(TEXT("Hand mapping context exists"), HandMappingContext))
+	{
+		const TArray<FEnhancedActionKeyMapping>& Mappings = HandMappingContext->GetMappings();
+		const auto HasMapping = [&Mappings](const UInputAction* Action, const FName KeyName)
+		{
+			return Mappings.ContainsByPredicate([Action, KeyName](const FEnhancedActionKeyMapping& Mapping)
+			{
+				return Mapping.Action == Action && Mapping.Key.GetFName() == KeyName;
+			});
+		};
+		TestTrue(
+			TEXT("Left trigger is mapped to the left hand action"),
+			HasMapping(LeftTriggerAction, TEXT("OculusTouch_Left_Trigger_Axis")));
+		TestTrue(
+			TEXT("Right trigger is mapped to the right hand action"),
+			HasMapping(RightTriggerAction, TEXT("OculusTouch_Right_Trigger_Axis")));
+	}
 	return true;
 }
 
@@ -148,6 +177,103 @@ bool FExperienceDefinitionAndProgressTest::RunTest(const FString& Parameters)
 			ExperienceSubsystem->GetScenarioResumeCheckpoint(TEXT("SCENARIO_Main"), Checkpoint));
 	}
 	GameInstance->Shutdown();
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FScenarioInteractionGuidePresentationTest,
+	"SuwonSiegeContestVR.Core.Scenario.InteractionGuidePresentation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FScenarioInteractionGuidePresentationTest::RunTest(const FString& Parameters)
+{
+	FScenarioInteraction Interaction;
+	Interaction.InteractionType = EScenarioInteractionType::Grab;
+	TestEqual(TEXT("Grab derives a Grab guide"),
+		UScenarioInteractionGuideComponent::ResolveGuideAction(Interaction), EScenarioGuideAction::Grab);
+	Interaction.InteractionType = EScenarioInteractionType::Move;
+	TestEqual(TEXT("Move derives a Drag guide"),
+		UScenarioInteractionGuideComponent::ResolveGuideAction(Interaction), EScenarioGuideAction::Drag);
+	Interaction.InteractionType = EScenarioInteractionType::Trigger;
+	TestEqual(TEXT("Trigger derives a Trigger guide"),
+		UScenarioInteractionGuideComponent::ResolveGuideAction(Interaction), EScenarioGuideAction::Trigger);
+	Interaction.InteractionType = EScenarioInteractionType::Narration;
+	TestEqual(TEXT("Narration does not show a target guide"),
+		UScenarioInteractionGuideComponent::ResolveGuideAction(Interaction), EScenarioGuideAction::Hidden);
+	Interaction.InteractionType = EScenarioInteractionType::Custom;
+	Interaction.GuideAction = EScenarioGuideAction::Drag;
+	TestEqual(TEXT("Authored Custom guide overrides automatic mapping"),
+		UScenarioInteractionGuideComponent::ResolveGuideAction(Interaction), EScenarioGuideAction::Drag);
+	TestFalse(TEXT("Drag instruction is populated"),
+		UScenarioInteractionGuideComponent::GetDefaultInstruction(EScenarioGuideAction::Drag).IsEmpty());
+	TestTrue(TEXT("Near guide keeps its authored scale"), FMath::IsNearlyEqual(
+		UScenarioInteractionGuideComponent::CalculateDistanceAdjustedScale(0.12f, 100.0f, 300.0f, 0.65f),
+		0.12f));
+	TestTrue(TEXT("Nine meter Gongsimdon guide scales for readability"), FMath::IsNearlyEqual(
+		UScenarioInteractionGuideComponent::CalculateDistanceAdjustedScale(0.12f, 900.0f, 300.0f, 0.65f),
+		0.36f));
+	TestTrue(TEXT("Very distant guide respects its scale cap"), FMath::IsNearlyEqual(
+		UScenarioInteractionGuideComponent::CalculateDistanceAdjustedScale(0.12f, 3000.0f, 300.0f, 0.65f),
+		0.65f));
+	const FRotator GuideFacing = UScenarioInteractionGuideComponent::CalculateGuideFacingRotation(
+		FVector::ZeroVector, FVector(100.0f, 0.0f, 100.0f));
+	TestTrue(TEXT("Guide billboard remains level for VR text readability"),
+		FMath::IsNearlyZero(GuideFacing.Pitch) && FMath::IsNearlyZero(GuideFacing.Roll));
+	TestTrue(TEXT("Guide billboard faces the viewer on its horizontal axis"),
+		FMath::IsNearlyEqual(GuideFacing.Yaw, 180.0f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FScenarioInteractionGuideRuntimeTest,
+	"SuwonSiegeContestVR.Core.Scenario.InteractionGuideRuntime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FScenarioInteractionGuideRuntimeTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("Guide test world is created"), World))
+	{
+		return false;
+	}
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(World);
+
+	AScenarioManagerActor* ManagerActor = World->SpawnActor<AScenarioManagerActor>();
+	AActor* TargetActor = World->SpawnActor<AActor>();
+	UScenarioInteractableComponent* Interactor = NewObject<UScenarioInteractableComponent>(TargetActor);
+	Interactor->TargetID = TEXT("Guide_Target");
+	Interactor->SupportedInteractionTypes = { EScenarioInteractionType::Grab };
+	Interactor->RegisterComponent();
+
+	FScenarioInteraction Grab;
+	Grab.InteractionID = TEXT("INT_GuideGrab");
+	Grab.InteractionType = EScenarioInteractionType::Grab;
+	Grab.TargetID = Interactor->TargetID;
+	FScenarioStageDefinition Stage;
+	Stage.StageID = TEXT("STAGE_Guide");
+	Stage.StartInteractionID = Grab.InteractionID;
+	Stage.Interactions = { Grab };
+	UScenarioDefinition* Scenario = NewObject<UScenarioDefinition>();
+	Scenario->ScenarioID = TEXT("SCENARIO_Guide");
+	Scenario->StartStageID = Stage.StageID;
+	Scenario->Stages = { Stage };
+
+	UScenarioInteractionGuideComponent* Guide = ManagerActor->GetInteractionGuide();
+	TestNotNull(TEXT("Manager owns the runtime guide component"), Guide);
+	if (Guide)
+	{
+		TestTrue(TEXT("Guide binds to the Scenario Manager"), Guide->InitializeGuide());
+		TestTrue(TEXT("Guide Scenario starts"), ManagerActor->GetScenarioManager()->StartScenario(Scenario));
+		TestTrue(TEXT("Guide becomes visible above the matching Target Actor"), Guide->IsGuideVisible());
+		TestTrue(TEXT("Matching interaction completion is accepted"),
+			ManagerActor->GetScenarioManager()->ReportInteractionResult(
+				Interactor->TargetID, EScenarioInteractionType::Grab, true));
+		TestFalse(TEXT("Guide hides when the interaction completes"), Guide->IsGuideVisible());
+	}
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
 	return true;
 }
 
@@ -239,6 +365,42 @@ bool FScenarioSynchronousFlowTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Scene completes"), Snapshot.SceneState, EScenarioSceneState::Completed);
 		TestEqual(TEXT("Objective completes"), Manager->GetInteractionState(Objective.InteractionID), EScenarioInteractionState::Completed);
 		TestEqual(TEXT("Wait completes"), Manager->GetInteractionState(Wait.InteractionID), EScenarioInteractionState::Completed);
+
+		FScenarioStageDefinition DebugStage;
+		DebugStage.StageID = TEXT("STAGE_DebugSpace");
+		DebugStage.StartInteractionID = TEXT("INT_DebugFirst");
+		FScenarioInteraction DebugFirst;
+		DebugFirst.InteractionID = TEXT("INT_DebugFirst");
+		DebugFirst.InteractionType = EScenarioInteractionType::Custom;
+		DebugFirst.TargetID = TEXT("Debug_First");
+		DebugFirst.NextInteractionID = TEXT("INT_DebugSecond");
+		DebugStage.Interactions.Add(DebugFirst);
+		FScenarioInteraction DebugSecond;
+		DebugSecond.InteractionID = TEXT("INT_DebugSecond");
+		DebugSecond.InteractionType = EScenarioInteractionType::Custom;
+		DebugSecond.TargetID = TEXT("Debug_Second");
+		DebugStage.Interactions.Add(DebugSecond);
+		UScenarioDefinition* DebugScenario = NewObject<UScenarioDefinition>();
+		DebugScenario->ScenarioID = TEXT("SCENARIO_DebugSpace");
+		DebugScenario->StartStageID = DebugStage.StageID;
+		DebugScenario->Stages.Add(DebugStage);
+		TestTrue(TEXT("Space debug Scenario starts"), Manager->StartScenario(DebugScenario));
+		TestTrue(TEXT("Current Target and Type pass the non-mutating preflight"),
+			Manager->CanReportInteractionResult(TEXT("Debug_First"), EScenarioInteractionType::Custom));
+		TestFalse(TEXT("A future Target fails the non-mutating preflight"),
+			Manager->CanReportInteractionResult(TEXT("Debug_Second"), EScenarioInteractionType::Custom));
+		TestFalse(TEXT("A wrong Type fails the non-mutating preflight"),
+			Manager->CanReportInteractionResult(TEXT("Debug_First"), EScenarioInteractionType::Trigger));
+		TestEqual(TEXT("Preflight does not complete the current interaction"),
+			Manager->GetInteractionState(DebugFirst.InteractionID), EScenarioInteractionState::Running);
+		TestTrue(TEXT("Debug advance completes the current interaction"),
+			ManagerActor->DebugAdvanceCurrentInteraction());
+		TestEqual(TEXT("Debug advance starts the next interaction"),
+			Manager->GetDebugSnapshot().InteractionID, DebugSecond.InteractionID);
+		TestTrue(TEXT("Debug advance completes the final interaction"),
+			ManagerActor->DebugAdvanceCurrentInteraction());
+		TestEqual(TEXT("Debug advance completes the Scenario"),
+			Manager->GetDebugSnapshot().ScenarioState, EScenarioState::Completed);
 
 		FScenarioStageDefinition ResumeStage;
 		ResumeStage.StageID = TEXT("STAGE_Resume");

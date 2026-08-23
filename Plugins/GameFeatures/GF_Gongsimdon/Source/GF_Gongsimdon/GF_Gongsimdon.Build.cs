@@ -11,6 +11,7 @@ public class GF_Gongsimdon : ModuleRules
             "Core",
             "CoreUObject",
             "Engine",
+            "HeadMountedDisplay",
             "SuwonSiegeContestVR"
         });
     }

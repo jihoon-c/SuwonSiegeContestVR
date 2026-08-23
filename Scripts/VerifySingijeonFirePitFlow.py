@@ -54,6 +54,8 @@ if firepit_bp:
         ) == firepit_mesh,
         "Fire Pit Blueprint uses Geometric_Fire_Pit mesh",
     )
+    check(firepit_mesh.get_editor_property("allow_cpu_access"),
+          "Fire Pit mesh allows CPU access for Niagara location sampling")
     interactor = firepit_cdo.get_editor_property("ignite_torch_scenario_interactor")
     check(str(interactor.get_editor_property("target_id")) == "Torch_Ignite",
           "Fire Pit reports Torch_Ignite")
@@ -78,6 +80,15 @@ firepit_actor = next(
     None,
 )
 check(firepit_actor is not None, "LV_Singijeon contains playable Fire Pit")
+if firepit_actor:
+    fire_effects = firepit_actor.get_components_by_class(unreal.NiagaraComponent)
+    fire_effect = next((item for item in fire_effects if item.get_name() == "FireEffect"), None)
+    check(fire_effect is not None, "Playable Fire Pit has its FireEffect component")
+    if fire_effect:
+        check(not fire_effect.get_editor_property("absolute_location"),
+              "Playable FireEffect follows the Fire Pit transform")
+        check(fire_effect.get_world_location().z >= 200.0,
+              "Playable FireEffect is positioned above the Fire Pit rim")
 
 if errors:
     raise RuntimeError("Singijeon Fire Pit verification failed: " + "; ".join(errors))

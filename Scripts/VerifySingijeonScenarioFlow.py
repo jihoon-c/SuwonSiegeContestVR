@@ -29,6 +29,15 @@ expected_next = {
     "NAR_18": "NAR_19", "NAR_19": "NAR_20", "NAR_20": "NAR_21",
     "NAR_21": "None",
 }
+expected_guides = {
+    "INT_01": unreal.ScenarioGuideAction.GRAB,
+    "INT_02": unreal.ScenarioGuideAction.DRAG,
+    "INT_03": unreal.ScenarioGuideAction.DRAG,
+    "INT_04": unreal.ScenarioGuideAction.GRAB,
+    "INT_05": unreal.ScenarioGuideAction.DRAG,
+    "INT_06": unreal.ScenarioGuideAction.DRAG,
+    "INT_07": unreal.ScenarioGuideAction.HIDDEN,
+}
 
 if scenario:
     stages = list(scenario.get_editor_property("stages"))
@@ -50,6 +59,14 @@ if scenario:
         if interaction:
             actual_next = str(interaction.get_editor_property("next_interaction_id"))
             check(actual_next == next_id, f"{interaction_id} advances to {next_id}")
+    for interaction_id, guide_action in expected_guides.items():
+        interaction = by_id.get(interaction_id)
+        if interaction:
+            check(interaction.get_editor_property("guide_action") == guide_action,
+                  f"{interaction_id} uses its authored input guide")
+            if guide_action != unreal.ScenarioGuideAction.HIDDEN:
+                check(bool(str(interaction.get_editor_property("guide_text"))),
+                      f"{interaction_id} has a contextual guide instruction")
 
 if table:
     next_rows = unreal.DataTableFunctionLibrary.get_data_table_column_as_string(
