@@ -25,4 +25,18 @@ for row in rows:
     next_row = row.get("NextRow", "None")
     if next_row not in ("", "None") and next_row not in names:
         raise RuntimeError(f"Broken NextRow in {row['Name']}: {next_row}")
-unreal.log("ONGSEONG_NARRATION_VERIFY SUCCESS: 23 rows and all links valid")
+    if not row.get("NarrationSound") or row["NarrationSound"] == "None":
+        raise RuntimeError(f"Missing narration sound in {row['Name']}")
+
+expected_subtitles = {
+    "ON_19": "충차가 성문에 다가가고 있습니다! 어서 총통으로 충차를 파괴하십시오",
+    "ON_20": "아군이 공격받고 있습니다. 적 궁병을 처치하여 아군 총통을 보호하십시오",
+}
+for row_name, expected_subtitle in expected_subtitles.items():
+    if rows_by_name := next((row for row in rows if row["Name"] == row_name), None):
+        if expected_subtitle not in json.dumps(rows_by_name["Subtitle"], ensure_ascii=False):
+            raise RuntimeError(f"Unexpected revised subtitle in {row_name}")
+    else:
+        raise RuntimeError(f"Missing {row_name}")
+
+unreal.log("ONGSEONG_NARRATION_VERIFY SUCCESS: 23 rows, 23 sounds, and revised subtitles validated")
