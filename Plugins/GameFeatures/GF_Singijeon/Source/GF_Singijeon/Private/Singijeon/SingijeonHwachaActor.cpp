@@ -2,21 +2,31 @@
 
 #include "Components/SceneComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/Scenario/ScenarioInteractableComponent.h"
 #include "Core/Scenario/ScenarioTypes.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
+#include "Sound/SoundBase.h"
 #include "Interaction/TwoHandCarryComponent.h"
+#include "MotionControllerComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "Singijeon/FuseIgnitionComponent.h"
 #include "Singijeon/SingijeonAmmunitionInterface.h"
 #include "Singijeon/SingijeonAmmoSlotComponent.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 ASingijeonHwachaActor::ASingijeonHwachaActor()
 {
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.bStartWithTickEnabled = false;
+    static ConstructorHelpers::FObjectFinder<USoundBase> LaunchSound(TEXT("/GF_Singijeon/Asset/Sound/Effect/SingijeonLaunch.SingijeonLaunch"));
+    ArrowLaunchSound = LaunchSound.Succeeded() ? LaunchSound.Object : nullptr;
 
     BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
     SetRootComponent(BodyMesh);
@@ -36,7 +46,50 @@ ASingijeonHwachaActor::ASingijeonHwachaActor()
     Fuse = CreateDefaultSubobject<UFuseIgnitionComponent>(TEXT("Fuse"));
     Fuse->SetupAttachment(BodyMesh);
 
+    FuseIgnitionEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FuseIgnitionEffect"));
+    FuseIgnitionEffect->SetupAttachment(Fuse);
+    FuseIgnitionEffect->SetAutoActivate(false);
+    FuseIgnitionEffect->SetUsingAbsoluteLocation(false);
+    FuseIgnitionEffect->SetRelativeScale3D(FVector(0.16f));
+    static ConstructorHelpers::FObjectFinder<UNiagaraSystem> DefaultFuseEffect(
+        TEXT("/Game/NiagaraExamples/FX_Misc/NS_Fire.NS_Fire"));
+    if (DefaultFuseEffect.Succeeded())
+    {
+        FuseIgnitionEffect->SetAsset(DefaultFuseEffect.Object);
+    }
+
+    FuseGuide = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FuseGuide"));
+    FuseGuide->SetupAttachment(Fuse);
+    FuseGuide->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    FuseGuide->SetGenerateOverlapEvents(false);
+    FuseGuide->SetCastShadow(false);
+    FuseGuide->SetRelativeScale3D(FVector(0.12f));
+    FuseGuide->SetVisibility(false);
+    FuseGuide->SetHiddenInGame(true);
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> FuseGuideMeshFinder(
+        TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+    if (FuseGuideMeshFinder.Succeeded())
+    {
+        FuseGuide->SetStaticMesh(FuseGuideMeshFinder.Object);
+    }
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> FuseGuideMaterialFinder(
+        TEXT("/Game/LevelPrototyping/Interactable/JumpPad/Assets/Materials/MI_GlowNT.MI_GlowNT"));
+    if (FuseGuideMaterialFinder.Succeeded())
+    {
+        FuseGuide->SetMaterial(0, FuseGuideMaterialFinder.Object);
+    }
+
     TwoHandCarry = CreateDefaultSubobject<UTwoHandCarryComponent>(TEXT("TwoHandCarry"));
+
+    LeftHandleGrabPoint = CreateDefaultSubobject<USceneComponent>(TEXT("LeftHandleGrabPoint"));
+    LeftHandleGrabPoint->SetupAttachment(BodyMesh);
+    LeftHandleGrabPoint->SetRelativeLocation(FVector(-47.0f, -43.0f, 61.0f));
+    LeftHandleGrabPoint->ComponentTags.Add(TEXT("VRGrab"));
+
+    RightHandleGrabPoint = CreateDefaultSubobject<USceneComponent>(TEXT("RightHandleGrabPoint"));
+    RightHandleGrabPoint->SetupAttachment(BodyMesh);
+    RightHandleGrabPoint->SetRelativeLocation(FVector(-47.0f, 43.0f, 61.0f));
+    RightHandleGrabPoint->ComponentTags.Add(TEXT("VRGrab"));
 
     LeftHandleHighlight = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftHandleHighlight"));
     LeftHandleHighlight->SetupAttachment(BodyMesh);
@@ -45,6 +98,7 @@ ASingijeonHwachaActor::ASingijeonHwachaActor()
     LeftHandleHighlight->SetCastShadow(false);
     LeftHandleHighlight->SetVisibility(false);
     LeftHandleHighlight->SetHiddenInGame(true);
+    LeftHandleHighlight->ComponentTags.Add(TEXT("VRGrab"));
 
     RightHandleHighlight = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightHandleHighlight"));
     RightHandleHighlight->SetupAttachment(BodyMesh);
@@ -53,6 +107,15 @@ ASingijeonHwachaActor::ASingijeonHwachaActor()
     RightHandleHighlight->SetCastShadow(false);
     RightHandleHighlight->SetVisibility(false);
     RightHandleHighlight->SetHiddenInGame(true);
+    RightHandleHighlight->ComponentTags.Add(TEXT("VRGrab"));
+
+    MoveTargetMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MoveTargetMarker"));
+    MoveTargetMarker->SetupAttachment(BodyMesh);
+    MoveTargetMarker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    MoveTargetMarker->SetGenerateOverlapEvents(false);
+    MoveTargetMarker->SetCastShadow(false);
+    MoveTargetMarker->SetVisibility(false);
+    MoveTargetMarker->SetHiddenInGame(true);
 
     LoadScenarioInteractor = CreateDefaultSubobject<UScenarioInteractableComponent>(TEXT("LoadScenarioInteractor"));
     LoadScenarioInteractor->TargetID = TEXT("Hwacha_Load");
@@ -80,14 +143,33 @@ void ASingijeonHwachaActor::OnConstruction(const FTransform& Transform)
     }
     if (AutoLoadedArrowInstances && AutoFillArrowMaterial)
     {
-        AutoLoadedArrowInstances->SetMaterial(0, AutoFillArrowMaterial);
+        if (!AutoFillArrowMaterial->CheckMaterialUsage(MATUSAGE_InstancedStaticMeshes))
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("%s AutoFillArrowMaterial %s has no Instanced Static Mesh shader permutation."),
+                *GetName(), *GetNameSafe(AutoFillArrowMaterial));
+        }
+        // The imported arrow may expose more than one material slot. Applying
+        // the authored override to only slot 0 leaves later sections with the
+        // mesh default (or an unset fallback) after the ISM is created.
+        const int32 MaterialSlotCount = FMath::Max(1, AutoLoadedArrowInstances->GetNumMaterials());
+        for (int32 MaterialIndex = 0; MaterialIndex < MaterialSlotCount; ++MaterialIndex)
+        {
+            AutoLoadedArrowInstances->SetMaterial(MaterialIndex, AutoFillArrowMaterial);
+        }
     }
     SetHandleHighlightsVisible(false);
+    SetMoveTargetVisible(false);
+    SetFuseGuideVisible(false);
 }
 
 void ASingijeonHwachaActor::BeginPlay()
 {
     Super::BeginPlay();
+
+    // The authored relative transform defines the destination in the Blueprint
+    // viewport. Detaching freezes it in the level while the Hwacha is dragged.
+    MoveTargetMarker->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
 
     TInlineComponentArray<USingijeonAmmoSlotComponent*> FoundSlots(this);
     GetComponents(FoundSlots);
@@ -100,15 +182,16 @@ void ASingijeonHwachaActor::BeginPlay()
         }
 
         AmmoSlots.Add(Slot);
-        Slot->OnAmmunitionLoaded.AddDynamic(this, &ThisClass::HandleSlotChanged);
-        Slot->OnAmmunitionRemoved.AddDynamic(this, &ThisClass::HandleSlotChanged);
+        Slot->OnAmmunitionLoaded.AddUniqueDynamic(this, &ThisClass::HandleSlotChanged);
+        Slot->OnAmmunitionRemoved.AddUniqueDynamic(this, &ThisClass::HandleSlotChanged);
     }
 
-    Fuse->OnIgnitionStarted.AddDynamic(this, &ThisClass::HandleIgnitionStarted);
-    Fuse->OnIgnitionCanceled.AddDynamic(this, &ThisClass::HandleIgnitionCanceled);
-    Fuse->OnIgnited.AddDynamic(this, &ThisClass::HandleFuseIgnited);
-    TwoHandCarry->OnCarryStateChanged.AddDynamic(this, &ThisClass::HandleCarryStateChanged);
+    Fuse->OnIgnitionStarted.AddUniqueDynamic(this, &ThisClass::HandleIgnitionStarted);
+    Fuse->OnIgnitionCanceled.AddUniqueDynamic(this, &ThisClass::HandleIgnitionCanceled);
+    Fuse->OnIgnited.AddUniqueDynamic(this, &ThisClass::HandleFuseIgnited);
+    TwoHandCarry->OnCarryStateChanged.AddUniqueDynamic(this, &ThisClass::HandleCarryStateChanged);
     ClearAutoFilledAmmunition();
+    SetFuseIgnitionEffectActive(false);
     RefreshLoadState();
 }
 
@@ -122,15 +205,9 @@ void ASingijeonHwachaActor::Tick(const float DeltaSeconds)
         return;
     }
 
-    const float DistanceMoved = FVector::Dist(
-        AimStartTransform.GetLocation(), GetActorLocation());
-    const float YawMoved = FMath::Abs(FMath::FindDeltaAngleDegrees(
-        AimStartTransform.Rotator().Yaw, GetActorRotation().Yaw));
-    const bool bDistanceComplete = AimCompletionDistance > 0.0f &&
-        DistanceMoved >= AimCompletionDistance;
-    const bool bYawComplete = AimCompletionYawDegrees > 0.0f &&
-        YawMoved >= AimCompletionYawDegrees;
-    if (bDistanceComplete || bYawComplete)
+    const float DistanceToTarget = FVector::Dist2D(
+        MoveTargetMarker->GetComponentLocation(), GetActorLocation());
+    if (DistanceToTarget <= MoveTargetAcceptanceRadius)
     {
         if (!CompleteAimInteraction())
         {
@@ -172,11 +249,24 @@ bool ASingijeonHwachaActor::IsReadyToIgnite() const
         GetLoadedAmmunitionCount() >= MinimumLoadedAmmunition;
 }
 
+bool ASingijeonHwachaActor::CanAcceptAmmunitionNow() const
+{
+    return LoadScenarioInteractor &&
+        LoadScenarioInteractor->CanReportInteraction(EScenarioInteractionType::Custom);
+}
+
+bool ASingijeonHwachaActor::CanBeginFuseIgnitionNow() const
+{
+    return IsReadyToIgnite() && IgniteScenarioInteractor &&
+        IgniteScenarioInteractor->CanReportInteraction(EScenarioInteractionType::Trigger);
+}
+
 void ASingijeonHwachaActor::HandleSlotChanged(USingijeonAmmoSlotComponent* Slot, AActor* Ammunition)
 {
     if (HwachaState != ESingijeonHwachaState::Fired)
     {
-        if (bAutoFillOnFirstLoad && !bAutoFilled && IsValid(Slot) && Slot->IsLoaded() && IsValid(Ammunition))
+        if (bAutoFillOnFirstLoad && !bAutoFilled && !bAutoFillInProgress &&
+            IsValid(Slot) && Slot->IsLoaded() && IsValid(Ammunition))
         {
             AutoFillRemainingAmmunition(Ammunition);
         }
@@ -186,9 +276,10 @@ void ASingijeonHwachaActor::HandleSlotChanged(USingijeonAmmoSlotComponent* Slot,
         }
 
         RefreshLoadState();
-		if (GetLoadedAmmunitionCount() >= MinimumLoadedAmmunition)
+		if (!bLoadInteractionReported && GetLoadedAmmunitionCount() >= MinimumLoadedAmmunition)
 		{
-			LoadScenarioInteractor->ReportInteractionCompleted(EScenarioInteractionType::Custom);
+			bLoadInteractionReported = LoadScenarioInteractor &&
+				LoadScenarioInteractor->ReportInteractionCompleted(EScenarioInteractionType::Custom);
 		}
     }
 }
@@ -216,11 +307,31 @@ void ASingijeonHwachaActor::AutoFillRemainingAmmunition(AActor* SourceAmmunition
         return;
     }
 
+    bAutoFillInProgress = true;
     AutoLoadedArrowInstances->ClearInstances();
+    AutoLoadedArrowInstances->SetUsingAbsoluteLocation(false);
+    AutoLoadedArrowInstances->SetUsingAbsoluteRotation(false);
+    AutoLoadedArrowInstances->SetUsingAbsoluteScale(false);
+    if (AutoLoadedArrowInstances->GetAttachParent() != RackRoot)
+    {
+        AutoLoadedArrowInstances->AttachToComponent(
+            RackRoot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+    }
+    AutoLoadedArrowInstances->SetRelativeTransform(FTransform::Identity);
     AutoLoadedArrowInstances->SetStaticMesh(InstanceMesh);
     if (AutoFillArrowMaterial)
     {
-        AutoLoadedArrowInstances->SetMaterial(0, AutoFillArrowMaterial);
+        if (!AutoFillArrowMaterial->CheckMaterialUsage(MATUSAGE_InstancedStaticMeshes))
+        {
+            UE_LOG(LogTemp, Error,
+                TEXT("%s AutoFillArrowMaterial %s cannot render on Instanced Static Meshes."),
+                *GetName(), *GetNameSafe(AutoFillArrowMaterial));
+        }
+        const int32 MaterialSlotCount = FMath::Max(1, AutoLoadedArrowInstances->GetNumMaterials());
+        for (int32 MaterialIndex = 0; MaterialIndex < MaterialSlotCount; ++MaterialIndex)
+        {
+            AutoLoadedArrowInstances->SetMaterial(MaterialIndex, AutoFillArrowMaterial);
+        }
     }
     else
     {
@@ -234,8 +345,8 @@ void ASingijeonHwachaActor::AutoFillRemainingAmmunition(AActor* SourceAmmunition
     }
     AutoFilledAmmunitionClass = SourceAmmunition->GetClass();
 
-    const FTransform RackWorldTransform = RackRoot->GetComponentTransform();
-    const FTransform SourceMeshLocalTransform = SourceMesh->GetComponentTransform().GetRelativeTransform(RackWorldTransform);
+    const FTransform SourceMeshLocalTransform = SourceMesh->GetComponentTransform().GetRelativeTransform(
+        AutoLoadedArrowInstances->GetComponentTransform());
     const int32 Rows = FMath::Max(1, AutoFillRows);
     const int32 Columns = FMath::Max(1, AutoFillColumns);
     for (int32 Row = 0; Row < Rows; ++Row)
@@ -255,6 +366,7 @@ void ASingijeonHwachaActor::AutoFillRemainingAmmunition(AActor* SourceAmmunition
         }
     }
     bAutoFilled = AutoLoadedArrowInstances->GetInstanceCount() > 0;
+    bAutoFillInProgress = false;
 }
 
 void ASingijeonHwachaActor::ClearAutoFilledAmmunition()
@@ -269,33 +381,76 @@ void ASingijeonHwachaActor::ClearAutoFilledAmmunition()
 
 void ASingijeonHwachaActor::HandleIgnitionStarted(AActor*)
 {
-    if (!IsReadyToIgnite())
+    if (!CanBeginFuseIgnitionNow())
     {
         Fuse->CancelIgnition();
         return;
     }
 
     SetHwachaState(ESingijeonHwachaState::Igniting);
+    SetFuseGuideVisible(false);
+    SetFuseIgnitionEffectActive(true);
     TwoHandCarry->SetCarryEnabled(false);
+    SetMoveTargetVisible(false);
 }
 
 void ASingijeonHwachaActor::HandleIgnitionCanceled(AActor*)
 {
     if (HwachaState == ESingijeonHwachaState::Igniting)
     {
+        SetFuseIgnitionEffectActive(false);
         RefreshLoadState();
+        SetFuseGuideVisible(bAimInteractionComplete && IsReadyToIgnite());
     }
 }
 
 void ASingijeonHwachaActor::HandleFuseIgnited()
 {
-	IgniteScenarioInteractor->ReportInteractionCompleted(EScenarioInteractionType::Trigger);
-    LaunchVolley();
+	SetFuseIgnitionEffectActive(false);
+	SetFuseGuideVisible(false);
+	if (!IgniteScenarioInteractor ||
+		!IgniteScenarioInteractor->ReportInteractionCompleted(EScenarioInteractionType::Trigger))
+	{
+		RefreshLoadState();
+		return;
+	}
+    bPendingLaunchAfterFuse = true;
+    TryStartPendingVolley();
+}
+
+void ASingijeonHwachaActor::TryStartPendingVolley()
+{
+    if (!bPendingLaunchAfterFuse)
+    {
+        return;
+    }
+
+    if (FireScenarioInteractor &&
+        FireScenarioInteractor->CanReportInteraction(EScenarioInteractionType::Combat))
+    {
+        bPendingLaunchAfterFuse = false;
+        GetWorldTimerManager().ClearTimer(PendingVolleyTimerHandle);
+        LaunchVolley();
+        return;
+    }
+
+    // The Fuse interaction normally advances into narration before Hwacha_Fire.
+    // Preserve the launch request and retry cheaply until that authored step opens.
+    if (GetWorld())
+    {
+        GetWorldTimerManager().SetTimer(
+            PendingVolleyTimerHandle, this, &ThisClass::TryStartPendingVolley, 0.1f, false);
+    }
 }
 
 void ASingijeonHwachaActor::LaunchVolley()
 {
     if (HwachaState != ESingijeonHwachaState::Igniting && !IsReadyToIgnite())
+    {
+        return;
+    }
+    if (!FireScenarioInteractor ||
+        !FireScenarioInteractor->CanReportInteraction(EScenarioInteractionType::Combat))
     {
         return;
     }
@@ -317,42 +472,85 @@ void ASingijeonHwachaActor::LaunchVolley()
     }
 
     SetHwachaState(ESingijeonHwachaState::Fired);
+    bPendingLaunchAfterFuse = false;
+    GetWorldTimerManager().ClearTimer(PendingVolleyTimerHandle);
     Fuse->SetIgnitionEnabled(false);
     TwoHandCarry->SetCarryEnabled(false);
-    NextLaunchIndex = 0;
+    SetMoveTargetVisible(false);
+    SetFuseGuideVisible(false);
+    const int32 TotalAmmunition = PendingLaunchSlots.Num() +
+        (AutoLoadedArrowInstances ? AutoLoadedArrowInstances->GetInstanceCount() : 0);
+    CurrentLaunchInterval = TotalAmmunition > 1
+        ? FMath::Max(0.0f, VolleyDuration) / static_cast<float>(TotalAmmunition - 1)
+        : 0.0f;
     LaunchNextAmmunition();
 }
 
 void ASingijeonHwachaActor::LaunchNextAmmunition()
 {
-    if (PendingLaunchSlots.IsValidIndex(NextLaunchIndex))
+    const int32 InstanceCount = AutoLoadedArrowInstances
+        ? AutoLoadedArrowInstances->GetInstanceCount()
+        : 0;
+    const int32 TotalRemaining = PendingLaunchSlots.Num() + InstanceCount;
+    if (TotalRemaining <= 0)
     {
-        USingijeonAmmoSlotComponent* Slot = PendingLaunchSlots[NextLaunchIndex++];
-        if (IsValid(Slot))
-        {
-            Slot->LaunchLoadedAmmunition(Slot->GetForwardVector(), LaunchSpeed);
-        }
-    }
-    else if (!LaunchNextAutoFilledAmmunition())
-    {
-        GetWorldTimerManager().ClearTimer(LaunchTimerHandle);
-        PendingLaunchSlots.Reset();
-		bAutoFilled = false;
-		AutoFilledAmmunitionClass = nullptr;
-		FireScenarioInteractor->ReportInteractionCompleted(EScenarioInteractionType::Combat);
-        OnVolleyLaunched.Broadcast();
+        FinishVolley();
         return;
     }
 
-    if (LaunchInterval <= KINDA_SMALL_NUMBER)
+    const int32 RandomIndex = FMath::RandRange(0, TotalRemaining - 1);
+    if (RandomIndex < PendingLaunchSlots.Num())
+    {
+        USingijeonAmmoSlotComponent* Slot = PendingLaunchSlots[RandomIndex];
+        PendingLaunchSlots.RemoveAtSwap(RandomIndex, 1, EAllowShrinking::No);
+        if (IsValid(Slot))
+        {
+            AActor* Ammunition = Slot->GetLoadedAmmunition();
+            const FVector LaunchLocation = IsValid(Ammunition)
+                ? Ammunition->GetActorLocation()
+                : Slot->GetComponentLocation();
+            ConfigureLaunchedAmmunitionCollision(Ammunition);
+            if (Slot->LaunchLoadedAmmunition(Slot->GetForwardVector(), LaunchSpeed))
+            {
+                PlayArrowLaunchSound(LaunchLocation);
+            }
+        }
+    }
+    else
+    {
+        LaunchNextAutoFilledAmmunition(RandomIndex - PendingLaunchSlots.Num());
+    }
+
+    const int32 RemainingAfterLaunch = PendingLaunchSlots.Num() +
+        (AutoLoadedArrowInstances ? AutoLoadedArrowInstances->GetInstanceCount() : 0);
+    OnLoadCountChanged.Broadcast(RemainingAfterLaunch, GetAmmunitionCapacity());
+    if (RemainingAfterLaunch <= 0)
+    {
+        FinishVolley();
+    }
+    else if (CurrentLaunchInterval <= KINDA_SMALL_NUMBER)
     {
         LaunchNextAmmunition();
     }
     else
     {
         GetWorldTimerManager().SetTimer(LaunchTimerHandle, this, &ThisClass::LaunchNextAmmunition,
-            LaunchInterval, false);
+            CurrentLaunchInterval, false);
     }
+}
+
+void ASingijeonHwachaActor::FinishVolley()
+{
+    GetWorldTimerManager().ClearTimer(LaunchTimerHandle);
+    PendingLaunchSlots.Reset();
+    bPendingLaunchAfterFuse = false;
+    bAutoFilled = false;
+    AutoFilledAmmunitionClass = nullptr;
+    if (FireScenarioInteractor)
+    {
+        FireScenarioInteractor->ReportInteractionCompleted(EScenarioInteractionType::Combat);
+    }
+    OnVolleyLaunched.Broadcast();
 }
 
 void ASingijeonHwachaActor::HandleCarryStateChanged(const bool bIsCarrying)
@@ -364,10 +562,47 @@ void ASingijeonHwachaActor::HandleCarryStateChanged(const bool bIsCarrying)
         return;
     }
 
-    // The highlight is a guide: hide it once both hands are correctly placed,
-    // and restore it if the player releases before completing the movement.
+    // Legacy handle proxies remain optional. The destination marker stays fixed
+    // in world space and therefore remains useful while either hand is dragging.
     SetHandleHighlightsVisible(bEnableAimGuideHighlight && !bIsCarrying && bHasAimStartTransform);
     SetActorTickEnabled(bIsCarrying && bHasAimStartTransform);
+}
+
+bool ASingijeonHwachaActor::HandleVRGrabbed(
+    USceneComponent* GrabComponent,
+    UMotionControllerComponent* MotionController)
+{
+    if (!TwoHandCarry || !IsValid(MotionController))
+    {
+        return false;
+    }
+    if (GrabComponent == LeftHandleGrabPoint || GrabComponent == LeftHandleHighlight)
+    {
+        return TwoHandCarry->BeginGrip(ECarryGripSide::Left, MotionController);
+    }
+    if (GrabComponent == RightHandleGrabPoint || GrabComponent == RightHandleHighlight)
+    {
+        return TwoHandCarry->BeginGrip(ECarryGripSide::Right, MotionController);
+    }
+    return false;
+}
+
+void ASingijeonHwachaActor::HandleVRReleased(
+    USceneComponent* GrabComponent,
+    UMotionControllerComponent*)
+{
+    if (!TwoHandCarry)
+    {
+        return;
+    }
+    if (GrabComponent == LeftHandleGrabPoint || GrabComponent == LeftHandleHighlight)
+    {
+        TwoHandCarry->EndGrip(ECarryGripSide::Left, nullptr);
+    }
+    else if (GrabComponent == RightHandleGrabPoint || GrabComponent == RightHandleHighlight)
+    {
+        TwoHandCarry->EndGrip(ECarryGripSide::Right, nullptr);
+    }
 }
 
 bool ASingijeonHwachaActor::CompleteAimInteraction()
@@ -382,10 +617,58 @@ bool ASingijeonHwachaActor::CompleteAimInteraction()
         return false;
     }
 
+    const FVector TargetLocation = MoveTargetMarker->GetComponentLocation();
+    const FRotator TargetRotation = MoveTargetMarker->GetComponentRotation();
     bAimInteractionComplete = true;
+    TwoHandCarry->SetCarryEnabled(false);
+    SetActorLocationAndRotation(TargetLocation, TargetRotation, false, nullptr, ETeleportType::TeleportPhysics);
     SetHandleHighlightsVisible(false);
+    SetMoveTargetVisible(false);
     SetActorTickEnabled(false);
+    SetFuseGuideVisible(IsReadyToIgnite());
+    OnAimCompleted.Broadcast();
     return true;
+}
+
+void ASingijeonHwachaActor::SetMoveTargetVisible(const bool bVisible)
+{
+    if (MoveTargetMarker)
+    {
+        MoveTargetMarker->SetVisibility(bVisible, true);
+        MoveTargetMarker->SetHiddenInGame(!bVisible, true);
+    }
+}
+
+void ASingijeonHwachaActor::SetFuseIgnitionEffectActive(const bool bActive)
+{
+    bFuseIgnitionEffectRequested = bActive;
+    if (!FuseIgnitionEffect)
+    {
+        return;
+    }
+
+    if (bActive)
+    {
+        FuseIgnitionEffect->Activate(true);
+    }
+    else
+    {
+        FuseIgnitionEffect->DeactivateImmediate();
+    }
+}
+
+void ASingijeonHwachaActor::SetFuseGuideVisible(const bool bVisible)
+{
+    if (FuseGuide)
+    {
+        FuseGuide->SetVisibility(bVisible, true);
+        FuseGuide->SetHiddenInGame(!bVisible, true);
+    }
+}
+
+bool ASingijeonHwachaActor::IsFuseGuideVisible() const
+{
+    return FuseGuide && FuseGuide->IsVisible();
 }
 
 void ASingijeonHwachaActor::SetHandleHighlightsVisible(const bool bVisible)
@@ -400,21 +683,24 @@ void ASingijeonHwachaActor::SetHandleHighlightsVisible(const bool bVisible)
     }
 }
 
-bool ASingijeonHwachaActor::LaunchNextAutoFilledAmmunition()
+bool ASingijeonHwachaActor::LaunchNextAutoFilledAmmunition(const int32 InstanceIndex)
 {
     if (!AutoLoadedArrowInstances || AutoLoadedArrowInstances->GetInstanceCount() == 0 ||
-        !AutoFilledAmmunitionClass)
+        !AutoFilledAmmunitionClass || !AutoLoadedArrowInstances->IsValidInstance(InstanceIndex))
     {
         return false;
     }
 
     FTransform LaunchTransform;
-    if (!AutoLoadedArrowInstances->GetInstanceTransform(0, LaunchTransform, true))
+    if (!AutoLoadedArrowInstances->GetInstanceTransform(InstanceIndex, LaunchTransform, true))
     {
-        AutoLoadedArrowInstances->RemoveInstance(0);
-        return true;
+        return false;
     }
-    AutoLoadedArrowInstances->RemoveInstance(0);
+    if (!AutoLoadedArrowInstances->RemoveInstance(InstanceIndex))
+    {
+        return false;
+    }
+    AutoLoadedArrowInstances->MarkRenderStateDirty();
 
     FActorSpawnParameters SpawnParameters;
     SpawnParameters.Owner = this;
@@ -424,23 +710,87 @@ bool ASingijeonHwachaActor::LaunchNextAutoFilledAmmunition()
     if (IsValid(SpawnedAmmunition) &&
         SpawnedAmmunition->GetClass()->ImplementsInterface(USingijeonAmmunitionInterface::StaticClass()))
     {
+        ConfigureLaunchedAmmunitionCollision(SpawnedAmmunition);
         ISingijeonAmmunitionInterface::Execute_OnLaunched(
             SpawnedAmmunition,
             DefaultAmmoSlot ? DefaultAmmoSlot->GetForwardVector() : GetActorForwardVector(),
             LaunchSpeed);
+        PlayArrowLaunchSound(LaunchTransform.GetLocation());
     }
     return true;
+}
+
+void ASingijeonHwachaActor::PlayArrowLaunchSound(const FVector& LaunchLocation) const
+{
+    if (!ArrowLaunchSound || !GetWorld())
+    {
+        return;
+    }
+
+    const float PitchMin = FMath::Min(ArrowLaunchSoundPitchMin, ArrowLaunchSoundPitchMax);
+    const float PitchMax = FMath::Max(ArrowLaunchSoundPitchMin, ArrowLaunchSoundPitchMax);
+    UGameplayStatics::PlaySoundAtLocation(
+        this,
+        ArrowLaunchSound,
+        LaunchLocation,
+        ArrowLaunchSoundVolume,
+        FMath::FRandRange(PitchMin, PitchMax));
+}
+
+void ASingijeonHwachaActor::ConfigureLaunchedAmmunitionCollision(AActor* Ammunition)
+{
+    if (!IsValid(Ammunition))
+    {
+        return;
+    }
+
+    Ammunition->SetOwner(this);
+    UPrimitiveComponent* AmmunitionPrimitive = Cast<UPrimitiveComponent>(Ammunition->GetRootComponent());
+    if (AmmunitionPrimitive)
+    {
+        AmmunitionPrimitive->IgnoreActorWhenMoving(this, true);
+    }
+
+    for (int32 Index = ActiveLaunchedAmmunition.Num() - 1; Index >= 0; --Index)
+    {
+        AActor* ExistingAmmunition = ActiveLaunchedAmmunition[Index].Get();
+        if (!IsValid(ExistingAmmunition))
+        {
+            ActiveLaunchedAmmunition.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+            continue;
+        }
+
+        UPrimitiveComponent* ExistingPrimitive = Cast<UPrimitiveComponent>(
+            ExistingAmmunition->GetRootComponent());
+        if (AmmunitionPrimitive)
+        {
+            AmmunitionPrimitive->IgnoreActorWhenMoving(ExistingAmmunition, true);
+        }
+        if (ExistingPrimitive)
+        {
+            ExistingPrimitive->IgnoreActorWhenMoving(Ammunition, true);
+        }
+    }
+    ActiveLaunchedAmmunition.Add(Ammunition);
 }
 
 void ASingijeonHwachaActor::ResetHwacha()
 {
     GetWorldTimerManager().ClearTimer(LaunchTimerHandle);
+    GetWorldTimerManager().ClearTimer(PendingVolleyTimerHandle);
     PendingLaunchSlots.Reset();
-    NextLaunchIndex = 0;
+    CurrentLaunchInterval = 0.0f;
+    ActiveLaunchedAmmunition.Reset();
+    bPendingLaunchAfterFuse = false;
     ClearAutoFilledAmmunition();
+    bAutoFillInProgress = false;
+    bLoadInteractionReported = false;
     bAimInteractionComplete = false;
+    SetFuseIgnitionEffectActive(false);
     bHasAimStartTransform = false;
     SetHandleHighlightsVisible(false);
+    SetMoveTargetVisible(false);
+    SetFuseGuideVisible(false);
     SetActorTickEnabled(false);
     for (USingijeonAmmoSlotComponent* Slot : AmmoSlots)
     {
@@ -459,7 +809,7 @@ void ASingijeonHwachaActor::RefreshLoadState()
     const bool bHasEnoughAmmo = LoadedCount >= MinimumLoadedAmmunition;
     SetHwachaState(bHasEnoughAmmo ? ESingijeonHwachaState::Loaded : ESingijeonHwachaState::Empty);
     Fuse->SetIgnitionEnabled(bHasEnoughAmmo);
-    TwoHandCarry->SetCarryEnabled(bHasEnoughAmmo);
+    TwoHandCarry->SetCarryEnabled(bHasEnoughAmmo && !bAimInteractionComplete);
     if (bHasEnoughAmmo && !bHasAimStartTransform)
     {
         AimStartTransform = GetActorTransform();
@@ -474,6 +824,11 @@ void ASingijeonHwachaActor::RefreshLoadState()
     SetHandleHighlightsVisible(
         bEnableAimGuideHighlight && bHasEnoughAmmo && !bAimInteractionComplete &&
         !TwoHandCarry->IsBeingCarried());
+    SetMoveTargetVisible(
+        bShowMoveTargetMarker && bHasEnoughAmmo && !bAimInteractionComplete);
+    SetFuseGuideVisible(
+        bHasEnoughAmmo && bAimInteractionComplete &&
+        HwachaState != ESingijeonHwachaState::Igniting);
     OnLoadCountChanged.Broadcast(LoadedCount, GetAmmunitionCapacity());
 }
 

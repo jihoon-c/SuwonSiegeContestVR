@@ -4,6 +4,7 @@
 #include "Animation/AnimInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -112,12 +113,16 @@ AVRPlayerPawn::AVRPlayerPawn()
 	SubtitleHUD->SetupAttachment(VRCamera);
 	SubtitleHUD->SetRelativeLocation(SubtitleHUDOffset);
 	SubtitleHUD->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	// Screen-space WidgetComponents are not consistently composited into OpenXR
+	// HMD views. Keep this camera-attached in world space and close enough that
+	// level geometry cannot normally pass between the player and the subtitle.
 	SubtitleHUD->SetWidgetSpace(EWidgetSpace::World);
 	SubtitleHUD->SetDrawSize(FVector2D(900.0f, 180.0f));
-	SubtitleHUD->SetRelativeScale3D(FVector(0.07f));
+	SubtitleHUD->SetRelativeScale3D(FVector(0.05f));
 	SubtitleHUD->SetPivot(FVector2D(0.5f, 0.5f));
 	SubtitleHUD->SetBlendMode(EWidgetBlendMode::Transparent);
 	SubtitleHUD->SetTwoSided(true);
+	SubtitleHUD->SetTranslucentSortPriority(10000);
 	SubtitleHUD->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SubtitleHUD->SetWidgetClass(USubtitleWidget::StaticClass());
 	SubtitleHUD->SetVisibility(false);
@@ -151,6 +156,7 @@ AVRPlayerPawn::AVRPlayerPawn()
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReleaseLeftFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Grab_Left_Released.IA_Grab_Left_Released"));
 	static ConstructorHelpers::FObjectFinder<UInputAction> ReleaseRightFinder(TEXT("/Game/XRFramework/Input/Actions/IA_Grab_Right_Released.IA_Grab_Right_Released"));
 	static ConstructorHelpers::FObjectFinder<UInputMappingContext> DefaultMappingContextFinder(TEXT("/Game/XRFramework/Input/IMC_Default.IMC_Default"));
+	static ConstructorHelpers::FObjectFinder<UInputMappingContext> HandMappingContextFinder(TEXT("/Game/XRFramework/Input/IMC_Hands.IMC_Hands"));
 	static ConstructorHelpers::FClassFinder<USceneComponent> GrabComponentFinder(TEXT("/Game/XRFramework/Blueprints/BP_GrabComponent"));
 	static ConstructorHelpers::FClassFinder<AActor> TeleportVisualizerFinder(TEXT("/Game/XRFramework/Blueprints/BP_TeleportVisualizer"));
 
@@ -167,6 +173,7 @@ AVRPlayerPawn::AVRPlayerPawn()
 	ReleaseLeftAction = ReleaseLeftFinder.Object;
 	ReleaseRightAction = ReleaseRightFinder.Object;
 	DefaultMappingContext = DefaultMappingContextFinder.Object;
+	HandMappingContext = HandMappingContextFinder.Object;
 	GrabComponentClass = GrabComponentFinder.Class;
 	TeleportVisualizerClass = TeleportVisualizerFinder.Class;
 	AutoPossessPlayer = EAutoReceiveInput::Disabled;
@@ -229,6 +236,10 @@ void AVRPlayerPawn::BeginPlay()
 				if (DefaultMappingContext && !InputSubsystem->HasMappingContext(DefaultMappingContext))
 				{
 					InputSubsystem->AddMappingContext(DefaultMappingContext, 0);
+				}
+				if (HandMappingContext && !InputSubsystem->HasMappingContext(HandMappingContext))
+				{
+					InputSubsystem->AddMappingContext(HandMappingContext, 1);
 				}
 			}
 		}
@@ -363,6 +374,10 @@ void AVRPlayerPawn::ConfigureLocomotionInput()
 	if (DefaultMappingContext && !InputSubsystem->HasMappingContext(DefaultMappingContext))
 	{
 		InputSubsystem->AddMappingContext(DefaultMappingContext, 0);
+	}
+	if (HandMappingContext && !InputSubsystem->HasMappingContext(HandMappingContext))
+	{
+		InputSubsystem->AddMappingContext(HandMappingContext, 1);
 	}
 
 	if (!RuntimeLocomotionMappingContext)
@@ -555,7 +570,12 @@ void AVRPlayerPawn::TryGrab(UMotionControllerComponent* MotionController, TObjec
 
 	if (USceneComponent* Candidate = FindNearestGrabComponent(MotionController))
 	{
-		if (InvokeGrabFunction(Candidate, TEXT("TryGrab"), MotionController))
+		const bool bUsesGrabComponent = Candidate->FindFunction(TEXT("TryGrab")) != nullptr;
+		const bool bGrabbed = bUsesGrabComponent
+			? InvokeGrabFunction(Candidate, TEXT("TryGrab"), MotionController)
+			: Candidate->ComponentHasTag(TEXT("VRGrab"));
+		if (bGrabbed && InvokeGrabOwnerFunction(
+			Candidate, TEXT("HandleVRGrabbed"), MotionController, true))
 		{
 			HeldComponent = Candidate;
 			if (AActor* GrabbedActor = Candidate->GetOwner())
@@ -570,6 +590,12 @@ void AVRPlayerPawn::TryGrab(UMotionControllerComponent* MotionController, TObjec
 				}
 			}
 		}
+		else if (bGrabbed && bUsesGrabComponent)
+		{
+			// The owning Actor may reject a context-sensitive grab (for example,
+			// equipment that cannot move until it has been loaded).
+			InvokeGrabFunction(Candidate, TEXT("TryRelease"), nullptr);
+		}
 	}
 }
 
@@ -580,13 +606,18 @@ void AVRPlayerPawn::TryRelease(TObjectPtr<USceneComponent>& HeldComponent)
 		return;
 	}
 
-	InvokeGrabFunction(HeldComponent, TEXT("TryRelease"), nullptr);
+	USceneComponent* ReleasedComponent = HeldComponent.Get();
+	if (ReleasedComponent->FindFunction(TEXT("TryRelease")))
+	{
+		InvokeGrabFunction(ReleasedComponent, TEXT("TryRelease"), nullptr);
+	}
+	InvokeGrabOwnerFunction(ReleasedComponent, TEXT("HandleVRReleased"), nullptr, true);
 	HeldComponent = nullptr;
 }
 
 USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionControllerComponent* MotionController) const
 {
-	if (!MotionController || !GrabComponentClass || !GetWorld())
+	if (!MotionController || !GetWorld())
 	{
 		return nullptr;
 	}
@@ -597,17 +628,29 @@ USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionController
 
 	for (TActorIterator<AActor> ActorIterator(GetWorld()); ActorIterator; ++ActorIterator)
 	{
-		TArray<UActorComponent*> GrabComponents;
-		ActorIterator->GetComponents(GrabComponentClass, GrabComponents);
-		for (UActorComponent* Component : GrabComponents)
+		TInlineComponentArray<USceneComponent*> SceneComponents(*ActorIterator);
+		for (USceneComponent* SceneComponent : SceneComponents)
 		{
-			USceneComponent* SceneComponent = Cast<USceneComponent>(Component);
 			if (!SceneComponent || SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
 			{
 				continue;
 			}
+			const bool bIsConfiguredGrabComponent = GrabComponentClass && SceneComponent->IsA(GrabComponentClass);
+			if (!bIsConfiguredGrabComponent && !SceneComponent->ComponentHasTag(TEXT("VRGrab")))
+			{
+				continue;
+			}
 
-			const float DistanceSquared = FVector::DistSquared(GripLocation, SceneComponent->GetComponentLocation());
+			float DistanceSquared = FVector::DistSquared(
+				GripLocation, SceneComponent->GetComponentLocation());
+			if (const UPrimitiveComponent* PrimitiveComponent =
+				Cast<UPrimitiveComponent>(SceneComponent))
+			{
+				// Tagged visual handles can be long. Measure from their rendered
+				// bounds rather than requiring the controller near the pivot.
+				DistanceSquared = PrimitiveComponent->Bounds.GetBox()
+					.ComputeSquaredDistanceToPoint(GripLocation);
+			}
 			if (DistanceSquared <= NearestDistanceSquared)
 			{
 				NearestDistanceSquared = DistanceSquared;
@@ -675,6 +718,63 @@ bool AVRPlayerPawn::InvokeGrabFunction(
 	}
 
 	return true;
+}
+
+bool AVRPlayerPawn::InvokeGrabOwnerFunction(
+	USceneComponent* GrabComponent,
+	const FName FunctionName,
+	UMotionControllerComponent* MotionController,
+	const bool bDefaultResult) const
+{
+	AActor* OwnerActor = GrabComponent ? GrabComponent->GetOwner() : nullptr;
+	UFunction* Function = OwnerActor ? OwnerActor->FindFunction(FunctionName) : nullptr;
+	if (!Function)
+	{
+		return bDefaultResult;
+	}
+
+	FStructOnScope ParameterScope(Function);
+	uint8* Parameters = ParameterScope.GetStructMemory();
+	for (TFieldIterator<FProperty> PropertyIterator(Function); PropertyIterator; ++PropertyIterator)
+	{
+		FProperty* Property = *PropertyIterator;
+		if (!Property->HasAnyPropertyFlags(CPF_Parm) ||
+			Property->HasAnyPropertyFlags(CPF_OutParm | CPF_ReturnParm))
+		{
+			continue;
+		}
+
+		if (FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+		{
+			UObject* Value = nullptr;
+			// Prefer the actual grab point for base SceneComponent parameters.
+			// Motion controllers also derive from SceneComponent, so checking them
+			// first would incorrectly replace the GrabComponent argument.
+			if (GrabComponent->IsA(ObjectProperty->PropertyClass))
+			{
+				Value = GrabComponent;
+			}
+			else if (MotionController && MotionController->IsA(ObjectProperty->PropertyClass))
+			{
+				Value = MotionController;
+			}
+			ObjectProperty->SetObjectPropertyValue_InContainer(Parameters, Value);
+		}
+	}
+
+	OwnerActor->ProcessEvent(Function, Parameters);
+	for (TFieldIterator<FProperty> PropertyIterator(Function); PropertyIterator; ++PropertyIterator)
+	{
+		FProperty* Property = *PropertyIterator;
+		if (Property->HasAnyPropertyFlags(CPF_ReturnParm))
+		{
+			if (const FBoolProperty* BoolProperty = CastField<FBoolProperty>(Property))
+			{
+				return BoolProperty->GetPropertyValue_InContainer(Parameters);
+			}
+		}
+	}
+	return bDefaultResult;
 }
 
 float AVRPlayerPawn::GetAxisX(const FInputActionValue& Value) const

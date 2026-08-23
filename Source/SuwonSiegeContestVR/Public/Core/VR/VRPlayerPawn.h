@@ -61,6 +61,8 @@ protected:
 	void TryRelease(TObjectPtr<USceneComponent>& HeldComponent);
 	USceneComponent* FindNearestGrabComponent(const UMotionControllerComponent* MotionController) const;
 	bool InvokeGrabFunction(USceneComponent* GrabComponent, FName FunctionName, UMotionControllerComponent* MotionController) const;
+	bool InvokeGrabOwnerFunction(USceneComponent* GrabComponent, FName FunctionName,
+		UMotionControllerComponent* MotionController, bool bDefaultResult) const;
 	float GetAxisX(const struct FInputActionValue& Value) const;
 
 	UFUNCTION()
@@ -137,6 +139,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "VR|Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
+	/** Contains the persistent OpenXR trigger mappings used by both grab hands. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "VR|Input")
+	TObjectPtr<UInputMappingContext> HandMappingContext;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "VR|Input")
 	TObjectPtr<UInputAction> SmoothMoveAction;
 
@@ -205,7 +211,7 @@ protected:
 
 	/** Distance and height can be tuned per Blueprint for headset comfort. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
-	FVector SubtitleHUDOffset = FVector(180.0f, 0.0f, -40.0f);
+	FVector SubtitleHUDOffset = FVector(85.0f, 0.0f, -28.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
 	FVector EventHUDOffset = FVector(180.0f, 0.0f, -5.0f);

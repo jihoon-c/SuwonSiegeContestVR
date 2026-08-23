@@ -15,13 +15,12 @@ if not hwacha_bp or not handle_mesh or not handle_material:
 
 hwacha_cdo = unreal.get_default_object(hwacha_bp.generated_class())
 hwacha_cdo.set_editor_property("enable_aim_guide_highlight", True)
-hwacha_cdo.set_editor_property("aim_completion_distance", 30.0)
-hwacha_cdo.set_editor_property("aim_completion_yaw_degrees", 10.0)
+hwacha_cdo.set_editor_property("show_move_target_marker", True)
+hwacha_cdo.set_editor_property("move_target_acceptance_radius", 55.0)
 
 # The imported Hwacha mesh runs from about X=-85..183, Y=-69..69 and Z=0..178.
-# These slim cylinders overlap the rear wooden handles. Runtime code shows them
-# while the loaded Hwacha still needs aiming, hides them during a correct two-hand
-# grip, and restores them after an incomplete release.
+# The slim handle proxies remain the grab guide and hide while either hand carries.
+# The move target below separately communicates the destination.
 handle_settings = (
     ("left_handle_highlight", unreal.Vector(-47.0, -43.0, 61.0)),
     ("right_handle_highlight", unreal.Vector(-47.0, 43.0, 61.0)),
@@ -35,6 +34,18 @@ for property_name, location in handle_settings:
     component.set_editor_property("relative_scale3d", unreal.Vector(0.075, 0.075, 0.72))
     component.set_editor_property("visible", False)
     component.set_editor_property("hidden_in_game", True)
+    component.set_editor_property("component_tags", [unreal.Name("VRGrab")])
+
+# This marker is authored relative to the Hwacha for easy placement, then the
+# C++ actor detaches it at BeginPlay so it stays fixed while the cart is dragged.
+target_marker = hwacha_cdo.get_editor_property("move_target_marker")
+target_marker.set_static_mesh(handle_mesh)
+target_marker.set_material(0, handle_material)
+target_marker.set_editor_property("relative_location", unreal.Vector(250.0, 0.0, -70.0))
+target_marker.set_editor_property("relative_rotation", unreal.Rotator())
+target_marker.set_editor_property("relative_scale3d", unreal.Vector(1.5, 1.5, 0.025))
+target_marker.set_editor_property("visible", False)
+target_marker.set_editor_property("hidden_in_game", True)
 
 unreal.BlueprintEditorLibrary.compile_blueprint(hwacha_bp)
 unreal.EditorAssetLibrary.save_loaded_asset(hwacha_bp, only_if_is_dirty=False)

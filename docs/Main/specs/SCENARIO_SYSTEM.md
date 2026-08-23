@@ -39,6 +39,8 @@ Stage 배열 순서는 편집 가독성과 복귀 시 이전 단계 완료 상�
 - `Wait`: `Duration` 표시
 - Grab 등 실제 Interaction: `TargetID`와 성공/실패 분기 표시
 
+실제 Interaction에는 `GuideAction`과 선택적인 `GuideText`가 함께 표시된다. `Auto`는 Interaction Type에서 기본 입력 안내를 결정하고, `Custom`처럼 타입만으로 실제 조작을 알 수 없는 단계는 `Grab`, `Drag`, `Trigger`, `Observe`, `Combat` 등을 명시한다. `Hidden`은 플레이어 입력 없이 자동 진행되는 단계에 사용한다.
+
 이는 Details 패널 표시만 변경하며 기존 Scenario 데이터와 런타임 흐름에는 영향을 주지 않는다.
 
 ## Interaction 타입 연결
@@ -52,6 +54,20 @@ Stage 배열 순서는 편집 가독성과 복귀 시 이전 단계 완료 상�
 | `Observe` | 대상 Actor의 `ScenarioObservationComponent.StartObservation` 호출 |
 | `Quiz`, `VoiceCommand` | 외부 시스템이 결과를 `ReportInteractionResult(TargetID, Type, Success)`로 보고 |
 | `Sequence`, `Spawn`, `Custom` | `OnInteractionRequested`에서 Blueprint 연출 후 완료/실패 보고 |
+
+## 인터랙션 가이드
+
+`AScenarioManagerActor.InteractionGuide`는 현재 Interaction이 시작되면 동일한 `TargetID`와 `InteractionType`을 지원하는 `ScenarioInteractableComponent`를 찾는다. 찾은 Actor의 Bounds 위에 입력 종류와 안내 문구가 담긴 World Widget을 표시하고 완료·실패·Skip 시 즉시 숨긴다.
+
+| GuideAction | 기본 표시 |
+|---|---|
+| `Grab` | `TRIGGER / 트리거를 눌러 잡기` |
+| `Drag` | `HOLD + MOVE / 트리거를 누른 채 이동` |
+| `Trigger` | `TRIGGER / 트리거로 작동` |
+| `Observe` | `LOOK / 대상을 바라보기` |
+| `Combat` | `AIM + TRIGGER / 조준하고 트리거로 발사` |
+
+`GuideText`를 입력하면 아래 한국어 안내만 교체된다. 여러 Actor가 같은 Target ID를 사용하면 플레이어와 가장 가까운 Actor를 선택한다. 나레이션, Objective, Wait, Sequence, Spawn은 기본적으로 대상 가이드를 표시하지 않는다.
 
 `OnInteractionRequested`는 모든 Interaction에 발생한다. 전용 이벤트인 `OnNarrationRequested`, `OnObjectiveRequested`도 함께 사용할 수 있다.
 

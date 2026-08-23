@@ -41,6 +41,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "VR Interaction|Two Hand Carry")
     bool IsCarryEnabled() const { return bCarryEnabled; }
 
+    UFUNCTION(BlueprintPure, Category = "VR Interaction|Two Hand Carry")
+    bool HasLeftGrip() const { return LeftHand.IsValid(); }
+
+    UFUNCTION(BlueprintPure, Category = "VR Interaction|Two Hand Carry")
+    bool HasRightGrip() const { return RightHand.IsValid(); }
+
     UPROPERTY(BlueprintAssignable, Category = "VR Interaction|Two Hand Carry")
     FOnTwoHandCarryStateChanged OnCarryStateChanged;
 
@@ -54,8 +60,24 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Interaction|Two Hand Carry")
     bool bYawRotationOnly = true;
 
+    /** When enabled, either the left or right hand can translate the owner. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Interaction|Two Hand Carry")
+    bool bAllowSingleHandCarry = true;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Interaction|Two Hand Carry", meta = (ClampMin = "1.0"))
     float MaxLinearSpeed = 300.0f;
+
+    /** Keeps a grabbed cart locked to the hand delta instead of visibly trailing behind locomotion. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Interaction|Two Hand Carry")
+    bool bFollowHandWithoutLag = true;
+
+    /**
+     * Sweeping a large cart that already touches the floor can reject every hand delta.
+     * Leave this disabled for direct VR dragging; enable it only for actors whose root
+     * collision is authored with enough clearance for swept movement.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Interaction|Two Hand Carry")
+    bool bSweepMovement = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR Interaction|Two Hand Carry", meta = (ClampMin = "1.0"))
     float MaxAngularSpeed = 120.0f;
@@ -72,6 +94,7 @@ protected:
     FTransform BaselineActorTransform;
     FVector BaselineHandMidpoint = FVector::ZeroVector;
     FVector BaselineHandDirection = FVector::ForwardVector;
+    bool bBaselineUsesTwoHands = false;
     bool bHasBaseline = false;
     bool bLastBroadcastCarryState = false;
 };

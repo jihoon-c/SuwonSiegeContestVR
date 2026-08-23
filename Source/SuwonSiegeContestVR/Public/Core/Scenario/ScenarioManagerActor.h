@@ -9,6 +9,7 @@ class UDataTable;
 class UExperienceDefinition;
 class UScenarioDefinition;
 class UScenarioExperienceBridgeComponent;
+class UScenarioInteractionGuideComponent;
 class UScenarioManagerComponent;
 class UScenarioNarrationBridgeComponent;
 
@@ -40,6 +41,13 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Scenario|Experience")
 	UScenarioExperienceBridgeComponent* GetExperienceBridge() const { return ExperienceBridge; }
+
+	UFUNCTION(BlueprintPure, Category = "Scenario|Guide")
+	UScenarioInteractionGuideComponent* GetInteractionGuide() const { return InteractionGuide; }
+
+	/** Development-only shortcut used by the Spacebar debug binding. */
+	UFUNCTION(BlueprintCallable, Category = "Scenario|Debug")
+	bool DebugAdvanceCurrentInteraction();
 
 	/** Resolved automatically from ExperienceDefinition. Do not configure twice. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Resolved Configuration")
@@ -73,6 +81,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Experience|Configuration")
 	bool bRestoreScenarioCheckpoint = true;
 
+	/** In non-Shipping builds, Space completes the running interaction through its success path. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Scenario|Debug", meta = (AdvancedDisplay))
+	bool bEnableSpacebarDebugAdvance = true;
+
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostInitializeComponents() override;
@@ -90,6 +102,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Scenario")
 	TObjectPtr<UScenarioExperienceBridgeComponent> ExperienceBridge;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Scenario")
+	TObjectPtr<UScenarioInteractionGuideComponent> InteractionGuide;
+
 private:
 	void ApplyConfiguration();
+	void SetupDebugInput();
+	void HandleSpacebarDebugAdvance();
+	bool bDebugInputBound = false;
 };

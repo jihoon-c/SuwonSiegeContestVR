@@ -72,7 +72,7 @@
 
 ## VR HUD 원칙
 
-자막은 Camera에 부착된 World Space Widget이며 기본 위치는 전방 165cm, 아래 38cm다. Blueprint의 `SubtitleHUDOffset`으로 조정한다. 시야 중심을 계속 가리는 UI는 피하고, 장시간 고정 UI로 인한 피로를 실기기에서 확인해야 한다.
+자막은 Camera에 부착된 World Space Widget이며 기준 위치는 HMD 전방 85cm, 아래 28cm다. OpenXR HMD에서 누락될 수 있는 Screen Space WidgetComponent는 사용하지 않는다. 월드 메시가 사이에 들어오기 어려운 가까운 위치와 높은 Translucency Sort Priority를 사용하며, Blueprint의 `SubtitleHUDOffset`으로 위치를 조정할 수 있다.
 
 ## 현재 제한
 

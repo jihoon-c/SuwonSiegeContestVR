@@ -64,6 +64,17 @@ if generated_class:
     narration_component = pawn_cdo.get_editor_property("narration_sequence")
     if narration_component:
         narration_component.set_editor_property("narration_table", narration_table)
+        pawn_cdo.set_editor_property("subtitle_hud_offset", unreal.Vector(85.0, 0.0, -28.0))
+        subtitle_hud = pawn_cdo.get_editor_property("subtitle_hud")
+        if subtitle_hud:
+            subtitle_hud.set_widget_space(unreal.WidgetSpace.WORLD)
+            subtitle_hud.set_editor_property(
+                "relative_location", unreal.Vector(85.0, 0.0, -28.0)
+            )
+            subtitle_hud.set_editor_property(
+                "relative_scale3d", unreal.Vector(0.05, 0.05, 0.05)
+            )
+            subtitle_hud.set_editor_property("translucency_sort_priority", 10000)
         unreal.EditorAssetLibrary.save_loaded_asset(pawn_blueprint)
 
 unreal.EditorAssetLibrary.save_directory("/Game/Core", only_if_is_dirty=False, recursive=True)

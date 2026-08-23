@@ -17,6 +17,8 @@ public:
     USingijeonAmmoSlotComponent();
 
     virtual void BeginPlay() override;
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType,
+        FActorComponentTickFunction* ThisTickFunction) override;
 
     UFUNCTION(BlueprintCallable, Category = "Singijeon|Slot")
     bool TryLoadAmmunition(AActor* Candidate);
@@ -53,4 +55,7 @@ protected:
 
     /** Prevents collision changes made by PrepareForLoading from recursively loading this slot. */
     bool bLoadInProgress = false;
+
+    /** Restores the snapped attachment if a delayed XR Grab release detaches the loaded Actor. */
+    void EnforceLoadedAttachment();
 };

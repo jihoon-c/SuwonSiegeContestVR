@@ -5,6 +5,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Core/Scenario/ScenarioInteractableComponent.h"
 #include "Core/Scenario/ScenarioTypes.h"
+#include "NiagaraComponent.h"
 #include "Particles/ParticleSystemComponent.h"
 
 AIgnitionSourceActor::AIgnitionSourceActor()
@@ -31,6 +32,7 @@ AIgnitionSourceActor::AIgnitionSourceActor()
 void AIgnitionSourceActor::BeginPlay()
 {
     Super::BeginPlay();
+    PrepareIgnitionVisuals();
     RefreshIgnitionVisuals();
 }
 
@@ -61,13 +63,60 @@ void AIgnitionSourceActor::RefreshIgnitionVisuals()
             continue;
         }
 
-        if (bIgnitionActive)
+        if (UNiagaraComponent* NiagaraEffect = Cast<UNiagaraComponent>(Effect))
         {
-            Effect->Activate(true);
+            if (bIgnitionActive)
+            {
+                // The instance is already allocated and warmed by BeginPlay. Do not
+                // reset it on overlap; simply resume simulation and rendering.
+                if (!NiagaraEffect->IsActive())
+                {
+                    NiagaraEffect->Activate(false);
+                }
+                NiagaraEffect->SetPaused(false);
+                NiagaraEffect->SetRenderingEnabled(true);
+            }
+            else
+            {
+                NiagaraEffect->SetRenderingEnabled(false);
+                NiagaraEffect->SetPaused(true);
+            }
+        }
+        else if (bIgnitionActive)
+        {
+            Effect->Activate(false);
         }
         else
         {
             Effect->DeactivateImmediate();
         }
+    }
+}
+
+void AIgnitionSourceActor::PrepareIgnitionVisuals()
+{
+    bIgnitionVisualsPrepared = false;
+    TInlineComponentArray<UNiagaraComponent*> NiagaraEffects(this);
+    for (UNiagaraComponent* NiagaraEffect : NiagaraEffects)
+    {
+        if (!IsValid(NiagaraEffect) || !NiagaraEffect->GetAsset())
+        {
+            continue;
+        }
+
+        NiagaraEffect->SetAutoActivate(false);
+        NiagaraEffect->SetAllowScalability(true);
+        NiagaraEffect->SetCullDistance(FMath::Max(0.0f, IgnitionEffectCullDistance));
+        NiagaraEffect->SetRenderingEnabled(false);
+        if (!NiagaraEffect->IsActive())
+        {
+            NiagaraEffect->Activate(false);
+        }
+        if (IgnitionEffectWarmupTicks > 0)
+        {
+            NiagaraEffect->AdvanceSimulation(IgnitionEffectWarmupTicks, 1.0f / 30.0f);
+        }
+        NiagaraEffect->SetPaused(true);
+        bIgnitionVisualsPrepared = true;
     }
 }

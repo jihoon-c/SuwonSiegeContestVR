@@ -3,13 +3,16 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Core/Scenario/ScenarioDefinition.h"
+#include "Core/Narration/NarrationTypes.h"
 #include "Core/Scenario/ScenarioManagerActor.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/DataTable.h"
 #include "Enemy/GongsimdonEnemyGroupActor.h"
 #include "Interaction/GongsimdonCombatTargetActor.h"
+#include "Interaction/GongsimdonDefenseWeaponActor.h"
 #include "Interaction/GongsimdonObservationTargetActor.h"
 #include "Interaction/GongsimdonReportActor.h"
 #include "Scenario/GongsimdonScenarioDirectorActor.h"
@@ -26,6 +29,66 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FGongsimdonEnemyGroupFlowTest,
 	"SuwonSiegeContestVR.GF_Gongsimdon.Enemy.GroupFlow",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FGongsimdonNarratedScenarioAssetTest,
+	"SuwonSiegeContestVR.GF_Gongsimdon.Scenario.NarratedAssetFlow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGongsimdonNarratedScenarioAssetTest::RunTest(const FString& Parameters)
+{
+	UScenarioDefinition* Scenario = LoadObject<UScenarioDefinition>(nullptr,
+		TEXT("/GF_Gongsimdon/Data/DA_Scenario_Gongsimdon.DA_Scenario_Gongsimdon"));
+	UDataTable* NarrationTable = LoadObject<UDataTable>(nullptr,
+		TEXT("/GF_Gongsimdon/Data/DT_Narration_Gongsimdon.DT_Narration_Gongsimdon"));
+	TestNotNull(TEXT("Narrated Gongsimdon Scenario loads"), Scenario);
+	TestNotNull(TEXT("Gongsimdon narration table loads"), NarrationTable);
+	if (!Scenario || !NarrationTable)
+	{
+		return false;
+	}
+
+	FString ValidationError;
+	TestTrue(TEXT("Narrated Gongsimdon Scenario validates"),
+		Scenario->ValidateScenario(ValidationError));
+	TestEqual(TEXT("Scenario owns its plugin narration table"),
+		Scenario->NarrationTable.Get(), NarrationTable);
+	TestEqual(TEXT("Scenario has one inline Stage"), Scenario->Stages.Num(), 1);
+	if (Scenario->Stages.Num() == 1)
+	{
+		const FScenarioStageDefinition& Stage = Scenario->Stages[0];
+		TestEqual(TEXT("Narrated flow starts at GONG_NAR_01"),
+			Stage.StartInteractionID, FName(TEXT("GONG_NAR_01")));
+		TestEqual(TEXT("Flow contains 27 narration and 13 action interactions"),
+			Stage.Interactions.Num(), 40);
+
+		int32 NarrationCount = 0;
+		for (const FScenarioInteraction& Interaction : Stage.Interactions)
+		{
+			if (Interaction.InteractionType != EScenarioInteractionType::Narration)
+			{
+				continue;
+			}
+			++NarrationCount;
+			TestTrue(*FString::Printf(TEXT("Narration row %s exists"),
+				*Interaction.NarrationID.ToString()),
+				NarrationTable->GetRowMap().Contains(Interaction.NarrationID));
+		}
+		TestEqual(TEXT("Flow contains all 27 narration interactions"), NarrationCount, 27);
+	}
+
+	TestEqual(TEXT("Narration table contains exactly 27 rows"),
+		NarrationTable->GetRowMap().Num(), 27);
+	for (const TPair<FName, uint8*>& Pair : NarrationTable->GetRowMap())
+	{
+		const FNarrationSequenceRow* Row = reinterpret_cast<const FNarrationSequenceRow*>(Pair.Value);
+		TestTrue(*FString::Printf(TEXT("%s has an audio asset"), *Pair.Key.ToString()),
+			Row && !Row->NarrationSound.IsNull());
+		TestTrue(*FString::Printf(TEXT("%s returns flow control to Scenario"), *Pair.Key.ToString()),
+			Row && Row->NextRow.IsNone() && Row->AdvanceMode == ENarrationAdvanceMode::Stop);
+	}
+	return true;
+}
 
 bool FGongsimdonEnemyGroupFlowTest::RunTest(const FString& Parameters)
 {
@@ -141,8 +204,8 @@ bool FGongsimdonActionInteractionFlowTest::RunTest(const FString& Parameters)
 			ReportActor->SubmitReport(EGongsimdonReportDirection::West, 6));
 		TestEqual(TEXT("Wrong report does not advance Scenario"),
 			Manager->GetDebugSnapshot().InteractionID, FName(TEXT("GONG_TEST_REPORT")));
-		TestTrue(TEXT("East and six enemies is accepted"),
-			ReportActor->SubmitReport(EGongsimdonReportDirection::East, 6));
+		TestTrue(TEXT("Physical VR report button submits the authored correct report"),
+			ReportActor->HandleVRGrabbed(nullptr, nullptr));
 		TestEqual(TEXT("Correct report advances to Combat"),
 			Manager->GetDebugSnapshot().InteractionID, FName(TEXT("GONG_TEST_COMBAT")));
 
@@ -153,6 +216,25 @@ bool FGongsimdonActionInteractionFlowTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Second valid shot completes Combat"), CombatActor->RegisterHit());
 		TestEqual(TEXT("Action Scenario completes"),
 			Manager->GetDebugSnapshot().ScenarioState, EScenarioState::Completed);
+	}
+
+	AGongsimdonDefenseWeaponActor* Weapon = World->SpawnActor<AGongsimdonDefenseWeaponActor>();
+	AEnemySoldierActor* WeaponTarget = World->SpawnActor<AEnemySoldierActor>(
+		FVector(500.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
+	TestNotNull(TEXT("Playable defense weapon is spawned"), Weapon);
+	TestNotNull(TEXT("Playable defense target is spawned"), WeaponTarget);
+	if (Weapon && WeaponTarget && WeaponTarget->GetHealthComponent())
+	{
+		if (!WeaponTarget->HasActorBegunPlay())
+		{
+			WeaponTarget->DispatchBeginPlay();
+		}
+		WeaponTarget->SetSoldierActive(true);
+		const float HealthBeforeShot = WeaponTarget->GetHealthComponent()->GetCurrentHealth();
+		TestTrue(TEXT("Defense weapon fires from a controller transform"),
+			Weapon->FireFromTransform(FVector::ZeroVector, FVector::ForwardVector));
+		TestTrue(TEXT("Defense weapon applies standard damage to an enemy"),
+			WeaponTarget->GetHealthComponent()->GetCurrentHealth() < HealthBeforeShot);
 	}
 
 	World->DestroyWorld(false);

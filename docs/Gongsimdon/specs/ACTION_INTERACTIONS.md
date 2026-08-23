@@ -1,17 +1,18 @@
-# 공심돈 Action Interaction
+# 공심돈 나레이션·Action Interaction
 
-`DA_Scenario_Gongsimdon`은 현재 나레이션을 포함하지 않고 아래 동작만 순차 실행한다.
+`DA_Scenario_Gongsimdon` 한 곳에서 나레이션 27개와 동작 13개의 순서를 교차 정의한다. 나레이션 DT의 각 행은 `AdvanceMode=Stop`, `NextRow=None`이며, 다음 단계는 DT 체인이 아니라 Scenario의 `NextInteractionID`가 결정한다.
 
 ```text
-SCAN_PERIMETER
-  → SOUND_ANIMAL → CHECK_ANIMAL
-  → SOUND_METAL → CHECK_METAL
-  → REVEAL_ENEMY → IDENTIFY_ENEMY
-  → REPORT_ENEMY
-  → ENABLE_BEACON → CHECK_BEACON
-  → RETREAT_ENEMY → SHOOT_RETREATING
-  → FINAL_SCAN
+NAR 01~04 → SCAN_PERIMETER
+  → SOUND_ANIMAL → NAR 05 → CHECK_ANIMAL → NAR 06~08
+  → SOUND_METAL → CHECK_METAL → REVEAL_ENEMY → NAR 09~10
+  → IDENTIFY_ENEMY → NAR 11~13 → REPORT_ENEMY → NAR 14~16
+  → ENABLE_BEACON → CHECK_BEACON → NAR 17~19
+  → RETREAT_ENEMY → NAR 20~22 → SHOOT_RETREATING
+  → NAR 23~24 → FINAL_SCAN → NAR 25~27
 ```
+
+나레이션 데이터는 `/GF_Gongsimdon/Data/DT_Narration_Gongsimdon`, 음원은 `/GF_Gongsimdon/Asset/Narration`에 둔다. Level Scenario Manager에는 별도 DT를 중복 지정하지 않고 Experience를 통해 Scenario와 Scenario 소유 DT를 해석하게 한다.
 
 ## Level Actor 역할
 
@@ -38,7 +39,7 @@ Director의 `OnCueRequested(InteractionID, TargetID)`에 다음 연출을 연결
 
 ## 보고 연결
 
-보고 UI 또는 음성 인식 결과에서 배치된 `Gongsimdon_Report` Actor의 다음 함수를 호출한다.
+기본 플레이에서는 배치된 `Gongsimdon_Report`의 원통형 보고 장치를 VR 트리거로 누르면 동쪽·6명 보고를 제출한다. 별도 보고 UI 또는 음성 인식 결과를 연결할 때는 다음 함수를 호출한다.
 
 ```text
 SubmitReport(Direction, EnemyCount)
@@ -48,7 +49,7 @@ SubmitReport(Direction, EnemyCount)
 
 ## 사격 연결
 
-배치된 `Gongsimdon_EnemyGroup`이 Spawn한 개별 `AEnemySoldierActor`에 투사체/무기가 표준 `ApplyDamage`를 호출한다. 기본 필요 명중 수는 1이며, 한 명이라도 유효 피격되면 `COMBAT_RETREATING`이 완료되고 그룹이 이탈한다.
+배치된 `Gongsimdon_DefenseWeapon`을 손으로 조준하고 트리거를 누르면 50m Sweep과 조준 보조로 Health 대상을 찾고 표준 Damage를 전달한다. `Gongsimdon_EnemyGroup`이 Spawn한 병사 한 명이 유효 피격되면 `COMBAT_RETREATING`이 완료되고 그룹이 이탈한다.
 
 ## 관찰 위치 조정
 

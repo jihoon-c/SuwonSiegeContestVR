@@ -6,6 +6,10 @@
 #include "Core/Scenario/ScenarioTypes.h"
 #include "Interaction/IgnitionSourceActor.h"
 #include "Interaction/IgnitionSourceInterface.h"
+#include "NiagaraComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 
 AFirePitActor::AFirePitActor()
 {
@@ -32,7 +36,33 @@ AFirePitActor::AFirePitActor()
 void AFirePitActor::BeginPlay()
 {
     Super::BeginPlay();
+    SnapFireEffectToBowl();
     IgnitionArea->OnComponentBeginOverlap.AddDynamic(this, &ThisClass::HandleIgnitionOverlap);
+}
+
+void AFirePitActor::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+    SnapFireEffectToBowl();
+}
+
+void AFirePitActor::SnapFireEffectToBowl()
+{
+    TInlineComponentArray<UNiagaraComponent*> NiagaraComponents(this);
+    for (UNiagaraComponent* NiagaraComponent : NiagaraComponents)
+    {
+        if (!IsValid(NiagaraComponent) || NiagaraComponent->GetFName() != TEXT("FireEffect"))
+        {
+            continue;
+        }
+
+        // Blueprint SCS and placed-actor overrides can otherwise restore an
+        // outdated transform. The component remains relative to the Fire Pit
+        // root, so it moves with the actor instead of simulating at world zero.
+        NiagaraComponent->SetUsingAbsoluteLocation(false);
+        NiagaraComponent->SetRelativeLocation(FireEffectRelativeLocation);
+        NiagaraComponent->ReinitializeSystem();
+    }
 }
 
 void AFirePitActor::HandleIgnitionOverlap(UPrimitiveComponent*, AActor* OtherActor,
@@ -49,10 +79,7 @@ bool AFirePitActor::TryIgniteTorch(AActor* Candidate)
         return false;
     }
 
-    // When a Scenario Manager exists it must accept Torch_Ignite before the
-    // physical state changes. This prevents an accidental early overlap from
-    // lighting the torch and leaving INT_05 unable to complete later.
-    if (!IgniteTorchScenarioInteractor->ReportInteractionCompleted(
+    if (!IgniteTorchScenarioInteractor->CanReportInteraction(
             EScenarioInteractionType::Trigger))
     {
         return false;
@@ -60,10 +87,19 @@ bool AFirePitActor::TryIgniteTorch(AActor* Candidate)
 
     if (IIgnitionSourceInterface::Execute_IsIgnitionActive(Torch))
     {
-        return true;
+        return IgniteTorchScenarioInteractor->ReportInteractionCompleted(
+            EScenarioInteractionType::Trigger);
     }
 
     Torch->SetIgnitionActive(true);
+    if (!IgniteTorchScenarioInteractor->ReportInteractionCompleted(
+            EScenarioInteractionType::Trigger))
+    {
+        Torch->SetIgnitionActive(false);
+        return false;
+    }
+    static ConstructorHelpers::FObjectFinder<USoundBase> LightFireSound(TEXT("/GF_Singijeon/Asset/Sound/Effect/lightfire.lightfire"));
+    if (LightFireSound.Succeeded()) UGameplayStatics::PlaySoundAtLocation(this, LightFireSound.Object, Torch->GetActorLocation());
     OnTorchIgnited.Broadcast(Torch);
     return true;
 }

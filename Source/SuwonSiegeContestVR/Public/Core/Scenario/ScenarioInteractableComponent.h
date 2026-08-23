@@ -28,6 +28,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Scenario|Interaction")
 	bool SupportsInteractionType(EScenarioInteractionType InteractionType) const;
 
+	/** Checks the active Scenario without completing or failing it. */
+	UFUNCTION(BlueprintPure, Category = "Scenario|Interaction")
+	bool CanReportInteraction(EScenarioInteractionType InteractionType) const;
+
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Interaction")
 	bool ReportInteractionStarted(EScenarioInteractionType InteractionType);
 

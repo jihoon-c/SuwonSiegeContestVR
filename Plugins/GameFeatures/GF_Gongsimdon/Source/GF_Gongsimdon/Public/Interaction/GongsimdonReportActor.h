@@ -6,6 +6,8 @@
 
 class USceneComponent;
 class UScenarioInteractableComponent;
+class UMotionControllerComponent;
+class UStaticMeshComponent;
 
 UENUM(BlueprintType)
 enum class EGongsimdonReportDirection : uint8
@@ -34,6 +36,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gongsimdon|Report")
 	void SetReportArmed(bool bArmed);
 
+	/** VR trigger fallback: pressing the physical report button submits the authored correct report. */
+	UFUNCTION(BlueprintCallable, Category = "Gongsimdon|Report")
+	bool HandleVRGrabbed(USceneComponent* GrabComponent, UMotionControllerComponent* MotionController);
+
 	UFUNCTION(BlueprintPure, Category = "Gongsimdon|Report")
 	FName GetTargetID() const { return TargetID; }
 
@@ -55,6 +61,9 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gongsimdon|Report")
 	TObjectPtr<USceneComponent> SceneRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gongsimdon|Report")
+	TObjectPtr<UStaticMeshComponent> ReportButton;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gongsimdon|Report")
 	TObjectPtr<UScenarioInteractableComponent> ScenarioInteraction;

@@ -34,6 +34,8 @@
 - `IMC_Menu`가 입력 모드 필터로 비활성화되는 경우를 대비해 `IMC_Default`의 `IA_Move`도 이동 입력으로 함께 바인딩했다.
 - 왼쪽 스틱 회전은 시작 시 등록되는 `IMC_Default`의 `IA_Turn`을 사용한다.
 - 좌우 Trigger Grab은 시작 시 등록되는 `IMC_Hands`의 `IA_Hand_IndexCurl_Left/Right`를 사용한다.
+- 2026-08-21 점검에서 `IMC_Hands` 에셋의 매핑 배열이 비어 있던 결함을 확인했다. 좌우 Quest Trigger Axis 매핑을 에셋에 복구했고, Pawn도 `Hand Mapping Context`를 명시적으로 등록한다.
+- 자동화 테스트가 키와 액션의 존재만 확인하던 범위를 실제 `Action ↔ Key` 매핑 쌍 검사까지 확장했다.
 - 런타임 Mapping Context는 PC 키보드 보조 입력에만 사용한다.
 
 ## 에디터 적용 주의

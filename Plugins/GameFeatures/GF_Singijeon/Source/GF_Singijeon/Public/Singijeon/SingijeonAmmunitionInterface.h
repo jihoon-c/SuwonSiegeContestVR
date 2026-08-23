@@ -32,4 +32,8 @@ public:
 
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Singijeon|Ammunition")
     void OnLaunched(FVector Direction, float Speed);
+
+    /** Called from the slot's Post Physics guard after delayed XR release side effects. */
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Singijeon|Ammunition")
+    void RefreshLoadedVisual();
 };

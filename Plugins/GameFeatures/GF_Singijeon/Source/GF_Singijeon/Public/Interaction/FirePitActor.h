@@ -18,6 +18,7 @@ class GF_SINGIJEON_API AFirePitActor : public AActor
 public:
     AFirePitActor();
 
+    virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
 
     UFUNCTION(BlueprintCallable, Category = "Singijeon|Fire Pit")
@@ -27,6 +28,9 @@ public:
     FOnFirePitIgnitedTorch OnTorchIgnited;
 
 protected:
+    /** Reapplies the attached FireEffect transform after Blueprint/level construction. */
+    void SnapFireEffectToBowl();
+
     UFUNCTION()
     void HandleIgnitionOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
         UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep,
@@ -40,4 +44,8 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UScenarioInteractableComponent> IgniteTorchScenarioInteractor;
+
+    /** Local offset that accounts for the imported Fire Pit mesh pivot. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Singijeon|Fire Pit|Visual")
+    FVector FireEffectRelativeLocation = FVector(0.0f, 0.0f, 280.0f);
 };

@@ -20,6 +20,23 @@ bool UScenarioInteractableComponent::SupportsInteractionType(
 	return SupportedInteractionTypes.Contains(InteractionType);
 }
 
+bool UScenarioInteractableComponent::CanReportInteraction(
+	const EScenarioInteractionType InteractionType) const
+{
+	if (!bInteractionEnabled || !SupportsInteractionType(InteractionType) || TargetID.IsNone())
+	{
+		return false;
+	}
+	if (bAutoReportToScenarioManager)
+	{
+		if (const UScenarioManagerComponent* Manager = FindScenarioManager())
+		{
+			return Manager->CanReportInteractionResult(TargetID, InteractionType);
+		}
+	}
+	return true;
+}
+
 bool UScenarioInteractableComponent::ReportInteractionStarted(
 	const EScenarioInteractionType InteractionType)
 {
@@ -46,38 +63,42 @@ bool UScenarioInteractableComponent::ReportInteractionProgress(
 bool UScenarioInteractableComponent::ReportInteractionCompleted(
 	const EScenarioInteractionType InteractionType)
 {
-	if (!bInteractionEnabled || !SupportsInteractionType(InteractionType) || TargetID.IsNone())
+	if (!CanReportInteraction(InteractionType))
 	{
 		return false;
 	}
-
-	OnInteractionCompleted.Broadcast(TargetID, InteractionType);
 	if (bAutoReportToScenarioManager)
 	{
 		if (UScenarioManagerComponent* Manager = FindScenarioManager())
 		{
-			return Manager->ReportInteractionResult(TargetID, InteractionType, true);
+			if (!Manager->ReportInteractionResult(TargetID, InteractionType, true))
+			{
+				return false;
+			}
 		}
 	}
+	OnInteractionCompleted.Broadcast(TargetID, InteractionType);
 	return true;
 }
 
 bool UScenarioInteractableComponent::ReportInteractionFailed(
 	const EScenarioInteractionType InteractionType)
 {
-	if (!bInteractionEnabled || !SupportsInteractionType(InteractionType) || TargetID.IsNone())
+	if (!CanReportInteraction(InteractionType))
 	{
 		return false;
 	}
-
-	OnInteractionFailed.Broadcast(TargetID, InteractionType);
 	if (bAutoReportToScenarioManager)
 	{
 		if (UScenarioManagerComponent* Manager = FindScenarioManager())
 		{
-			return Manager->ReportInteractionResult(TargetID, InteractionType, false);
+			if (!Manager->ReportInteractionResult(TargetID, InteractionType, false))
+			{
+				return false;
+			}
 		}
 	}
+	OnInteractionFailed.Broadcast(TargetID, InteractionType);
 	return true;
 }
 

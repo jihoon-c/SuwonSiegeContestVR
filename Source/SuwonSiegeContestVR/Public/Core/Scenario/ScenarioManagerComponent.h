@@ -57,6 +57,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Scenario")
 	bool ReportInteractionResult(FName TargetID, EScenarioInteractionType InteractionType, bool bSuccess = true);
 
+	/** Non-mutating check used before gameplay state changes. */
+	UFUNCTION(BlueprintPure, Category = "Scenario")
+	bool CanReportInteractionResult(FName TargetID, EScenarioInteractionType InteractionType) const;
+
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Debug")
 	bool RestartScenario();
 
