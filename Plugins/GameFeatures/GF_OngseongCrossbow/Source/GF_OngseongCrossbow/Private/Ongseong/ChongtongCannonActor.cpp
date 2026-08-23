@@ -343,27 +343,7 @@ void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sou
 
 AActor* AChongtongCannonActor::SelectTarget() const
 {
-	const TArray<AActor*> HostileTargets = TargetingComponent->FindHostileTargets(FireRange);
-	if (HostileTargets.IsEmpty())
-	{
-		return nullptr;
-	}
-
-	const TArray<AActor*> Attackers = ThreatComponent->GetActiveAttackers();
-	for (AActor* Attacker : Attackers)
-	{
-		if (HostileTargets.Contains(Attacker))
-		{
-			return Attacker;
-		}
-	}
-
-	if (AActor* GatePriorityTarget = TargetingComponent->SelectClosestTo(HostileTargets, GateTarget))
-	{
-		return GatePriorityTarget;
-	}
-
-	return TargetingComponent->SelectRandom(HostileTargets);
+	return TargetingComponent->SelectRandom(TargetingComponent->FindVisibleHostileTargets(FireRange));
 }
 
 bool AChongtongCannonActor::SpawnMountedOperator()

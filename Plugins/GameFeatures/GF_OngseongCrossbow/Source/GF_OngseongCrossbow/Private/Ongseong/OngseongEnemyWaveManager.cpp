@@ -1,8 +1,7 @@
 #include "Ongseong/OngseongEnemyWaveManager.h"
 
+#include "Gameplay/AI/CombatAIController.h"
 #include "Gameplay/Characters/EnemyCombatCharacter.h"
-#include "Gameplay/AI/EnemySimpleMovementComponent.h"
-#include "Gameplay/AI/EnemyBehaviorStateComponent.h"
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Ongseong/OngseongArcherCombatComponent.h"
@@ -100,9 +99,9 @@ void AOngseongEnemyWaveManager::RetreatAllEnemies(const FVector RetreatLocation)
 	for (AEnemyCombatCharacter* Enemy : ActiveEnemies)
 	{
 		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-		if (UEnemySimpleMovementComponent* Movement = Enemy->GetSimpleMovementComponent())
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 		{
-			Movement->OnTargetReached.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
+			Controller->OnMoveTargetReached.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
 		}
 		Enemy->SetRetreatTargetLocation(RetreatLocation);
 	}
@@ -118,9 +117,9 @@ void AOngseongEnemyWaveManager::ReleaseAllEnemies()
 	{
 		if (!IsValid(Enemy)) continue;
 		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-		if (UEnemySimpleMovementComponent* Movement = Enemy->GetSimpleMovementComponent())
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 		{
-			Movement->OnTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
+			Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
 		}
 		if (TObjectPtr<AActorPool>* Pool = EnemyPoolsByActor.Find(Enemy); Pool && IsValid(*Pool))
 		{
@@ -167,10 +166,6 @@ bool AOngseongEnemyWaveManager::SpawnEnemy()
 		HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleEnemyDeath);
 	}
 	Enemy->SetObjectiveTarget(ObjectiveTarget);
-	if (UEnemyBehaviorStateComponent* Behavior = Enemy->GetBehaviorStateComponent())
-	{
-		Behavior->SetBehaviorState(EnemyType == EOngseongEnemyType::Archer ? TEXT("ArcherAdvance") : TEXT("SwordsmanAdvance"));
-	}
 	if (EnemyType == EOngseongEnemyType::Archer)
 	{
 		UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>();
@@ -182,6 +177,12 @@ bool AOngseongEnemyWaveManager::SpawnEnemy()
 		ArcherCombat->ConfigureCombat(ArcherPrimaryTarget, ObjectiveTarget, ArcherProjectilePool);
 		ArcherCombat->ApplyTuning(ArcherHitChance, ArcherRange, ArcherFireInterval, ArcherMissRadius, ArcherDamage, ArcherProjectileSpeed);
 		ArcherCombat->ActivateCombat();
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
+		{
+			AActor* ArcherTarget = ArcherCombat->GetCurrentTarget();
+			Controller->SetCombatTarget(ArcherTarget);
+			Controller->MoveToCombatActor(ArcherTarget, ArcherRange * 0.9f);
+		}
 	}
 	ActiveEnemies.AddUnique(Enemy);
 	EnemyPoolsByActor.Add(Enemy, SpawnPool);
@@ -211,9 +212,9 @@ void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthCompone
 		{
 			if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
 			ActiveEnemies.Remove(Enemy);
-			if (UEnemySimpleMovementComponent* Movement = Enemy->GetSimpleMovementComponent())
+			if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 			{
-				Movement->OnTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
+				Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
 			}
 		}
 		AActorPool* ReleasePool = EnemyPool;
@@ -238,15 +239,15 @@ void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthCompone
 	}
 }
 
-void AOngseongEnemyWaveManager::HandleRetreatTargetReached(AActor* EnemyActor)
+void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 {
-	if (!bRetreating || !IsValid(EnemyActor)) return;
-	if (AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(EnemyActor))
+	if (!bRetreating || !IsValid(EnemyPawn)) return;
+	if (AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(EnemyPawn))
 	{
 		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-		if (UEnemySimpleMovementComponent* Movement = Enemy->GetSimpleMovementComponent())
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 		{
-			Movement->OnTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
+			Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
 		}
 		ActiveEnemies.Remove(Enemy);
 		AActorPool* ReleasePool = EnemyPool;

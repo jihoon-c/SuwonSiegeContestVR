@@ -26,7 +26,7 @@ class UOngseongNarrationComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChongtongFired, AActor*, Target, AGameplayProjectileActor*, Projectile);
 
-/** Defensive fixed cannon. Selects hostile targets by attacker, gate proximity, then random fallback. */
+/** Defensive fixed cannon. Allied automatic fire picks a random visible hostile in range. */
 UCLASS(Blueprintable)
 class GF_ONGSEONGCROSSBOW_API AChongtongCannonActor : public AActor, public IDamageReceiverInterface
 {

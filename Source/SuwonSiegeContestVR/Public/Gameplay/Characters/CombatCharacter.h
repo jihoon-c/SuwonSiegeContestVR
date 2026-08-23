@@ -25,10 +25,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	UCombatFactionComponent* GetFactionComponent() const { return FactionComponent; }
 
+	UFUNCTION(BlueprintCallable, Category = "Combat|Animation")
+	void SetAttacking(bool bNewAttacking) { bIsAttacking = bNewAttacking; }
+
+	UFUNCTION(BlueprintPure, Category = "Combat|Animation")
+	bool IsAttacking() const { return bIsAttacking; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	TObjectPtr<UHealthComponent> HealthComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	TObjectPtr<UCombatFactionComponent> FactionComponent;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Combat|Animation")
+	bool bIsAttacking = false;
 };

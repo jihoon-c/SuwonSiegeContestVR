@@ -6,6 +6,7 @@
 #include "OngseongEnemyWaveManager.generated.h"
 
 class AActorPool;
+class APawn;
 class AEnemyCombatCharacter;
 class UHealthComponent;
 class UOngseongArcherCombatComponent;
@@ -103,7 +104,7 @@ protected:
 	UFUNCTION()
 	void HandleEnemyDeath(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage);
 	UFUNCTION()
-	void HandleRetreatTargetReached(AActor* EnemyActor);
+	void HandleRetreatTargetReached(APawn* EnemyPawn);
 
 	void SpawnScheduledEnemy();
 	EOngseongEnemyType ChooseNextEnemyType() const;

@@ -1,7 +1,6 @@
 #include "Ongseong/OngseongArcherCombatComponent.h"
 
-#include "Gameplay/AI/EnemyBehaviorStateComponent.h"
-#include "Gameplay/AI/EnemySimpleMovementComponent.h"
+#include "Gameplay/AI/CombatAIController.h"
 #include "Gameplay/Characters/EnemyCombatCharacter.h"
 #include "Gameplay/Combat/CombatAttackComponent.h"
 #include "Gameplay/Combat/CombatTypes.h"
@@ -13,8 +12,7 @@
 
 UOngseongArcherCombatComponent::UOngseongArcherCombatComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.TickInterval = 0.25f;
+	PrimaryComponentTick.bCanEverTick = false;
 	ArrowClass = AOngseongBoltProjectileActor::StaticClass();
 }
 
@@ -51,23 +49,13 @@ void UOngseongArcherCombatComponent::ApplyTuning(const float InHitChance, const 
 void UOngseongArcherCombatComponent::ActivateCombat()
 {
 	bCombatActive = true;
-	bInFiringPosition = false;
-	SetComponentTickEnabled(true);
-	if (GetWorld()) GetWorld()->GetTimerManager().SetTimer(FireTimerHandle, this, &UOngseongArcherCombatComponent::FireScheduledArrow, FireInterval, true, FireInterval);
 }
 
 void UOngseongArcherCombatComponent::DeactivateCombat()
 {
 	bCombatActive = false;
-	bInFiringPosition = false;
-	SetComponentTickEnabled(false);
-	if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(FireTimerHandle);
-}
-
-void UOngseongArcherCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (bCombatActive) UpdateFiringPosition();
+	if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(AttackAnimationTimerHandle);
+	FinishAttackAnimation();
 }
 
 AActor* UOngseongArcherCombatComponent::GetCurrentTarget() const
@@ -83,47 +71,49 @@ bool UOngseongArcherCombatComponent::IsUsableTarget(const AActor* Target) const
 	return true;
 }
 
-void UOngseongArcherCombatComponent::UpdateFiringPosition()
+bool UOngseongArcherCombatComponent::IsInFiringPosition() const
 {
-	AEnemyCombatCharacter* Archer = Cast<AEnemyCombatCharacter>(GetOwner());
-	AActor* Target = GetCurrentTarget();
-	if (!Archer || !Target) { DeactivateCombat(); return; }
-	const float DistanceSquared = FVector::DistSquared2D(Archer->GetActorLocation(), Target->GetActorLocation());
-	if (DistanceSquared <= FMath::Square(EngagementRange))
-	{
-		bInFiringPosition = true;
-		Archer->GetSimpleMovementComponent()->ClearMoveTarget();
-		Archer->GetAttackComponent()->SetAttackEnabled(false);
-		Archer->GetBehaviorStateComponent()->SetBehaviorState(TEXT("ArcherFiring"));
-		const FVector FlatDirection = (Target->GetActorLocation() - Archer->GetActorLocation()).GetSafeNormal2D();
-		if (!FlatDirection.IsNearlyZero()) Archer->SetActorRotation(FlatDirection.Rotation());
-	}
-	else
-	{
-		bInFiringPosition = false;
-		Archer->GetAttackComponent()->SetAttackEnabled(false);
-		const FVector DirectionFromTarget = (Archer->GetActorLocation() - Target->GetActorLocation()).GetSafeNormal2D();
-		Archer->GetSimpleMovementComponent()->SetMoveTargetLocation(Target->GetActorLocation() + DirectionFromTarget * EngagementRange * 0.85f);
-		Archer->GetBehaviorStateComponent()->SetBehaviorState(TEXT("ArcherAdvance"));
-	}
+	const AActor* Owner = GetOwner();
+	const AActor* Target = GetCurrentTarget();
+	return bCombatActive && Owner && Target && FVector::DistSquared2D(Owner->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(EngagementRange);
 }
 
 bool UOngseongArcherCombatComponent::TryFireArrow()
 {
 	AActor* Target = GetCurrentTarget();
-	if (!bCombatActive || !bInFiringPosition || !Target || !GetOwner()) return false;
+	if (!IsInFiringPosition() || !Target || !GetOwner()) return false;
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (ACombatAIController* Controller = OwnerPawn ? Cast<ACombatAIController>(OwnerPawn->GetController()) : nullptr)
+	{
+		Controller->StopCombatMovement();
+		Controller->SetCombatTarget(Target);
+		Controller->SetFocus(Target);
+		Controller->SetAttacking(true);
+	}
 	const bool bIntendedHit = RandomStream.FRand() <= HitChance;
 	const FVector SpawnLocation = GetOwner()->GetActorLocation() + FVector::UpVector * SpawnHeight + GetOwner()->GetActorForwardVector() * 40.0f;
 	const FVector Direction = (BuildAimPoint(Target, bIntendedHit) - SpawnLocation).GetSafeNormal();
 	AGameplayProjectileActor* Projectile = SpawnArrow(SpawnLocation, Direction);
-	if (!Projectile) return false;
+	if (!Projectile)
+	{
+		FinishAttackAnimation();
+		return false;
+	}
 	OnArrowFired.Broadcast(Target, Projectile, bIntendedHit);
+	if (GetWorld()) GetWorld()->GetTimerManager().SetTimer(AttackAnimationTimerHandle, this, &UOngseongArcherCombatComponent::FinishAttackAnimation, AttackAnimationDuration, false);
 	return true;
 }
 
-void UOngseongArcherCombatComponent::FireScheduledArrow()
+void UOngseongArcherCombatComponent::FinishAttackAnimation()
 {
-	TryFireArrow();
+	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
+	{
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(OwnerPawn->GetController()))
+		{
+			Controller->SetAttacking(false);
+			Controller->ClearFocus(EAIFocusPriority::Gameplay);
+		}
+	}
 }
 
 FVector UOngseongArcherCombatComponent::BuildAimPoint(AActor* Target, const bool bIntendedHit)

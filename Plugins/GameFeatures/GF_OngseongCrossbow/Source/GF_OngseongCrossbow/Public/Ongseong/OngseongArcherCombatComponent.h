@@ -20,7 +20,6 @@ public:
 	UOngseongArcherCombatComponent();
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Archer")
 	void ConfigureCombat(AActor* NewPrimaryTarget, AActor* NewFallbackTarget, AActorPool* NewProjectilePool);
@@ -33,7 +32,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
 	AActor* GetCurrentTarget() const;
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
-	bool IsInFiringPosition() const { return bInFiringPosition; }
+	bool IsInFiringPosition() const;
+	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
+	float GetEngagementRange() const { return EngagementRange; }
 
 	void ApplyTuning(float InHitChance, float InRange, float InInterval, float InMissRadius, float InDamage, float InProjectileSpeed);
 
@@ -44,8 +45,7 @@ protected:
 	bool IsUsableTarget(const AActor* Target) const;
 	FVector BuildAimPoint(AActor* Target, bool bIntendedHit);
 	AGameplayProjectileActor* SpawnArrow(const FVector& SpawnLocation, const FVector& Direction);
-	void UpdateFiringPosition();
-	void FireScheduledArrow();
+	void FinishAttackAnimation();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer")
 	TSubclassOf<AGameplayProjectileActor> ArrowClass;
@@ -69,9 +69,10 @@ protected:
 	float ArrowSpeed = 6500.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
 	float SpawnHeight = 140.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
+	float AttackAnimationDuration = 0.8f;
 
 	bool bCombatActive = false;
-	bool bInFiringPosition = false;
 	FRandomStream RandomStream;
-	FTimerHandle FireTimerHandle;
+	FTimerHandle AttackAnimationTimerHandle;
 };

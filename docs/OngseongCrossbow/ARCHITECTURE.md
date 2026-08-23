@@ -20,7 +20,7 @@
 | Phone 확장 기능 | `GF_OngseongCrossbow/Content/Phone/` | Core Phone이 준비된 뒤 확장 Component로 제공 |
 | 적 병사·아군 병사 | Shared Gameplay | Feature 내부에 복제하거나 새로 만들지 않음 |
 | Health, Damage, Faction | Shared Gameplay | 구체 Actor 클래스 검사 없이 공용 계약 사용 |
-| AI LOD, Pool, 투사체 기반 | Shared Gameplay | Feature가 소비만 하며 Shared가 Feature를 참조하면 안 됨 |
+| AIController, Pool, 투사체 기반 | Shared Gameplay | Feature가 소비만 하며 Shared가 Feature를 참조하면 안 됨 |
 | VR Pawn, 입력, Experience 전환 | Core | Core 구현을 직접 변경하지 않음; 필요한 계약만 사용 |
 
 ```mermaid
@@ -35,7 +35,7 @@ graph TD
       ENEMY[Enemy Soldier]
       COMBAT[Health / Damage / Faction]
       POOL[Actor Pool / Projectile]
-      AI[AI LOD / Movement]
+      AI[Combat AIController / Navigation]
     end
     subgraph CORE[Core]
       EXPERIENCE[ExperienceSubsystem]
@@ -93,7 +93,7 @@ graph TD
 
 - `AEnemyCombatCharacter.SetObjectiveTarget`으로 성문/충차 등 목표 Actor를 지정한다.
 - 적은 공용 Pool에서 획득하고 사망 또는 Wave 종료 시 반드시 Pool에 반환한다.
-- 가까운 거리의 BT 사용은 선택 사항이다. 짧은 VR 체험에서는 스플라인 또는 단순 이동이 우선이다.
+- Pawn AI는 공용 `ACombatAIController`를 사용한다. 궁병만 Feature 전용 Behavior Tree를 지정하고 검병은 Wave Manager의 직접 이동 요청을 사용한다.
 
 ### Experience와 입력
 
