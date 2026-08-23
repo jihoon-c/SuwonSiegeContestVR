@@ -19,6 +19,7 @@ public class SuwonSiegeContestVR : ModuleRules
 			"NavigationSystem",
 			"AIModule",
 			"GameplayTasks",
+			"Niagara",
 			"UMG"
 		});
 

@@ -7,6 +7,7 @@
 **대상 Level**: `LV_Ongseong`  
 **플랫폼**: Android 스탠드얼론 VR (개발은 PC 가능)  
 **상태**: `Implemented (final content/HMD verification pending)`
+**2026-08-24 개정 반영**: 비VR 전투 테스트 GameMode, 적 상시 유지 스폰(Wave 폐지), 파티클 포함 전면 풀링, **클리어 조건을 충차 파괴로 변경**. 구현·자동화 테스트 완료. §9 참조.
 
 ---
 
@@ -108,22 +109,24 @@ graph TD
 ```mermaid
 flowchart LR
     ENTER[Main에서 체험 진입] --> INTRO[총통 조작 안내]
-    INTRO --> DEFEND[3분 성문 방어 시작]
-    DEFEND --> ASSAULT[완성된 충차·검병·궁병 동시 전진]
+    INTRO --> DEFEND[성문 방어 시작]
+    DEFEND --> ASSAULT[적 상시 15명 유지 · 충차 1대 저속 전진]
     ASSAULT --> RAM[충차 대기 지점 도착]
     RAM --> CHARGE[성문 돌진·충돌·복귀 반복]
     DEFEND --> CHECK{종료 조건}
-    CHECK -->|성문 파괴| FAIL[실패·재시도 안내]
-    CHECK -->|180초 경과| RETREAT[모든 적 후퇴]
+    CHECK -->|성문 파괴| FAIL[실패·자동 재시도]
+    CHECK -->|충차 파괴| RETREAT[모든 적 후퇴]
     RETREAT --> COMPLETE[Experience 완료 후 Main 복귀]
 ```
 
-### 4.1 확정된 종료 규칙
+### 4.1 확정된 종료 규칙 (2026-08-24 개정)
 
-- 체험 시작과 함께 **180초 방어 타이머**를 시작한다. HUD에는 남은 방어 시간 또는 경과 시간을 명확히 표시한다.
-- 검병 10·궁병 10·충차 1로 구성된 한 Wave가 모두 격파되면 3초 후 같은 구성을 다시 시작한다. 보병만 전멸하거나 충차만 파괴된 상태에서는 다음 Wave를 시작하지 않는다. 성공 또는 실패 상태로 전환되면 예약된 다음 Wave를 취소한다.
-- 적 충차의 공격으로 `AOngseongGateActor`의 Health가 0이 되면 즉시 타이머를 중단하고 **실패**로 전환한다.
-- 타이머가 끝날 때 성문이 생존해 있으면 **성공**이다. 살아 있는 모든 적은 `Retreat` 상태로 전환해 지정된 퇴각 지점으로 이동한 뒤 Pool에 반환한다.
+- **클리어 조건은 적 충차의 파괴다.** `AOngseongRamActor`의 Health가 0이 되면 즉시 **성공**으로 전환한다.
+- 충차는 **단 한 대**이며 **파괴되면 다시 투입하지 않는다.** 병사와 달리 리스폰 대상이 아니다.
+- 성공 시 살아 있는 모든 적은 `Retreat` 상태로 전환해 지정된 퇴각 지점으로 이동한 뒤 Pool에 반환하고, 적 리스폰을 중단한다.
+- 충차의 공격으로 `AOngseongGateActor`의 Health가 0이 되면 **실패**로 전환하고, 안내 후 자동 재시도한다.
+- 시간 제한은 기본적으로 사용하지 않는다(`bUseDefenseTimeLimit=false`). 필요할 때만 켜서 `DefenseDuration` 경과 시 실패로 처리한다.
+- 적 병사는 체험이 끝날 때까지 상시 인원을 유지하며 계속 리스폰한다. 병사 처치는 클리어 조건이 아니다.
 - 성공 또는 실패를 `UExperienceSubsystem`에 보고한다. 성공은 Main 복귀를 진행하고, 실패는 교육 흐름에 맞게 재시도 또는 보조 안내를 제공한다.
 - 기존 총통의 5발 `OnExperienceCompleted` 이벤트는 전체 체험 완료 신호로 사용하지 않는다. 총통 조작 숙련/진행도 이벤트로만 유지하거나 이름을 분리한다.
 
@@ -131,16 +134,17 @@ flowchart LR
 
 | 유형 | 역할 | 필수 상태/행동 | 현재 상태 |
 |---|---|---|---|
-| 충차 | 성문 파괴 | 병력과 함께 전진 → 성문 앞 대기 지점 → 돌진·충돌 피해·대기 지점 복귀 반복 | 구현 |
+| 충차 | 성문 파괴 · **체험 클리어 목표** | 저속 전진 → 성문 앞 대기 지점 → 돌진·충돌 피해·대기 지점 복귀 반복. 파괴 시 성공, 재투입 없음 | 구현 |
 | 검병 | 장식·압박 연출 | `BP_OngseongSwordsman`, `SwordsmanAdvance` 상태로 대열 간격을 유지하며 성문 방향으로 전진 | 구현(공용 임시 모델) |
 | 궁병 | 총통 견제 | `BP_OngseongArcher`, `ArcherAdvance/ArcherFiring`, 물리 화살과 전용 Pool | 구현 |
 
 #### 충차
 
-- 방어 시작 시 `RamSpawnPoint`에서 완성된 `AOngseongRamActor`를 즉시 생성하고 검병·궁병 Wave와 함께 전진시킨다.
+- 방어 시작 시 `RamSpawnPoint`에서 `AOngseongRamActor` 1대를 획득(Pool)하고 병력과 함께 전진시킨다.
+- 첫 접근은 **의도적으로 느리다**(`MoveSpeed` 기본 35 cm/s). 플레이어가 총통으로 조준·파괴할 시간을 확보하기 위한 값이다.
 - 충차는 성문 전방 `StagingDistance` 지점에 도착한 뒤 `Charging → Returning` 상태를 반복한다.
 - `Charging`에서 성문 충돌 지점에 도달할 때마다 Shared Damage 계약으로 한 번 피해를 주고, 대기 지점으로 완전히 복귀한 뒤 다시 돌진한다.
-- 성문 파괴, 방어 성공 또는 충차 자신의 파괴 시 왕복을 즉시 중단한다.
+- 성문 파괴, 방어 성공 또는 충차 자신의 파괴 시 왕복을 즉시 중단한다. 파괴된 충차는 Pool에 반환되며 재투입되지 않는다.
 
 #### 검병
 
@@ -185,9 +189,9 @@ flowchart LR
 ## 5. 확정된 구현 정책과 별도 범위
 
 1. 쇠뇌는 거치형 양손 조준, 실제 물리 볼트, 12발 탄약, 발사 후 1.25초 자동 재장전을 사용한다.
-2. Wave 기본값은 검병 10·궁병 10·충차 1이며 보병과 충차 격파 3초 후 180초 종료까지 반복한다. 궁병은 총통 우선/보조 목표 순서와 65% 명중률을 사용한다.
-3. 충차는 파괴 가능하며 지정 성문에 반복 충돌 피해를 준다. 성문 Health 0이 실패의 단일 기준이다.
-4. 성공은 180초 생존 후 적 퇴각과 Main 복귀, 실패는 명확한 HUD 안내 후 6초 자동 재시도다.
+2. 적 병사는 동시 15명(검병 8·궁병 7)을 상시 유지하며 처치 시 5초 ± 1.5초 후 같은 유형으로 리스폰한다. 궁병은 총통 우선/보조 목표 순서와 65% 명중률을 사용한다.
+3. 충차는 1대이며 파괴 가능하다. 지정 성문에 반복 충돌 피해를 주고, 성문 Health 0이 실패의 단일 기준이다.
+4. 성공은 충차 파괴 후 적 퇴각과 Main 복귀, 실패는 명확한 HUD 안내 후 6초 자동 재시도다.
 5. 동시 적과 투사체는 고정 Pool로 제한한다. Android 실측 예산, 최종 메시·애니메이션·VFX·SFX·녹음 음성 교체는 별도 범위다.
 
 ---
@@ -204,6 +208,9 @@ flowchart LR
 
 - `docs/OngseongCrossbow/STATUS.md`: 현재 구현 상태 세부 기록
 - `docs/OngseongCrossbow/plans/2026-08-19_CHONGTONG_COMBAT_AI.md`: 총통 전투 AI 계획
+- `docs/OngseongCrossbow/plans/2026-08-24_NON_VR_COMBAT_TEST_GAMEMODE.md`: 비VR 전투 테스트 GameMode 계획
+- `docs/OngseongCrossbow/plans/2026-08-24_SUSTAINED_ENEMY_POPULATION.md`: 적 상시 유지 스폰 계획
+- `docs/OngseongCrossbow/plans/2026-08-24_POOLED_INSTANCES_AND_FX.md`: 인스턴스·파티클 풀링 계획
 - `docs/OngseongCrossbow/2026-08-20_CONTENT_LINKING_RESULT.md`: Level 콘텐츠 연결 결과
 
 ## 8. 나레이션 이벤트 계약
@@ -214,3 +221,58 @@ flowchart LR
 - 총통 장전 상태, Wave 시작/적 출현/전원 퇴치, Health 피격/사망 델리게이트가 위 이벤트를 보고한다.
 - 상황 이벤트는 현재 음성을 중단하지 않고 FIFO 큐로 재생한다. `bPlayOnce`인 경고는 반복 피격에도 한 번만 재생한다.
 - 대사는 `/GF_OngseongCrossbow/Data/DT_OngseongNarration`의 `ON_01~ON_23`에 저장한다. 녹음된 `SoundWave`를 각 Row의 `NarrationSound`에 연결하면 공용 `NarrationSequenceComponent`가 비공간화 음성으로 재생한다.
+
+## 9. 계획된 설계 변경 (2026-08-24)
+
+아래 항목은 **구현과 자동화 검증까지 완료했다.** Game/Editor 타깃 빌드 성공, Automation 24/24 통과,
+비VR 테스트 레벨 헤드리스 구동 확인. 남은 것은 사람이 하는 PIE 육안 확인, Sound Concurrency 에셋,
+Android 실측이다. 세부 내용은 각 계획 문서의 "진행 상태" 절과 `STATUS.md` 7절에 있다.
+
+### 9.1 비VR 전투 테스트 GameMode
+
+* Core에 `ADebugFreeCameraGameMode` / `ADebugFreeCameraPawn`을 추가한다. 어떤 Game Feature도 참조하지 않는다. `[구현]`
+* 자유 카메라 입력은 축 매핑/IMC 없이 PlayerController 폴링으로 처리하므로 프로젝트 입력 설정에 의존하지 않는다. `[구현]`
+* HMD 비활성화는 XRBase 플러그인 헤더 대신 `GEngine->StereoRenderingDevice`를 사용한다. Core가 플러그인 모듈에 의존하지 않게 하기 위함이다. `[구현]`
+* 옹성은 이를 상속한 `BP_OngseongCombatTestGameMode`와 테스트 레벨 `LV_Ongseong_CombatTest`만 소유한다.
+* 플레이어는 VR Pawn·게임플레이 Actor에 빙의하지 않고 자유 카메라만 조작한다.
+* 본편 `LV_Ongseong`과 `Config/DefaultEngine.ini`의 전역 GameMode는 변경하지 않는다.
+* 계획: `plans/2026-08-24_NON_VR_COMBAT_TEST_GAMEMODE.md`
+
+### 9.2 적 상시 유지 스폰 (Wave 폐지)
+
+* Wave 단위 전멸/재시작을 폐지하고, 옹성 내 적 인원을 **최대 15명(검병 8 · 궁병 7)** 으로 상시 유지한다.
+* 적이 처치되면 `RespawnDelay`(기본 5초 ± 1.5초) 후 스폰 지점에서 같은 유형으로 리스폰해 다시 전진한다.
+* 충차는 1대이며 **리스폰하지 않는다.** 첫 접근 속도는 35 cm/s로 느리다. `[구현]`
+* **충차 파괴가 클리어 조건이다.** 성문 파괴는 실패, 시간 제한은 선택 기능(`bUseDefenseTimeLimit`, 기본 off)이다. `[구현]`
+* 자동 재시도와 성공 시 전원 퇴각·Experience 완료는 그대로 유지한다.
+* `AOngseongEnemyWaveManager` 클래스 이름은 유지하고 내부 동작만 교체한다. (레벨 참조 보존) `[구현]`
+* 델리게이트는 `OnSpawningStarted` / `OnEnemySpawned` / `OnEnemyDefeated` / `OnPopulationChanged` / `OnAllEnemiesRetreated`다. `[구현]`
+* HUD 진행 표시는 "옹성 내 적 (현재/최대)"이며, 누적 처치 수는 `GetTotalDefeatedEnemies()`로 조회한다. `[구현]`
+* 계획: `plans/2026-08-24_SUSTAINED_ENEMY_POPULATION.md`
+
+### 9.3 인스턴스·파티클 오브젝트 풀링
+
+* 적 병사·화살·포탄·볼트는 이미 `AActorPool` 기반이다. 충차와 폭발 파티클, 전투 사운드가 남아 있다.
+* Shared에 `UCombatFXLibrary`를 추가해 Niagara 원샷 이펙트를 엔진 Component Pool(`AutoRelease`)로 재생한다.
+* `AOngseongRamActor`가 `IPoolableActorInterface`를 구현하고 `Ram_ActorPool`에서 획득/반환된다.
+* `AActorPool`에 고갈 경고 로그와 `OnPoolExhausted`를 추가한다. 기존 시그니처는 바꾸지 않는다.
+* 동시 15명 기준으로 Pool 크기를 재산정하고 `bAllowPoolExpansion=false`를 유지한다. `[LV_Ongseong_CombatTest 반영 완료 · 본편 레벨 대기]`
+* `AActorPool`은 첫 획득 시점에 아직 Prewarm되지 않았다면 그 자리에서 Prewarm한다. Actor `BeginPlay` 순서가 보장되지 않기 때문이다. `[구현]`
+* `RamPool`이 지정되지 않은 레벨은 기존 Spawn/Destroy 경로로 계속 동작한다. (하위 호환) `[구현]`
+* 계획: `plans/2026-08-24_POOLED_INSTANCES_AND_FX.md`
+
+### 9.4 구현 순서
+
+실제 진행 순서는 다음과 같았다.
+
+```text
+9.3 Pool 고갈 로그 + FX 라이브러리
+        ↓
+9.2 적 상시 유지 스폰 + 종료 규칙 개정
+        ↓
+9.1 비VR 테스트 GameMode·테스트 레벨
+        ↓
+헤드리스 구동으로 Pool Prewarm 순서 버그 발견 → 9.3에 반영
+```
+
+Pool 고갈 경고를 먼저 넣은 덕분에 구동 첫 시도에서 Prewarm 순서 문제를 바로 특정할 수 있었다.

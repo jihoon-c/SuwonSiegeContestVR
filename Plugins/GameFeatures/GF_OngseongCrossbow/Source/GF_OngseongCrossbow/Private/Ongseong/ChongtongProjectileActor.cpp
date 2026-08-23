@@ -6,6 +6,8 @@
 #include "Engine/OverlapResult.h"
 #include "Gameplay/Combat/CombatDamageLibrary.h"
 #include "Kismet/GameplayStatics.h"
+#include "GF_OngseongCrossbow.h"
+#include "Gameplay/Combat/CombatFXLibrary.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
@@ -36,8 +38,9 @@ void AChongtongProjectileActor::BeginPlay()
 void AChongtongProjectileActor::HandleExplosion(AGameplayProjectileActor* Projectile, AActor* HitActor, const FHitResult Hit)
 {
 	const FVector Location = Hit.ImpactPoint.IsNearlyZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
-	if (ExplosionEffect) UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Location);
-	if (ExplosionSound) UGameplayStatics::PlaySoundAtLocation(this, ExplosionSound, Location, 1.0f, 0.7f);
+	UE_LOG(LogOngseong, Verbose, TEXT("Chongtong shell exploded on %s at %s."), *GetNameSafe(HitActor), *Location.ToCompactString());
+	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, ExplosionEffect, Location);
+	UCombatFXLibrary::PlayPooledSoundAtLocation(this, ExplosionSound, Location, 1.0f, 0.7f, ExplosionSoundConcurrency);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionObjectQueryParams Objects;

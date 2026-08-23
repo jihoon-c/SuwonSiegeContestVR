@@ -90,13 +90,11 @@ private:
 	UFUNCTION()
 	void HandleRammingProgress(int32 CompletedRams, int32 RequiredRams);
 	UFUNCTION()
-	void HandleWaveStarted(int32 TotalEnemies);
+	void HandleSpawningStarted(int32 MaxConcurrentEnemies);
 	UFUNCTION()
-	void HandleEnemySpawned(class AEnemyCombatCharacter* Enemy, int32 SpawnedEnemies, int32 TotalEnemies);
+	void HandleEnemySpawned(class AEnemyCombatCharacter* Enemy, int32 LivingEnemies, int32 MaxConcurrentEnemies);
 	UFUNCTION()
-	void HandleWaveProgress(int32 DefeatedEnemies, int32 TotalEnemies);
-	UFUNCTION()
-	void HandleAllEnemiesDefeated(int32 TotalEnemies);
+	void HandlePopulationChanged(int32 LivingEnemies, int32 MaxConcurrentEnemies);
 	UFUNCTION()
 	void HandleGateDamaged(UHealthComponent* HealthComponent, const FCombatDamageSpec& DamageSpec);
 	UFUNCTION()

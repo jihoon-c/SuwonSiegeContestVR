@@ -1,7 +1,10 @@
 #include "Ongseong/OngseongDefenseScenarioManager.h"
 
+#include "GF_OngseongCrossbow.h"
+
 #include "Core/Experience/ExperienceSubsystem.h"
 #include "Gameplay/Combat/HealthComponent.h"
+#include "Gameplay/Pooling/ActorPool.h"
 #include "Gameplay/UI/VRHUDComponent.h"
 #include "Gameplay/UI/VRHUDTypes.h"
 #include "Ongseong/OngseongEnemyWaveManager.h"
@@ -9,6 +12,8 @@
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "Ongseong/OngseongRamActor.h"
 #include "TimerManager.h"
+
+#define LOCTEXT_NAMESPACE "OngseongDefense"
 
 AOngseongDefenseScenarioManager::AOngseongDefenseScenarioManager()
 {
@@ -23,7 +28,6 @@ void AOngseongDefenseScenarioManager::BeginPlay()
 	if (GateActor) GateActor->OnGateDestroyed.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
 	if (WaveManager)
 	{
-		WaveManager->OnAllEnemiesDefeated.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleWaveDefeated);
 		WaveManager->OnAllEnemiesRetreated.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated);
 	}
 	Narration->GateActor = GateActor;
@@ -42,7 +46,6 @@ void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlay
 	if (ActiveRam) ActiveRam->StopRam();
 	if (WaveManager)
 	{
-		WaveManager->OnAllEnemiesDefeated.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleWaveDefeated);
 		WaveManager->OnAllEnemiesRetreated.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated);
 	}
 	if (GateActor) GateActor->OnGateDestroyed.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
@@ -52,45 +55,63 @@ void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlay
 bool AOngseongDefenseScenarioManager::StartDefense()
 {
 	if (DefenseState == EOngseongDefenseState::Defending || !IsValid(GateActor) || !IsValid(WaveManager)) return false;
-	RemainingDefenseTime = FMath::Max(1.0f, DefenseDuration);
-	bCurrentInfantryWaveDefeated = false;
-	bCurrentRamDefeated = false;
+	RemainingDefenseTime = bUseDefenseTimeLimit ? FMath::Max(1.0f, DefenseDuration) : 0.0f;
+	bRamDestroyed = false;
 	if (!SpawnAndActivateRam()) return false;
 	WaveManager->ResetWave();
 	SetDefenseState(EOngseongDefenseState::Defending);
 	WaveManager->SetObjectiveTarget(GateActor);
-	CurrentWaveNumber = 1;
 	WaveManager->StartSpawning();
-	GetWorldTimerManager().SetTimer(DefenseTimerHandle, this, &AOngseongDefenseScenarioManager::TickDefenseTimer, 1.0f, true);
+	if (bUseDefenseTimeLimit)
+	{
+		GetWorldTimerManager().SetTimer(DefenseTimerHandle, this, &AOngseongDefenseScenarioManager::TickDefenseTimer, 1.0f, true);
+	}
 	Narration->ReportScenarioEvent(TEXT("ScenarioStarted"), this);
 	UpdateHUDTime();
+	UE_LOG(LogOngseong, Display, TEXT("Defense started. Ram=%s, enemy slots=%d, time limit=%s"),
+		*GetNameSafe(ActiveRam),
+		WaveManager->GetMaxConcurrentEnemies(),
+		bUseDefenseTimeLimit ? *FString::Printf(TEXT("%.0fs"), DefenseDuration) : TEXT("off"));
 	return true;
 }
 
-bool AOngseongDefenseScenarioManager::IsNextWavePending() const
+int32 AOngseongDefenseScenarioManager::GetTotalDefeatedEnemies() const
 {
-	return GetWorld() && GetWorldTimerManager().IsTimerActive(NextWaveTimerHandle);
+	return IsValid(WaveManager) ? WaveManager->GetTotalDefeatedEnemies() : 0;
 }
 
 void AOngseongDefenseScenarioManager::RetryDefense()
 {
 	GetWorldTimerManager().ClearAllTimersForObject(this);
-	if (ActiveRam) { ActiveRam->Destroy(); ActiveRam = nullptr; }
+	ReleaseActiveRam();
 	if (WaveManager) WaveManager->ResetWave();
 	if (GateActor) GateActor->ResetGate();
-	CurrentWaveNumber = 0;
+	bRamDestroyed = false;
 	SetDefenseState(EOngseongDefenseState::Idle);
 	StartDefense();
 }
 
 bool AOngseongDefenseScenarioManager::SpawnAndActivateRam()
 {
-	if (!RamClass || !IsValid(GateActor) || !IsValid(WaveManager) || ActiveRam) return false;
+	if (!IsValid(GateActor) || !IsValid(WaveManager) || ActiveRam) return false;
 	const FTransform SpawnTransform = IsValid(RamSpawnPoint) ? RamSpawnPoint->GetActorTransform() : WaveManager->GetActorTransform();
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-	ActiveRam = GetWorld()->SpawnActor<AOngseongRamActor>(RamClass, SpawnTransform, Params);
-	if (!ActiveRam) return false;
+
+	if (IsValid(RamPool))
+	{
+		ActiveRam = Cast<AOngseongRamActor>(RamPool->AcquireActor(SpawnTransform));
+	}
+	else if (RamClass)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		ActiveRam = GetWorld()->SpawnActor<AOngseongRamActor>(RamClass, SpawnTransform, Params);
+	}
+
+	if (!ActiveRam)
+	{
+		UE_LOG(LogOngseong, Warning, TEXT("Could not send in the ram. Check the ram pool size and RamClass."));
+		return false;
+	}
 	if (UHealthComponent* RamHealth = ActiveRam->FindComponentByClass<UHealthComponent>())
 	{
 		RamHealth->OnDeath.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleRamDefeated);
@@ -99,26 +120,49 @@ bool AOngseongDefenseScenarioManager::SpawnAndActivateRam()
 	return true;
 }
 
+void AOngseongDefenseScenarioManager::ReleaseActiveRam()
+{
+	if (!ActiveRam) return;
+	AOngseongRamActor* RamToRelease = ActiveRam;
+	ActiveRam = nullptr;
+	RamToRelease->StopRam();
+	if (UHealthComponent* RamHealth = RamToRelease->FindComponentByClass<UHealthComponent>())
+	{
+		RamHealth->OnDeath.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleRamDefeated);
+	}
+	if (IsValid(RamPool) && RamPool->ReleaseActor(RamToRelease))
+	{
+		return;
+	}
+	RamToRelease->Destroy();
+}
+
 void AOngseongDefenseScenarioManager::TickDefenseTimer()
 {
-	if (DefenseState != EOngseongDefenseState::Defending) return;
+	if (DefenseState != EOngseongDefenseState::Defending || !bUseDefenseTimeLimit) return;
 	RemainingDefenseTime = FMath::Max(0.0f, RemainingDefenseTime - 1.0f);
 	UpdateHUDTime();
-	if (RemainingDefenseTime <= 0.0f) SucceedDefense();
+	if (RemainingDefenseTime <= 0.0f)
+	{
+		FailDefense(
+			TEXT("DefenseTimedOut"),
+			LOCTEXT("TimeoutHeadline", "옹성 방어 실패"),
+			LOCTEXT("TimeoutDetail", "제한 시간 안에 적 충차를 파괴하지 못했습니다"),
+			LOCTEXT("TimeoutNotification", "시간이 초과되었습니다"));
+	}
 }
 
 void AOngseongDefenseScenarioManager::SucceedDefense()
 {
 	if (DefenseState != EOngseongDefenseState::Defending) return;
 	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
-	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
-	if (ActiveRam) ActiveRam->StopRam();
 	SetDefenseState(EOngseongDefenseState::Succeeded);
+	UE_LOG(LogOngseong, Display, TEXT("Defense succeeded: the ram was destroyed after %d enemies were defeated."), GetTotalDefeatedEnemies());
 	Narration->ReportScenarioEvent(TEXT("DefenseSucceeded"), this);
 	if (VRHUD)
 	{
-		VRHUD->SetObjective(FText::FromString(TEXT("옹성 방어 성공")), FText::FromString(TEXT("적이 퇴각하고 있습니다")));
-		VRHUD->ShowNotification(FText::FromString(TEXT("성문을 지켜냈습니다")), EVRHUDNotificationType::Success, 5.0f);
+		VRHUD->SetObjective(LOCTEXT("SuccessHeadline", "옹성 방어 성공"), LOCTEXT("SuccessDetail", "적이 퇴각하고 있습니다"));
+		VRHUD->ShowNotification(LOCTEXT("SuccessNotification", "적 충차를 파괴했습니다"), EVRHUDNotificationType::Success, 5.0f);
 	}
 	if (WaveManager)
 	{
@@ -126,6 +170,29 @@ void AOngseongDefenseScenarioManager::SucceedDefense()
 		WaveManager->RetreatAllEnemies(RetreatLocation);
 	}
 	else FinishSuccessfulRetreat();
+}
+
+void AOngseongDefenseScenarioManager::FailDefense(const FName NarrationEvent, const FText& Headline, const FText& Detail, const FText& Notification)
+{
+	if (DefenseState != EOngseongDefenseState::Defending) return;
+	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
+	if (ActiveRam) ActiveRam->StopRam();
+	if (WaveManager) WaveManager->ReleaseAllEnemies();
+	SetDefenseState(EOngseongDefenseState::Failed);
+	UE_LOG(LogOngseong, Warning, TEXT("Defense failed (%s)."), *NarrationEvent.ToString());
+	Narration->ReportScenarioEvent(NarrationEvent, GateActor);
+	if (VRHUD)
+	{
+		const FText RetryDetail = bAutoRetryOnFailure
+			? FText::Format(LOCTEXT("AutoRetryDetail", "{0} · {1}초 후 자동으로 다시 시작합니다"), Detail, FText::AsNumber(FMath::CeilToInt(AutoRetryDelay)))
+			: Detail;
+		VRHUD->SetObjective(Headline, RetryDetail);
+		VRHUD->ShowNotification(Notification, EVRHUDNotificationType::Error, 5.0f);
+	}
+	if (bAutoRetryOnFailure)
+	{
+		GetWorldTimerManager().SetTimer(AutoRetryTimerHandle, this, &AOngseongDefenseScenarioManager::HandleAutoRetry, FMath::Max(1.0f, AutoRetryDelay), false);
+	}
 }
 
 void AOngseongDefenseScenarioManager::FinishSuccessfulRetreat()
@@ -142,36 +209,16 @@ void AOngseongDefenseScenarioManager::FinishSuccessfulRetreat()
 
 void AOngseongDefenseScenarioManager::HandleGateDestroyed()
 {
-	if (DefenseState != EOngseongDefenseState::Defending) return;
-	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
-	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
-	if (ActiveRam) ActiveRam->StopRam();
-	if (WaveManager) WaveManager->ReleaseAllEnemies();
-	SetDefenseState(EOngseongDefenseState::Failed);
-	Narration->ReportScenarioEvent(TEXT("GateDestroyed"), GateActor);
-	if (VRHUD)
-	{
-		const FText RetryDetail = bAutoRetryOnFailure
-			? FText::Format(FText::FromString(TEXT("{0}초 후 자동으로 다시 시작합니다")), FText::AsNumber(FMath::CeilToInt(AutoRetryDelay)))
-			: FText::FromString(TEXT("재시도 동작으로 다시 시작할 수 있습니다"));
-		VRHUD->SetObjective(FText::FromString(TEXT("옹성 방어 실패")), RetryDetail);
-		VRHUD->ShowNotification(FText::FromString(TEXT("성문이 파괴되었습니다")), EVRHUDNotificationType::Error, 5.0f);
-	}
-	if (bAutoRetryOnFailure)
-	{
-		GetWorldTimerManager().SetTimer(AutoRetryTimerHandle, this, &AOngseongDefenseScenarioManager::HandleAutoRetry, FMath::Max(1.0f, AutoRetryDelay), false);
-	}
+	FailDefense(
+		TEXT("GateDestroyed"),
+		LOCTEXT("GateLostHeadline", "옹성 방어 실패"),
+		LOCTEXT("GateLostDetail", "성문이 파괴되었습니다"),
+		LOCTEXT("GateLostNotification", "성문이 파괴되었습니다"));
 }
 
 void AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated()
 {
 	if (DefenseState == EOngseongDefenseState::Succeeded) FinishSuccessfulRetreat();
-}
-
-void AOngseongDefenseScenarioManager::HandleWaveDefeated(const int32)
-{
-	bCurrentInfantryWaveDefeated = true;
-	TryScheduleNextWave();
 }
 
 void AOngseongDefenseScenarioManager::HandleRamDefeated(UHealthComponent* DeadHealth, const FCombatDamageSpec&)
@@ -181,49 +228,10 @@ void AOngseongDefenseScenarioManager::HandleRamDefeated(UHealthComponent* DeadHe
 		return;
 	}
 
-	AOngseongRamActor* DefeatedRam = ActiveRam;
-	ActiveRam = nullptr;
-	bCurrentRamDefeated = true;
-	DefeatedRam->Destroy();
-	TryScheduleNextWave();
-}
-
-void AOngseongDefenseScenarioManager::TryScheduleNextWave()
-{
-	if (DefenseState != EOngseongDefenseState::Defending || !bRepeatWavesDuringDefense ||
-		RemainingDefenseTime <= 0.0f || !bCurrentInfantryWaveDefeated || !bCurrentRamDefeated)
-	{
-		return;
-	}
-
-	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
-	GetWorldTimerManager().SetTimer(
-		NextWaveTimerHandle,
-		this,
-		&AOngseongDefenseScenarioManager::StartNextWave,
-		FMath::Max(0.1f, InterWaveDelay),
-		false);
-}
-
-void AOngseongDefenseScenarioManager::StartNextWave()
-{
-	if (DefenseState != EOngseongDefenseState::Defending || !bRepeatWavesDuringDefense ||
-		RemainingDefenseTime <= 0.0f || !IsValid(WaveManager) || !IsValid(GateActor))
-	{
-		return;
-	}
-
-	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
-	WaveManager->ResetWave();
-	WaveManager->SetObjectiveTarget(GateActor);
-	bCurrentInfantryWaveDefeated = false;
-	bCurrentRamDefeated = false;
-	if (!SpawnAndActivateRam())
-	{
-		return;
-	}
-	++CurrentWaveNumber;
-	WaveManager->StartSpawning();
+	// Destroying the ram is the clear condition. It is never replaced.
+	bRamDestroyed = true;
+	ReleaseActiveRam();
+	SucceedDefense();
 }
 
 void AOngseongDefenseScenarioManager::SetDefenseState(const EOngseongDefenseState NewState)
@@ -237,10 +245,20 @@ void AOngseongDefenseScenarioManager::UpdateHUDTime()
 {
 	const int32 Seconds = FMath::CeilToInt(RemainingDefenseTime);
 	OnDefenseTimeChanged.Broadcast(Seconds);
-	if (VRHUD)
+	if (!VRHUD)
+	{
+		return;
+	}
+
+	const FText Objective = LOCTEXT("DefenseObjective", "적 충차를 파괴하십시오");
+	if (bUseDefenseTimeLimit)
 	{
 		const FString TimeText = FString::Printf(TEXT("%02d:%02d"), Seconds / 60, Seconds % 60);
-		VRHUD->SetObjective(FText::FromString(TEXT("옹성을 방어하십시오")), FText::Format(FText::FromString(TEXT("남은 시간 {0}")), FText::FromString(TimeText)));
+		VRHUD->SetObjective(Objective, FText::Format(LOCTEXT("DefenseRemaining", "남은 시간 {0}"), FText::FromString(TimeText)));
+	}
+	else
+	{
+		VRHUD->SetObjective(Objective, LOCTEXT("DefenseDetail", "충차가 성문에 닿기 전에 총통으로 파괴하십시오"));
 	}
 }
 
@@ -248,3 +266,5 @@ void AOngseongDefenseScenarioManager::HandleAutoRetry()
 {
 	if (DefenseState == EOngseongDefenseState::Failed) RetryDefense();
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -1,5 +1,7 @@
 #include "Ongseong/OngseongEnemyWaveManager.h"
 
+#include "GF_OngseongCrossbow.h"
+
 #include "Gameplay/AI/CombatAIController.h"
 #include "Gameplay/Characters/EnemyCombatCharacter.h"
 #include "Gameplay/Combat/HealthComponent.h"
@@ -54,34 +56,38 @@ void AOngseongEnemyWaveManager::EndPlay(const EEndPlayReason::Type EndPlayReason
 
 void AOngseongEnemyWaveManager::StartSpawning()
 {
-	TotalEnemiesToSpawn = FMath::Max(0, SwordsmenToSpawn) + FMath::Max(0, ArchersToSpawn);
 	if (!IsSpawnConfigured() || !GetWorld())
 	{
 		return;
 	}
 
-	if (!bWaveStarted)
+	if (!bSpawningActive)
 	{
-		bWaveStarted = true;
-		OnWaveStarted.Broadcast(TotalEnemiesToSpawn);
+		bSpawningActive = true;
+		OnSpawningStarted.Broadcast(GetMaxConcurrentEnemies());
+		UE_LOG(LogOngseong, Display, TEXT("Enemy spawning started: %d swordsmen + %d archers, respawn %.1fs (+/-%.1f)."),
+			GetSwordsmanSlots(), GetArcherSlots(), RespawnDelay, RespawnDelayJitter);
 	}
+	bRetreating = false;
 
 	GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 	GetWorldTimerManager().SetTimer(
 		SpawnTimerHandle,
 		this,
-		&AOngseongEnemyWaveManager::SpawnScheduledEnemy,
-		FMath::Max(0.1f, SpawnInterval),
+		&AOngseongEnemyWaveManager::TickPopulationFill,
+		FMath::Max(0.05f, InitialSpawnInterval),
 		true,
 		FMath::Max(0.0f, InitialDelay));
 }
 
 void AOngseongEnemyWaveManager::StopSpawning()
 {
+	bSpawningActive = false;
 	if (GetWorld())
 	{
 		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 	}
+	ClearPendingRespawns();
 }
 
 void AOngseongEnemyWaveManager::RetreatAllEnemies(const FVector RetreatLocation)
@@ -116,36 +122,40 @@ void AOngseongEnemyWaveManager::ReleaseAllEnemies()
 	for (AEnemyCombatCharacter* Enemy : EnemiesToRelease)
 	{
 		if (!IsValid(Enemy)) continue;
-		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
-		{
-			Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
-		}
+		DetachEnemy(Enemy);
 		if (TObjectPtr<AActorPool>* Pool = EnemyPoolsByActor.Find(Enemy); Pool && IsValid(*Pool))
 		{
 			(*Pool)->ReleaseActor(Enemy);
 		}
 	}
 	EnemyPoolsByActor.Reset();
+	EnemyTypesByActor.Reset();
+	OnPopulationChanged.Broadcast(0, GetMaxConcurrentEnemies());
 }
 
 void AOngseongEnemyWaveManager::ResetWave()
 {
 	ReleaseAllEnemies();
 	SpawnSequence = 0;
-	SpawnedEnemyCount = 0;
-	SpawnedSwordsmanCount = 0;
-	SpawnedArcherCount = 0;
-	DefeatedEnemyCount = 0;
-	bWaveStarted = false;
+	TotalSpawnedEnemies = 0;
+	TotalDefeatedEnemies = 0;
+	bSpawningActive = false;
 }
 
 bool AOngseongEnemyWaveManager::SpawnEnemy()
 {
-	const EOngseongEnemyType EnemyType = ChooseNextEnemyType();
+	EOngseongEnemyType EnemyType = EOngseongEnemyType::Swordsman;
+	if (!ChooseNextEnemyType(EnemyType))
+	{
+		return false;
+	}
+	return SpawnEnemyOfType(EnemyType);
+}
+
+bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyType)
+{
 	AActorPool* SpawnPool = GetPoolForEnemyType(EnemyType);
-	if (!IsSpawnConfigured() || SpawnedEnemyCount >= TotalEnemiesToSpawn || !IsValid(SpawnPool) ||
-		ActiveEnemies.Num() >= FMath::Max(1, MaxActiveEnemies))
+	if (!IsSpawnConfigured() || !IsValid(SpawnPool) || ActiveEnemies.Num() >= GetMaxConcurrentEnemies())
 	{
 		return false;
 	}
@@ -186,57 +196,200 @@ bool AOngseongEnemyWaveManager::SpawnEnemy()
 	}
 	ActiveEnemies.AddUnique(Enemy);
 	EnemyPoolsByActor.Add(Enemy, SpawnPool);
-	if (EnemyType == EOngseongEnemyType::Archer) ++SpawnedArcherCount;
-	else ++SpawnedSwordsmanCount;
-	++SpawnedEnemyCount;
-	OnEnemySpawned.Broadcast(Enemy, SpawnedEnemyCount, TotalEnemiesToSpawn);
-	if (SpawnedEnemyCount >= TotalEnemiesToSpawn) StopSpawning();
+	EnemyTypesByActor.Add(Enemy, EnemyType);
+	++TotalSpawnedEnemies;
+	OnEnemySpawned.Broadcast(Enemy, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
+	OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
+	UE_LOG(LogOngseong, Verbose, TEXT("Spawned %s (%s). Living %d/%d."),
+		*Enemy->GetName(),
+		EnemyType == EOngseongEnemyType::Archer ? TEXT("archer") : TEXT("swordsman"),
+		ActiveEnemies.Num(),
+		GetMaxConcurrentEnemies());
 	return true;
 }
 
-bool AOngseongEnemyWaveManager::IsSpawnConfigured() const
+void AOngseongEnemyWaveManager::TickPopulationFill()
 {
-	return IsValid(EnemyPool) && IsValid(ObjectiveTarget) && (SwordsmenToSpawn > 0 || ArchersToSpawn > 0);
-}
-
-void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage)
-{
-	if (!IsValid(EnemyPool) || !IsValid(HealthComponent))
+	if (!bSpawningActive || bRetreating)
 	{
 		return;
 	}
 
-	if (AActor* EnemyActor = HealthComponent->GetOwner())
+	if (!HasPopulationDeficit())
 	{
-		if (AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(EnemyActor))
+		// The population is full. Replacements are driven by respawn timers from here on.
+		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+		UE_LOG(LogOngseong, Display, TEXT("Ongseong population filled: %d living enemies."), ActiveEnemies.Num());
+		return;
+	}
+
+	SpawnEnemy();
+}
+
+void AOngseongEnemyWaveManager::ScheduleRespawn(const EOngseongEnemyType EnemyType)
+{
+	if (!bMaintainPopulation || !bSpawningActive || bRetreating || !GetWorld())
+	{
+		return;
+	}
+
+	PruneFinishedRespawnTimers();
+	const float Jitter = FMath::Max(0.0f, RespawnDelayJitter);
+	const float Delay = FMath::Max(0.05f, FMath::Max(0.0f, RespawnDelay) + FMath::FRandRange(-Jitter, Jitter));
+	FTimerHandle RespawnHandle;
+	GetWorldTimerManager().SetTimer(
+		RespawnHandle,
+		FTimerDelegate::CreateUObject(this, &AOngseongEnemyWaveManager::HandleRespawnTimer, EnemyType),
+		Delay,
+		false);
+	RespawnTimerHandles.Add(RespawnHandle);
+}
+
+void AOngseongEnemyWaveManager::HandleRespawnTimer(const EOngseongEnemyType EnemyType)
+{
+	PruneFinishedRespawnTimers();
+	if (!bSpawningActive || bRetreating)
+	{
+		return;
+	}
+
+	if (GetLivingEnemyCountOfType(EnemyType) >= GetSlotsForType(EnemyType) || ActiveEnemies.Num() >= GetMaxConcurrentEnemies())
+	{
+		return;
+	}
+
+	if (!SpawnEnemyOfType(EnemyType))
+	{
+		// The pool was exhausted or misconfigured. Try again on the next respawn cycle instead of
+		// silently shrinking the population.
+		ScheduleRespawn(EnemyType);
+	}
+}
+
+void AOngseongEnemyWaveManager::ClearPendingRespawns()
+{
+	if (UWorld* World = GetWorld())
+	{
+		for (FTimerHandle& Handle : RespawnTimerHandles)
 		{
-			if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-			ActiveEnemies.Remove(Enemy);
-			if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
-			{
-				Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
-			}
+			World->GetTimerManager().ClearTimer(Handle);
 		}
-		AActorPool* ReleasePool = EnemyPool;
-		if (AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(EnemyActor))
+	}
+	RespawnTimerHandles.Reset();
+}
+
+void AOngseongEnemyWaveManager::PruneFinishedRespawnTimers()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	FTimerManager& TimerManager = World->GetTimerManager();
+	RespawnTimerHandles.RemoveAll([&TimerManager](const FTimerHandle& Handle)
+	{
+		return !TimerManager.IsTimerActive(Handle);
+	});
+}
+
+bool AOngseongEnemyWaveManager::IsSpawnConfigured() const
+{
+	return IsValid(EnemyPool) && IsValid(ObjectiveTarget) && (GetSwordsmanSlots() > 0 || GetArcherSlots() > 0);
+}
+
+int32 AOngseongEnemyWaveManager::GetLivingEnemyCountOfType(const EOngseongEnemyType EnemyType) const
+{
+	int32 Count = 0;
+	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, EOngseongEnemyType>& Pair : EnemyTypesByActor)
+	{
+		if (Pair.Value == EnemyType && IsValid(Pair.Key))
 		{
-			if (TObjectPtr<AActorPool>* FoundPool = EnemyPoolsByActor.Find(Enemy)) ReleasePool = *FoundPool;
-			EnemyPoolsByActor.Remove(Enemy);
+			++Count;
 		}
-		if (IsValid(ReleasePool)) ReleasePool->ReleaseActor(EnemyActor);
-		++DefeatedEnemyCount;
-		OnWaveProgress.Broadcast(DefeatedEnemyCount, TotalEnemiesToSpawn);
-		if (AreAllEnemiesDefeated())
-		{
-			StopSpawning();
-			OnAllEnemiesDefeated.Broadcast(TotalEnemiesToSpawn);
-		}
-		if (bRetreating && ActiveEnemies.IsEmpty())
+	}
+	return Count;
+}
+
+int32 AOngseongEnemyWaveManager::GetSlotsForType(const EOngseongEnemyType EnemyType) const
+{
+	return EnemyType == EOngseongEnemyType::Archer ? GetArcherSlots() : GetSwordsmanSlots();
+}
+
+bool AOngseongEnemyWaveManager::HasPopulationDeficit() const
+{
+	if (ActiveEnemies.Num() >= GetMaxConcurrentEnemies())
+	{
+		return false;
+	}
+	EOngseongEnemyType UnusedType = EOngseongEnemyType::Swordsman;
+	return ChooseNextEnemyType(UnusedType);
+}
+
+bool AOngseongEnemyWaveManager::ChooseNextEnemyType(EOngseongEnemyType& OutEnemyType) const
+{
+	const int32 SwordsmanDeficit = GetSwordsmanSlots() - GetLivingEnemyCountOfType(EOngseongEnemyType::Swordsman);
+	const int32 ArcherDeficit = GetArcherSlots() - GetLivingEnemyCountOfType(EOngseongEnemyType::Archer);
+	if (SwordsmanDeficit <= 0 && ArcherDeficit <= 0)
+	{
+		return false;
+	}
+
+	OutEnemyType = ArcherDeficit > SwordsmanDeficit ? EOngseongEnemyType::Archer : EOngseongEnemyType::Swordsman;
+	return true;
+}
+
+void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage)
+{
+	if (!IsValid(HealthComponent))
+	{
+		return;
+	}
+
+	AActor* EnemyActor = HealthComponent->GetOwner();
+	AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(EnemyActor);
+	if (!Enemy)
+	{
+		return;
+	}
+
+	EOngseongEnemyType DefeatedType = EOngseongEnemyType::Swordsman;
+	if (const EOngseongEnemyType* FoundType = EnemyTypesByActor.Find(Enemy))
+	{
+		DefeatedType = *FoundType;
+	}
+
+	AActorPool* ReleasePool = EnemyPool;
+	if (TObjectPtr<AActorPool>* FoundPool = EnemyPoolsByActor.Find(Enemy))
+	{
+		ReleasePool = *FoundPool;
+	}
+
+	DetachEnemy(Enemy);
+	ActiveEnemies.Remove(Enemy);
+	EnemyPoolsByActor.Remove(Enemy);
+	EnemyTypesByActor.Remove(Enemy);
+	if (IsValid(ReleasePool))
+	{
+		ReleasePool->ReleaseActor(Enemy);
+	}
+
+	++TotalDefeatedEnemies;
+	UE_LOG(LogOngseong, Verbose, TEXT("Enemy defeated (total %d). Living %d/%d."),
+		TotalDefeatedEnemies, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
+	OnEnemyDefeated.Broadcast(TotalDefeatedEnemies, ActiveEnemies.Num());
+	OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
+
+	if (bRetreating)
+	{
+		if (ActiveEnemies.IsEmpty())
 		{
 			bRetreating = false;
 			OnAllEnemiesRetreated.Broadcast();
 		}
+		return;
 	}
+
+	ScheduleRespawn(DefeatedType);
 }
 
 void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
@@ -244,16 +397,14 @@ void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 	if (!bRetreating || !IsValid(EnemyPawn)) return;
 	if (AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(EnemyPawn))
 	{
-		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
-		{
-			Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
-		}
-		ActiveEnemies.Remove(Enemy);
 		AActorPool* ReleasePool = EnemyPool;
 		if (TObjectPtr<AActorPool>* FoundPool = EnemyPoolsByActor.Find(Enemy)) ReleasePool = *FoundPool;
+		DetachEnemy(Enemy);
+		ActiveEnemies.Remove(Enemy);
 		EnemyPoolsByActor.Remove(Enemy);
+		EnemyTypesByActor.Remove(Enemy);
 		if (IsValid(ReleasePool)) ReleasePool->ReleaseActor(Enemy);
+		OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 	}
 	if (ActiveEnemies.IsEmpty())
 	{
@@ -262,18 +413,20 @@ void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 	}
 }
 
-void AOngseongEnemyWaveManager::SpawnScheduledEnemy()
+void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 {
-	SpawnEnemy();
-}
-
-EOngseongEnemyType AOngseongEnemyWaveManager::ChooseNextEnemyType() const
-{
-	const bool bCanSpawnSwordsman = SpawnedSwordsmanCount < FMath::Max(0, SwordsmenToSpawn);
-	const bool bCanSpawnArcher = SpawnedArcherCount < FMath::Max(0, ArchersToSpawn);
-	if (!bCanSpawnSwordsman) return EOngseongEnemyType::Archer;
-	if (!bCanSpawnArcher) return EOngseongEnemyType::Swordsman;
-	return SpawnedEnemyCount % 2 == 0 ? EOngseongEnemyType::Swordsman : EOngseongEnemyType::Archer;
+	if (!IsValid(Enemy))
+	{
+		return;
+	}
+	if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>())
+	{
+		ArcherCombat->DeactivateCombat();
+	}
+	if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
+	{
+		Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
+	}
 }
 
 AActorPool* AOngseongEnemyWaveManager::GetPoolForEnemyType(const EOngseongEnemyType EnemyType) const

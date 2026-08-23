@@ -174,6 +174,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong")
 	TObjectPtr<AActorPool> ProjectilePool;
 
+	/** Caps how many cannon effects can be audible at once on standalone hardware. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Chongtong|Feedback")
+	TObjectPtr<class USoundConcurrency> CombatSoundConcurrency;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.1"))
 	float FireInterval = 5.0f;
 

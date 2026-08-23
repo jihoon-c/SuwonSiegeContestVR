@@ -21,6 +21,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "GF_OngseongCrossbow.h"
+#include "Gameplay/Combat/CombatFXLibrary.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
@@ -144,8 +146,11 @@ bool AChongtongCannonActor::TryFire()
 	AActor* Target = SelectTarget();
 	if (!IsValid(Target) || !ProjectileClass)
 	{
+		UE_LOG(LogOngseong, Verbose, TEXT("%s has no target to fire at."), *GetName());
 		return false;
 	}
+	UE_LOG(LogOngseong, Verbose, TEXT("%s firing at %s (%.0f cm)."),
+		*GetName(), *Target->GetName(), FVector::Dist(GetActorLocation(), Target->GetActorLocation()));
 
 	const FVector MuzzleLocation = Muzzle->GetComponentLocation();
 	const FVector Direction = (Target->GetActorLocation() - MuzzleLocation).GetSafeNormal();
@@ -337,8 +342,8 @@ void AChongtongCannonActor::SpawnPlaceholderLoadingItems()
 
 void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch)
 {
-	if (Effect) UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, Location);
-	if (Sound) UGameplayStatics::PlaySoundAtLocation(this, Sound, Location, 0.7f, Pitch);
+	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, Effect, Location);
+	UCombatFXLibrary::PlayPooledSoundAtLocation(this, Sound, Location, 0.7f, Pitch, CombatSoundConcurrency);
 }
 
 AActor* AChongtongCannonActor::SelectTarget() const

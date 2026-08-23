@@ -28,4 +28,8 @@ protected:
 	TObjectPtr<class UNiagaraSystem> ExplosionEffect;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<class USoundBase> ExplosionSound;
+
+	/** Caps how many explosions can be audible at once on standalone hardware. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Chongtong|Projectile")
+	TObjectPtr<class USoundConcurrency> ExplosionSoundConcurrency;
 };
