@@ -70,14 +70,15 @@ def main():
         unreal.EditorAssetLibrary.save_loaded_asset(blueprint)
         created[name] = blueprint.generated_class()
 
-    cannon = unreal.EditorAssetLibrary.load_asset(f"{FOLDER}/BP_ChongtongCannon")
-    if cannon:
-        cannon_default = unreal.get_default_object(cannon.generated_class())
-        cannon_default.set_editor_property("powder_item_class", created["BP_ChongtongPowder"])
-        cannon_default.set_editor_property("rammer_item_class", created["BP_ChongtongRammer"])
-        cannon_default.set_editor_property("cannonball_item_class", created["BP_ChongtongCannonball"])
-        unreal.BlueprintEditorLibrary.compile_blueprint(cannon)
-        unreal.EditorAssetLibrary.save_loaded_asset(cannon)
+    for cannon_name in ("BP_ChongtongCannon", "BP_PlayableChongtong"):
+        cannon = unreal.EditorAssetLibrary.load_asset(f"{FOLDER}/{cannon_name}")
+        if cannon:
+            cannon_default = unreal.get_default_object(cannon.generated_class())
+            cannon_default.set_editor_property("powder_item_class", created["BP_ChongtongPowder"])
+            cannon_default.set_editor_property("rammer_item_class", created["BP_ChongtongRammer"])
+            cannon_default.set_editor_property("cannonball_item_class", created["BP_ChongtongCannonball"])
+            unreal.BlueprintEditorLibrary.compile_blueprint(cannon)
+            unreal.EditorAssetLibrary.save_loaded_asset(cannon)
 
     unreal.log("Created and linked Chongtong loading-item Blueprints.")
 

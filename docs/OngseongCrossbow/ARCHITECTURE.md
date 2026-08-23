@@ -60,7 +60,7 @@ graph TD
 | 적 Wave | `Implemented` | 공용 Enemy Pool 기반 유한 Wave(기본 검병 3·궁병 2), 진행/전원 퇴치 이벤트 제공 |
 | Enemy Pool | `Implemented` | 고정 크기 8, 자동 확장 비활성; Wave 최대 활성 적 6 |
 | 총통 플레이어 조작 | `Implemented (runtime)` | 화약 → 쑤시개 3회 → 대포알 상태 머신, 양손 조준, 양손 트리거 발사, 5발 완료 |
-| 총통 Ally AI | `Implemented (optional)` | 기존 자동 표적 사격을 `bEnableAutomaticFire` 옵션으로 보존; 플레이어 모드 기본값은 비활성 |
+| 총통 Ally AI | `Implemented` | `BP_AllyChongtong`은 `UChongtongAutomaticFireComponent`를 통해 5초 간격으로 자동 사격; `BP_PlayableChongtong`은 자동 사격을 끄고 VR 장전·양손 조작 사용 |
 | 총통 투사체 | `Implemented (runtime)` | 곡사, 직접 명중 + 350cm 범위 피해, 교체 가능한 임시 Niagara/사운드 |
 | 교관 나레이션 | `Implemented (event-driven)` | 총통 기본 컴포넌트가 공용 Pawn 나레이션 플레이어를 재사용하며 진행/상황 이벤트를 큐 재생 |
 | 쇠뇌 Actor | `Implemented (runtime + placed)` | `AOngseongCrossbowActor`/`BP_OngseongCrossbow`, 거치형 양손 조준·물리 볼트·12발 탄약·1.25초 자동 재장전·24발 고정 Pool |

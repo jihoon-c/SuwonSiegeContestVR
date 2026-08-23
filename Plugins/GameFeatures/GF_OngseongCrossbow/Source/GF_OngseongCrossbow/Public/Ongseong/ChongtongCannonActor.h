@@ -16,6 +16,7 @@ class UCombatThreatComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 class UChongtongAimGripComponent;
+class UChongtongAutomaticFireComponent;
 class AChongtongLoadingItemActor;
 class UTextRenderComponent;
 class UPointLightComponent;
@@ -91,7 +92,6 @@ public:
 	FOnChongtongExperienceCompleted OnExperienceCompleted;
 
 protected:
-	void FireScheduledShot();
 	void UpdateLoadingInteractions();
 	void SetLoadingState(EChongtongLoadingState NewState);
 	void UpdateStatusSignal();
@@ -128,6 +128,9 @@ protected:
 	TObjectPtr<USceneComponent> PlayerCameraAnchor;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UChongtongAimGripComponent> AimGrip;
+	/** Optional ally AI firing behavior; configured per Blueprint variant. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UChongtongAutomaticFireComponent> AutomaticFire;
 	/** Event-driven instructor narration for this experience. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UOngseongNarrationComponent> Narration;
@@ -172,7 +175,7 @@ protected:
 	TObjectPtr<AActorPool> ProjectilePool;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.1"))
-	float FireInterval = 3.0f;
+	float FireInterval = 5.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
 	float FireRange = 12000.0f;
@@ -224,8 +227,6 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AChongtongLoadingItemActor>> LoadingItems;
 	bool bRammerInserted = false;
-
-	FTimerHandle FireTimerHandle;
 
 	UFUNCTION()
 	void HandleDeath(UHealthComponent* DeadHealthComponent, const FCombatDamageSpec& KillingDamage);

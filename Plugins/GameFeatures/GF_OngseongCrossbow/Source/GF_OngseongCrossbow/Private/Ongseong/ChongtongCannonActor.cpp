@@ -15,6 +15,7 @@
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Ongseong/ChongtongProjectileActor.h"
 #include "Ongseong/ChongtongAimGripComponent.h"
+#include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -54,6 +55,7 @@ AChongtongCannonActor::AChongtongCannonActor()
 	AimGrip->SetupAttachment(HwachaBaseMesh);
 	AimGrip->SetRelativeLocation(FVector(-40.0f, 0.0f, 120.0f));
 	AimGrip->SetAimTarget(BarrelPivot);
+	AutomaticFire = CreateDefaultSubobject<UChongtongAutomaticFireComponent>(TEXT("AutomaticFire"));
 	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
 	StatusText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("StatusText"));
 	StatusText->SetupAttachment(HwachaBaseMesh);
@@ -107,10 +109,7 @@ void AChongtongCannonActor::BeginPlay()
 	{
 		SpawnMountedOperator();
 	}
-	if (bEnableAutomaticFire)
-	{
-		GetWorldTimerManager().SetTimer(FireTimerHandle, this, &AChongtongCannonActor::FireScheduledShot, FireInterval, true);
-	}
+	AutomaticFire->ConfigureAutomaticFire(bEnableAutomaticFire, FireInterval);
 	if (bSpawnPlaceholderProps)
 	{
 		SpawnPlaceholderLoadingItems();
@@ -409,12 +408,7 @@ void AChongtongCannonActor::RemoveMountedOperator()
 
 void AChongtongCannonActor::HandleDeath(UHealthComponent* DeadHealthComponent, const FCombatDamageSpec& KillingDamage)
 {
-	GetWorldTimerManager().ClearTimer(FireTimerHandle);
+	AutomaticFire->StopAutomaticFire();
 	RemoveMountedOperator();
 	SetActorEnableCollision(false);
-}
-
-void AChongtongCannonActor::FireScheduledShot()
-{
-	TryFire();
 }

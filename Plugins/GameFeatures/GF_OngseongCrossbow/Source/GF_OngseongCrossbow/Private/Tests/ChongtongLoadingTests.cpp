@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -29,6 +30,12 @@ bool FChongtongLoadingSequenceTest::RunTest(const FString& Parameters)
 	}
 	if (TestNotNull(TEXT("Cannon is spawned"), Cannon))
 	{
+		const UChongtongAutomaticFireComponent* AutomaticFire = Cannon->FindComponentByClass<UChongtongAutomaticFireComponent>();
+		if (TestNotNull(TEXT("Cannon composes the automatic-fire behavior"), AutomaticFire))
+		{
+			TestFalse(TEXT("Automatic fire is opt-in for Blueprint variants"), AutomaticFire->IsAutomaticFireEnabled());
+			TestEqual(TEXT("Allied automatic-fire cooldown defaults to five seconds"), AutomaticFire->GetFireInterval(), 5.0f);
+		}
 		TestEqual(TEXT("Initial step requests powder"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsPowder);
 		TestFalse(TEXT("Cannonball cannot skip powder"), Cannon->TryLoadItem(EChongtongLoadingItemType::Cannonball));
 		TestTrue(TEXT("Powder is accepted"), Cannon->TryLoadItem(EChongtongLoadingItemType::Powder));
