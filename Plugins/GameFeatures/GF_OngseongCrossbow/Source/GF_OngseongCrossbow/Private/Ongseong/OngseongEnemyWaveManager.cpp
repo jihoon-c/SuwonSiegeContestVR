@@ -2,6 +2,7 @@
 
 #include "GF_OngseongCrossbow.h"
 
+#include "Components/SceneComponent.h"
 #include "Gameplay/AI/CombatAIController.h"
 #include "Gameplay/Characters/EnemyCombatCharacter.h"
 #include "Gameplay/Combat/HealthComponent.h"
@@ -9,12 +10,16 @@
 #include "Ongseong/OngseongArcherCombatComponent.h"
 #include "Ongseong/ChongtongCannonActor.h"
 #include "EngineUtils.h"
+#include "NavigationSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
 AOngseongEnemyWaveManager::AOngseongEnemyWaveManager()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	// Spawn transforms are built from this actor's transform. Without a root component the actor
+	// cannot be moved in the editor at all, which pins every spawn to the world origin.
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 }
 
 void AOngseongEnemyWaveManager::BeginPlay()
@@ -65,8 +70,20 @@ void AOngseongEnemyWaveManager::StartSpawning()
 	{
 		bSpawningActive = true;
 		OnSpawningStarted.Broadcast(GetMaxConcurrentEnemies());
-		UE_LOG(LogOngseong, Display, TEXT("Enemy spawning started: %d swordsmen + %d archers, respawn %.1fs (+/-%.1f)."),
-			GetSwordsmanSlots(), GetArcherSlots(), RespawnDelay, RespawnDelayJitter);
+		UE_LOG(LogOngseong, Display, TEXT("Enemy spawning started at %s: %d swordsmen + %d archers, respawn %.1fs (+/-%.1f)."),
+			*GetActorLocation().ToCompactString(), GetSwordsmanSlots(), GetArcherSlots(), RespawnDelay, RespawnDelayJitter);
+		if (UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+		{
+			FNavLocation Projected;
+			const bool bOnNavMesh = NavigationSystem->ProjectPointToNavigation(GetActorLocation(), Projected, FVector(300.0f));
+			UE_LOG(LogOngseong, Display, TEXT("Spawn point %s the navmesh%s. Enemies cannot advance without one."),
+				bOnNavMesh ? TEXT("is on") : TEXT("is NOT on"),
+				bOnNavMesh ? *FString::Printf(TEXT(" (projected to %s)"), *Projected.Location.ToCompactString()) : TEXT(""));
+		}
+		else
+		{
+			UE_LOG(LogOngseong, Warning, TEXT("No navigation system in this world; enemies cannot path."));
+		}
 	}
 	bRetreating = false;
 
@@ -200,9 +217,10 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 	++TotalSpawnedEnemies;
 	OnEnemySpawned.Broadcast(Enemy, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 	OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
-	UE_LOG(LogOngseong, Verbose, TEXT("Spawned %s (%s). Living %d/%d."),
+	UE_LOG(LogOngseong, Verbose, TEXT("Spawned %s (%s) at %s. Living %d/%d."),
 		*Enemy->GetName(),
 		EnemyType == EOngseongEnemyType::Archer ? TEXT("archer") : TEXT("swordsman"),
+		*Enemy->GetActorLocation().ToCompactString(),
 		ActiveEnemies.Num(),
 		GetMaxConcurrentEnemies());
 	return true;
@@ -374,8 +392,9 @@ void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthCompone
 	}
 
 	++TotalDefeatedEnemies;
-	UE_LOG(LogOngseong, Verbose, TEXT("Enemy defeated (total %d). Living %d/%d."),
-		TotalDefeatedEnemies, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
+	UE_LOG(LogOngseong, Verbose, TEXT("Enemy defeated (total %d). Living %d/%d. Fell %.0f cm from the objective."),
+		TotalDefeatedEnemies, ActiveEnemies.Num(), GetMaxConcurrentEnemies(),
+		IsValid(ObjectiveTarget) ? FVector::Dist(EnemyActor->GetActorLocation(), ObjectiveTarget->GetActorLocation()) : -1.0f);
 	OnEnemyDefeated.Broadcast(TotalDefeatedEnemies, ActiveEnemies.Num());
 	OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 

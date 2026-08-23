@@ -5,6 +5,7 @@
 #include "Components/SphereComponent.h"
 #include "Engine/OverlapResult.h"
 #include "Gameplay/Combat/CombatDamageLibrary.h"
+#include "Gameplay/Combat/HealthComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GF_OngseongCrossbow.h"
 #include "Gameplay/Combat/CombatFXLibrary.h"
@@ -38,7 +39,11 @@ void AChongtongProjectileActor::BeginPlay()
 void AChongtongProjectileActor::HandleExplosion(AGameplayProjectileActor* Projectile, AActor* HitActor, const FHitResult Hit)
 {
 	const FVector Location = Hit.ImpactPoint.IsNearlyZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
-	UE_LOG(LogOngseong, Verbose, TEXT("Chongtong shell exploded on %s at %s."), *GetNameSafe(HitActor), *Location.ToCompactString());
+	const UHealthComponent* HitHealth = IsValid(HitActor) ? HitActor->FindComponentByClass<UHealthComponent>() : nullptr;
+	UE_LOG(LogOngseong, Verbose, TEXT("Chongtong shell exploded on %s at %s.%s"),
+		*GetNameSafe(HitActor), *Location.ToCompactString(),
+		HitHealth ? *FString::Printf(TEXT(" Health now %.0f/%.0f (dead=%d)."),
+			HitHealth->GetCurrentHealth(), HitHealth->GetMaxHealth(), HitHealth->IsDead() ? 1 : 0) : TEXT(""));
 	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, ExplosionEffect, Location);
 	UCombatFXLibrary::PlayPooledSoundAtLocation(this, ExplosionSound, Location, 1.0f, 0.7f, ExplosionSoundConcurrency);
 

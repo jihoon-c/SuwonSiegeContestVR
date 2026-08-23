@@ -41,6 +41,9 @@ public:
 
 	virtual bool ReceiveCombatDamage_Implementation(const FCombatDamageSpec& DamageSpec) override;
 
+	/** Visibility is judged from the barrel, not the actor origin. See the .cpp for why. */
+	virtual void GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const override;
+
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong")
 	void SetGateTarget(AActor* NewGateTarget);
 

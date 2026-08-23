@@ -225,21 +225,28 @@ Actor `BeginPlay` 순서는 보장되지 않으므로 `AActorPool::AcquireActor`
 | 충차가 전혀 움직이지 않음 | `SetActorLocation` Sweep이 지형·성문에 끼임 | Sweep 비활성 |
 | 충차 접근이 즉시 종료 | `RamSpawnPoint` 미설정 | 테스트 레벨에 `Ram_SpawnPoint`(3000cm) 배치 |
 
-**미해결 — 아군 총통이 적을 표적으로 잡지 못함 (기존 레벨 구성 문제)**
+**해결됨 — 아군 총통 교전 문제 (2026-08-24, 원인 5건)**
 
-적 스폰(`Ongseong_WaveManager`)이 월드 원점에 있어 **성문에서 180cm** 떨어져 있고, 아군 총통은
-성벽 위(z=600)에 있다. `UCombatTargetingComponent`는 사거리 안이라도 Line of Sight가 막히면
-표적에서 제외하므로 총통이 계속 `has no target to fire at` 상태다. NavMesh도 성 안쪽(y ≈ −50~7950)만
-덮고 있어 적 스폰을 성문 바깥으로 옮기려면 NavMesh 확장과 재빌드가 함께 필요하다.
-전투 구도를 바꾸는 결정이라 임의로 수행하지 않았다. 세부 좌표는 완료 문서 참조.
+| 원인 | 계층 | 수정 |
+|---|---|---|
+| 시야 판정이 액터 원점에서 출발해 총통이 올라선 성벽에 35cm 만에 막힘 | 코드 | `AChongtongCannonActor::GetActorEyesViewPoint`를 **포신** 기준으로 오버라이드 |
+| `SM_Ground`의 박스 콜리전 높이가 0 → 레벨에 걸을 수 있는 바닥이 없어 적이 전부 추락 | 에셋 | `collision_trace_flag = Use Complex As Simple` |
+| 스포너·시나리오 매니저에 루트 컴포넌트가 없어 배치 불가(월드 원점 고정) | 코드 | `USceneComponent` 루트 추가 |
+| 총통 4문의 포구가 성벽 바깥을 향해 포탄 43발 중 34발이 성벽에 착탄 | 레벨 | 테스트 레벨에서 yaw +180° |
+| NavMesh 볼륨이 바닥 위 공간을 못 덮고 스폰이 NavMesh 밖 | 레벨 | 볼륨 재배치·재빌드, 스폰을 (150, 7800, 98)로 이동 |
+
+검증(4분 구동): 총통 발사 0 → 15, **적 처치 0 → 15**, 적이 성문 1,827cm 앞까지 전진,
+**충차 파괴로 `Defense succeeded`**. 상세는 `completed/2026-08-24_CHONGTONG_ENGAGEMENT_FIX.md`.
 
 **남은 작업**
 
-1. 위 총통 시야 문제 해결 — 적 스폰 위치와 NavMesh 범위 재배치 (레벨 담당자 결정 필요)
-2. 사람이 PIE로 열어 자유 카메라 조작감과 시야, 전투 연출을 육안 확인
-3. `SC_OngseongCombat` Sound Concurrency 에셋 생성 및 두 속성에 연결
-4. 본편 `LV_Ongseong`의 Pool 크기·`Ram_ActorPool`·`Ram_SpawnPoint` 반영 여부 결정
+1. **본편 `LV_Ongseong`에 액터 배치 수정 적용 여부 결정** — 코드와 `SM_Ground` 수정은 이미 양쪽 적용,
+   스포너 위치·총통 방향·NavMesh 볼륨은 테스트 레벨에만 적용했다 (전투 구도를 바꾸는 변경)
+2. 사람이 PIE로 열어 자유 카메라 조작감과 전투 연출을 육안 확인
+3. 충차 접근 시간 조정 — 현재 8,250cm를 35cm/s로 약 4분
+4. `SC_OngseongCombat` Sound Concurrency 에셋 생성 및 두 속성에 연결
 5. Android 실기기 성능 실측(`stat unit`, Niagara 풀 재사용)
 
 > 위 5개 항목은 **아직 수행하지 않았다.**
-> 완료 기록: `completed/2026-08-24_TEST_GAMEMODE_SUSTAINED_SPAWN_POOLING.md`
+> 완료 기록: `completed/2026-08-24_TEST_GAMEMODE_SUSTAINED_SPAWN_POOLING.md`,
+> `completed/2026-08-24_CHONGTONG_ENGAGEMENT_FIX.md`

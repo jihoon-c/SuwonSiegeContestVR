@@ -2,6 +2,7 @@
 
 #include "GF_OngseongCrossbow.h"
 
+#include "Components/SceneComponent.h"
 #include "Core/Experience/ExperienceSubsystem.h"
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
@@ -18,6 +19,8 @@
 AOngseongDefenseScenarioManager::AOngseongDefenseScenarioManager()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	// Placeable in the editor: the retreat fallback and ram staging read this actor's transform.
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
 	RamClass = AOngseongRamActor::StaticClass();
 }

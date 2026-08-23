@@ -106,6 +106,9 @@ AChongtongCannonActor::AChongtongCannonActor()
 void AChongtongCannonActor::BeginPlay()
 {
 	Super::BeginPlay();
+	UE_LOG(LogOngseong, Verbose, TEXT("%s ready: actor %s, muzzle %s."),
+		*GetName(), *GetActorLocation().ToCompactString(),
+		Muzzle ? *Muzzle->GetComponentLocation().ToCompactString() : TEXT("none"));
 	HealthComponent->OnDeath.AddUniqueDynamic(this, &AChongtongCannonActor::HandleDeath);
 	if (bSpawnOperatorOnBeginPlay)
 	{
@@ -134,6 +137,20 @@ void AChongtongCannonActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 bool AChongtongCannonActor::ReceiveCombatDamage_Implementation(const FCombatDamageSpec& DamageSpec)
 {
 	return HealthComponent && HealthComponent->ApplyDamage(DamageSpec);
+}
+
+void AChongtongCannonActor::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
+{
+	// The actor origin sits on the battlement the cannon is mounted on, so a visibility trace from
+	// there hits that mesh a few centimetres out and every target reads as blocked. The barrel is
+	// also where shells actually leave from, so it is the honest origin for "can I hit this?".
+	if (Muzzle)
+	{
+		OutLocation = Muzzle->GetComponentLocation();
+		OutRotation = Muzzle->GetComponentRotation();
+		return;
+	}
+	Super::GetActorEyesViewPoint(OutLocation, OutRotation);
 }
 
 void AChongtongCannonActor::SetGateTarget(AActor* NewGateTarget)
@@ -348,7 +365,34 @@ void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sou
 
 AActor* AChongtongCannonActor::SelectTarget() const
 {
-	return TargetingComponent->SelectRandom(TargetingComponent->FindVisibleHostileTargets(FireRange));
+	const TArray<AActor*> Visible = TargetingComponent->FindVisibleHostileTargets(FireRange);
+	if (Visible.IsEmpty())
+	{
+		const TArray<AActor*> InRange = TargetingComponent->FindHostileTargets(FireRange);
+		FString BlockerText;
+		if (!InRange.IsEmpty() && GetWorld())
+		{
+			FVector ViewLocation;
+			FRotator ViewRotation;
+			GetActorEyesViewPoint(ViewLocation, ViewRotation);
+			FVector TargetLocation;
+			FVector TargetExtent;
+			InRange[0]->GetActorBounds(true, TargetLocation, TargetExtent);
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(ChongtongVisibilityDebug), true, this);
+			Params.AddIgnoredActor(this);
+			FHitResult Hit;
+			if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLocation, TargetLocation, ECC_Visibility, Params))
+			{
+				BlockerText = FString::Printf(TEXT(" Sight to %s blocked by %s / %s at %s."),
+					*InRange[0]->GetName(), *GetNameSafe(Hit.GetActor()),
+					Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("?"),
+					*Hit.ImpactPoint.ToCompactString());
+			}
+		}
+		UE_LOG(LogOngseong, Verbose, TEXT("%s: %d hostile(s) within %.0f cm, none visible.%s"),
+			*GetName(), InRange.Num(), FireRange, *BlockerText);
+	}
+	return TargetingComponent->SelectRandom(Visible);
 }
 
 bool AChongtongCannonActor::SpawnMountedOperator()
