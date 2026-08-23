@@ -57,7 +57,7 @@ graph TD
 | Feature 플러그인 | `Implemented` | 콘텐츠 플러그인 및 Runtime C++ 모듈 존재 |
 | `LV_Ongseong` | `Implemented (base)` | `/GF_OngseongCrossbow/Maps/LV_Ongseong` |
 | 옹성 성문 목표 | `Implemented (runtime + placed)` | `BP_OngseongGate`, 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health·파괴 이벤트 |
-| 적 Wave | `Implemented` | 공용 Enemy Pool 기반 유한 Wave(기본 검병 3·궁병 2), 진행/전원 퇴치 이벤트 제공 |
+| 적 Wave | `Implemented` | 공용 Enemy Pool 기반 반복 Wave(검병 10·궁병 10·충차 1), 보병과 충차 전멸 3초 후 180초 종료까지 재시작 |
 | Enemy Pool | `Implemented` | 고정 크기 8, 자동 확장 비활성; Wave 최대 활성 적 6 |
 | 총통 플레이어 조작 | `Implemented (runtime)` | 화약 → 쑤시개 3회 → 대포알 상태 머신, 양손 조준, 양손 트리거 발사, 5발 완료 |
 | 총통 Ally AI | `Implemented` | `BP_AllyChongtong`은 `UChongtongAutomaticFireComponent`를 통해 5초 간격으로 자동 사격; `BP_PlayableChongtong`은 자동 사격을 끄고 VR 장전·양손 조작 사용 |
@@ -121,6 +121,7 @@ flowchart LR
 ### 4.1 확정된 종료 규칙
 
 - 체험 시작과 함께 **180초 방어 타이머**를 시작한다. HUD에는 남은 방어 시간 또는 경과 시간을 명확히 표시한다.
+- 검병 10·궁병 10·충차 1로 구성된 한 Wave가 모두 격파되면 3초 후 같은 구성을 다시 시작한다. 보병만 전멸하거나 충차만 파괴된 상태에서는 다음 Wave를 시작하지 않는다. 성공 또는 실패 상태로 전환되면 예약된 다음 Wave를 취소한다.
 - 적 충차의 공격으로 `AOngseongGateActor`의 Health가 0이 되면 즉시 타이머를 중단하고 **실패**로 전환한다.
 - 타이머가 끝날 때 성문이 생존해 있으면 **성공**이다. 살아 있는 모든 적은 `Retreat` 상태로 전환해 지정된 퇴각 지점으로 이동한 뒤 Pool에 반환한다.
 - 성공 또는 실패를 `UExperienceSubsystem`에 보고한다. 성공은 Main 복귀를 진행하고, 실패는 교육 흐름에 맞게 재시도 또는 보조 안내를 제공한다.
@@ -175,7 +176,7 @@ flowchart LR
 
 1. `[구현]` `AOngseongGateActor`와 `AOngseongDefenseScenarioManager`: 성문 Health/파괴, 180초 성공·실패, 재시도.
 2. `[구현]` `AOngseongRamActor`: 병력과 동시 출발, 대기 지점 접근, 성문 돌진·충돌·복귀 반복. 최종 아트 연결은 남음.
-3. `[구현]` 검병/궁병 구성과 유형별 행동 상태, 궁병 물리 화살·총통 우선 표적·명중률/빗나감·피해를 연결했다.
+3. `[구현]` 검병/궁병 구성과 유형별 행동 상태, 궁병 물리 화살·총통 우선 표적·명중률/빗나감·피해를 연결하고 전멸 후 3초 간격 반복 Wave를 추가했다.
 4. `[구현]` 성공 시 전체 적 퇴각→Pool 반환, 실패 시 전투 중지, 성공 시 `ExperienceSubsystem` 완료→Main 복귀.
 5. `[완료]` 쇠뇌/볼트 BP와 24발 Pool, 궁병 표적/화살 Pool을 레벨에 연결하고 자산 검증 및 옹성 Automation 4종을 통과했다. Android HMD 성능 측정은 별도 범위다.
 
@@ -184,7 +185,7 @@ flowchart LR
 ## 5. 확정된 구현 정책과 별도 범위
 
 1. 쇠뇌는 거치형 양손 조준, 실제 물리 볼트, 12발 탄약, 발사 후 1.25초 자동 재장전을 사용한다.
-2. Wave 기본값은 검병 3·궁병 2이며, 궁병은 총통 우선/보조 목표 순서와 65% 명중률을 사용한다.
+2. Wave 기본값은 검병 10·궁병 10·충차 1이며 보병과 충차 격파 3초 후 180초 종료까지 반복한다. 궁병은 총통 우선/보조 목표 순서와 65% 명중률을 사용한다.
 3. 충차는 파괴 가능하며 지정 성문에 반복 충돌 피해를 준다. 성문 Health 0이 실패의 단일 기준이다.
 4. 성공은 180초 생존 후 적 퇴각과 Main 복귀, 실패는 명확한 HUD 안내 후 6초 자동 재시도다.
 5. 동시 적과 투사체는 고정 Pool로 제한한다. Android 실측 예산, 최종 메시·애니메이션·VFX·SFX·녹음 음성 교체는 별도 범위다.

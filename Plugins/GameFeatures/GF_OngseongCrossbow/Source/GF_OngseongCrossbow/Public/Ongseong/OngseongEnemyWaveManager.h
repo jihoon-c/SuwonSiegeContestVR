@@ -150,11 +150,11 @@ protected:
 	int32 MaxActiveEnemies = 6;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0"))
-	int32 SwordsmenToSpawn = 3;
+	int32 SwordsmenToSpawn = 10;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0"))
-	int32 ArchersToSpawn = 2;
+	int32 ArchersToSpawn = 10;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Wave")
-	int32 TotalEnemiesToSpawn = 5;
+	int32 TotalEnemiesToSpawn = 20;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Wave", meta = (ClampMin = "0.0"))
 	float SpawnSpacing = 250.0f;

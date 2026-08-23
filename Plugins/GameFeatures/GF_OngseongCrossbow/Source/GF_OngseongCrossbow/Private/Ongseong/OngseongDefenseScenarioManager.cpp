@@ -1,6 +1,7 @@
 #include "Ongseong/OngseongDefenseScenarioManager.h"
 
 #include "Core/Experience/ExperienceSubsystem.h"
+#include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/UI/VRHUDComponent.h"
 #include "Gameplay/UI/VRHUDTypes.h"
 #include "Ongseong/OngseongEnemyWaveManager.h"
@@ -20,7 +21,11 @@ void AOngseongDefenseScenarioManager::BeginPlay()
 {
 	Super::BeginPlay();
 	if (GateActor) GateActor->OnGateDestroyed.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
-	if (WaveManager) WaveManager->OnAllEnemiesRetreated.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated);
+	if (WaveManager)
+	{
+		WaveManager->OnAllEnemiesDefeated.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleWaveDefeated);
+		WaveManager->OnAllEnemiesRetreated.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated);
+	}
 	Narration->GateActor = GateActor;
 	Narration->WaveManager = WaveManager;
 	Narration->InitializeNarrationBindings();
@@ -35,6 +40,12 @@ void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlay
 {
 	GetWorldTimerManager().ClearAllTimersForObject(this);
 	if (ActiveRam) ActiveRam->StopRam();
+	if (WaveManager)
+	{
+		WaveManager->OnAllEnemiesDefeated.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleWaveDefeated);
+		WaveManager->OnAllEnemiesRetreated.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated);
+	}
+	if (GateActor) GateActor->OnGateDestroyed.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -42,14 +53,23 @@ bool AOngseongDefenseScenarioManager::StartDefense()
 {
 	if (DefenseState == EOngseongDefenseState::Defending || !IsValid(GateActor) || !IsValid(WaveManager)) return false;
 	RemainingDefenseTime = FMath::Max(1.0f, DefenseDuration);
+	bCurrentInfantryWaveDefeated = false;
+	bCurrentRamDefeated = false;
 	if (!SpawnAndActivateRam()) return false;
+	WaveManager->ResetWave();
 	SetDefenseState(EOngseongDefenseState::Defending);
 	WaveManager->SetObjectiveTarget(GateActor);
+	CurrentWaveNumber = 1;
 	WaveManager->StartSpawning();
 	GetWorldTimerManager().SetTimer(DefenseTimerHandle, this, &AOngseongDefenseScenarioManager::TickDefenseTimer, 1.0f, true);
 	Narration->ReportScenarioEvent(TEXT("ScenarioStarted"), this);
 	UpdateHUDTime();
 	return true;
+}
+
+bool AOngseongDefenseScenarioManager::IsNextWavePending() const
+{
+	return GetWorld() && GetWorldTimerManager().IsTimerActive(NextWaveTimerHandle);
 }
 
 void AOngseongDefenseScenarioManager::RetryDefense()
@@ -58,6 +78,7 @@ void AOngseongDefenseScenarioManager::RetryDefense()
 	if (ActiveRam) { ActiveRam->Destroy(); ActiveRam = nullptr; }
 	if (WaveManager) WaveManager->ResetWave();
 	if (GateActor) GateActor->ResetGate();
+	CurrentWaveNumber = 0;
 	SetDefenseState(EOngseongDefenseState::Idle);
 	StartDefense();
 }
@@ -70,6 +91,10 @@ bool AOngseongDefenseScenarioManager::SpawnAndActivateRam()
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 	ActiveRam = GetWorld()->SpawnActor<AOngseongRamActor>(RamClass, SpawnTransform, Params);
 	if (!ActiveRam) return false;
+	if (UHealthComponent* RamHealth = ActiveRam->FindComponentByClass<UHealthComponent>())
+	{
+		RamHealth->OnDeath.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleRamDefeated);
+	}
 	ActiveRam->ActivateRam(GateActor);
 	return true;
 }
@@ -86,6 +111,7 @@ void AOngseongDefenseScenarioManager::SucceedDefense()
 {
 	if (DefenseState != EOngseongDefenseState::Defending) return;
 	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
+	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
 	if (ActiveRam) ActiveRam->StopRam();
 	SetDefenseState(EOngseongDefenseState::Succeeded);
 	Narration->ReportScenarioEvent(TEXT("DefenseSucceeded"), this);
@@ -118,6 +144,7 @@ void AOngseongDefenseScenarioManager::HandleGateDestroyed()
 {
 	if (DefenseState != EOngseongDefenseState::Defending) return;
 	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
+	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
 	if (ActiveRam) ActiveRam->StopRam();
 	if (WaveManager) WaveManager->ReleaseAllEnemies();
 	SetDefenseState(EOngseongDefenseState::Failed);
@@ -139,6 +166,64 @@ void AOngseongDefenseScenarioManager::HandleGateDestroyed()
 void AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated()
 {
 	if (DefenseState == EOngseongDefenseState::Succeeded) FinishSuccessfulRetreat();
+}
+
+void AOngseongDefenseScenarioManager::HandleWaveDefeated(const int32)
+{
+	bCurrentInfantryWaveDefeated = true;
+	TryScheduleNextWave();
+}
+
+void AOngseongDefenseScenarioManager::HandleRamDefeated(UHealthComponent* DeadHealth, const FCombatDamageSpec&)
+{
+	if (!IsValid(DeadHealth) || DeadHealth->GetOwner() != ActiveRam)
+	{
+		return;
+	}
+
+	AOngseongRamActor* DefeatedRam = ActiveRam;
+	ActiveRam = nullptr;
+	bCurrentRamDefeated = true;
+	DefeatedRam->Destroy();
+	TryScheduleNextWave();
+}
+
+void AOngseongDefenseScenarioManager::TryScheduleNextWave()
+{
+	if (DefenseState != EOngseongDefenseState::Defending || !bRepeatWavesDuringDefense ||
+		RemainingDefenseTime <= 0.0f || !bCurrentInfantryWaveDefeated || !bCurrentRamDefeated)
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
+	GetWorldTimerManager().SetTimer(
+		NextWaveTimerHandle,
+		this,
+		&AOngseongDefenseScenarioManager::StartNextWave,
+		FMath::Max(0.1f, InterWaveDelay),
+		false);
+}
+
+void AOngseongDefenseScenarioManager::StartNextWave()
+{
+	if (DefenseState != EOngseongDefenseState::Defending || !bRepeatWavesDuringDefense ||
+		RemainingDefenseTime <= 0.0f || !IsValid(WaveManager) || !IsValid(GateActor))
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(NextWaveTimerHandle);
+	WaveManager->ResetWave();
+	WaveManager->SetObjectiveTarget(GateActor);
+	bCurrentInfantryWaveDefeated = false;
+	bCurrentRamDefeated = false;
+	if (!SpawnAndActivateRam())
+	{
+		return;
+	}
+	++CurrentWaveNumber;
+	WaveManager->StartSpawning();
 }
 
 void AOngseongDefenseScenarioManager::SetDefenseState(const EOngseongDefenseState NewState)

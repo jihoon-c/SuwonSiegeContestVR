@@ -2,7 +2,7 @@
 
 **조사 기준일**: 2026-08-22 · **코드 기준**: 현재 작업 트리
 **계층**: Game Feature — `GF_OngseongCrossbow` (+ Shared Gameplay 의존)
-**전체 상태**: `Status: Implemented (final content/HMD verification pending)` — 총통·쇠뇌·검병/궁병 원거리 Wave·충차·성문·180초 방어/실패 재시도 흐름과 레벨 연결이 완료되었다. 최종 메시·애니메이션·VFX/SFX·녹음 음성 교체 및 실제 HMD 검증만 별도 범위로 남아 있다.
+**전체 상태**: `Status: Implemented (final content/HMD verification pending)` — 총통·쇠뇌·검병/궁병 180초 반복 Wave·충차·성문·방어/실패 재시도 흐름과 레벨 연결이 완료되었다. 최종 메시·애니메이션·VFX/SFX·녹음 음성 교체 및 실제 HMD 검증만 별도 범위로 남아 있다.
 
 ---
 
@@ -38,7 +38,7 @@
 | 웅성 구조물 | `Implemented (runtime + placed)` | `BP_OngseongGate`/`AOngseongGateActor`; 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health 비율·파괴 이벤트, 재시도 Reset. `LV_Ongseong`의 임시 성문 Actor 교체 완료 |
 | 쇠뇌 Actor | `Implemented (runtime + placed)` | `AOngseongCrossbowActor`/`BP_OngseongCrossbow`; 거치형 양손 조준, 실제 볼트, 12발 탄약, 자동 재장전, 플레이어 Faction, 24발 고정 Pool |
 | 충차 Actor | `Implemented (runtime; placeholder art)` | `AOngseongRamActor`; 완성 상태로 병력과 동시 전진, 성문 앞 대기 지점 도착 후 돌진·충돌 피해·복귀 반복, 파괴 시 정지. 임시 Cube 표현 |
-| 적 Wave 시스템 | `Implemented` | 기본 검병 3·궁병 2, 궁병 총통 우선 표적/보조 목표, 65% 명중·시각적 빗나감, 물리 화살 Pool, 사망/퇴각 시 반환 |
+| 적 Wave 시스템 | `Implemented` | Wave당 검병 10·궁병 10·충차 1, 보병과 충차 전멸 3초 후 같은 구성을 180초 동안 반복, 궁병 총통 우선 표적/보조 목표, 65% 명중·시각적 빗나감, 물리 화살 Pool, 사망/퇴각 시 반환 |
 | 방어 Scenario Manager | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`; 180초 타이머, 충차 Spawn, 성문 파괴 실패, 명확한 MM:SS HUD, 실패 6초 자동 재시도, 적 퇴각 후 Experience 완료 |
 | 검병·궁병 | `Implemented (placeholder art)` | `BP_OngseongSwordsman`/`BP_OngseongArcher`; 공용 병사 부모, 유형별 Pool/상태, 궁병 `ArcherAdvance/ArcherFiring` 원거리 전투 구현 |
 | Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
@@ -110,7 +110,7 @@ Feature를 참조하지 않고 reflection-compatible 그랩/트리거 및 mounte
 
 ### 4.2 적 Wave — 확정
 
-* 기본 검병 3·궁병 2, 고정 크기 Enemy Pool 8
+* Wave당 검병 10·궁병 10·충차 1, 보병과 충차 전멸 3초 후 180초 종료까지 반복, 고정 크기 Enemy Pool 8과 최대 동시 보병 6
 * 궁병은 총통 우선, 보조 목표 fallback, 65% 명중률과 물리 화살 사용
 * 짧은 체험에 맞춘 단순 이동/사격 상태로 Feature BT 추가 불필요
 
@@ -147,7 +147,7 @@ Feature를 참조하지 않고 reflection-compatible 그랩/트리거 및 mounte
 
 1. Game Feature Plugin과 `ExperienceSubsystem` 연결 완료
 2. Shared Health/Damage/Faction/Character/Projectile/Pool 계약 적용 완료
-3. 기본 Wave 검병 3·궁병 2, Enemy Pool 8, 원거리 Projectile Pool 24로 확정
+3. 기본 Wave 검병 10·궁병 10·충차 1 반복, Enemy Pool 8, 최대 동시 보병 6, 원거리 Projectile Pool 24로 확정
 4. Runtime 모듈 의존성과 Game/Editor 빌드 확인 완료
 
 ---

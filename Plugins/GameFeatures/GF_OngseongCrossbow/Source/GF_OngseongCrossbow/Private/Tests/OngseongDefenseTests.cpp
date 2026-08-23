@@ -28,8 +28,11 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 	AOngseongRamActor* Ram = World->SpawnActor<AOngseongRamActor>(FVector::ZeroVector, FRotator::ZeroRotator);
 	if (TestNotNull(TEXT("Gate is spawned"), Gate) && TestNotNull(TEXT("Scenario is spawned"), Scenario))
 	{
-		TestEqual(TEXT("Default wave contains three swordsmen"), Wave->GetSwordsmenToSpawn(), 3);
-		TestEqual(TEXT("Default wave contains two archers"), Wave->GetArchersToSpawn(), 2);
+		TestEqual(TEXT("Default wave contains ten swordsmen"), Wave->GetSwordsmenToSpawn(), 10);
+		TestEqual(TEXT("Default wave contains ten archers"), Wave->GetArchersToSpawn(), 10);
+		TestTrue(TEXT("Defense repeats cleared waves by default"), Scenario->ShouldRepeatWavesDuringDefense());
+		TestEqual(TEXT("Default inter-wave delay is three seconds"), Scenario->GetInterWaveDelay(), 3.0f);
+		TestEqual(TEXT("No wave is counted while the scenario is idle"), Scenario->GetCurrentWaveNumber(), 0);
 
 		FCombatDamageSpec Damage;
 		Damage.Amount = 25.0f;
@@ -56,6 +59,53 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Ram impact damages the gate once"), Gate->GetHealthComponent()->GetCurrentHealth(), 25.0f);
 			Ram->Tick(10.0f);
 			TestEqual(TEXT("Ram begins another charge after returning"), Ram->GetRamState(), EOngseongRamState::Charging);
+		}
+
+		TestTrue(TEXT("Configured defense starts its first wave"), Scenario->StartDefense());
+		TestEqual(TEXT("The initial group is wave one"), Scenario->GetCurrentWaveNumber(), 1);
+		struct FWaveDefeatedParams
+		{
+			int32 DefeatedEnemies = 20;
+		} WaveDefeatedParams;
+		if (UFunction* WaveDefeatedFunction = Scenario->FindFunction(TEXT("HandleWaveDefeated")))
+		{
+			Scenario->ProcessEvent(WaveDefeatedFunction, &WaveDefeatedParams);
+			TestFalse(TEXT("Infantry alone does not complete a wave that still has a ram"), Scenario->IsNextWavePending());
+			AOngseongRamActor* FirstWaveRam = Scenario->GetActiveRam();
+			if (TestNotNull(TEXT("Wave one contains a ram"), FirstWaveRam))
+			{
+				FCombatDamageSpec FatalRamDamage;
+				FatalRamDamage.Amount = 1000.0f;
+				FatalRamDamage.bIgnoreFaction = true;
+				FirstWaveRam->ReceiveCombatDamage_Implementation(FatalRamDamage);
+				TestTrue(TEXT("Defeating infantry and ram schedules the next wave"), Scenario->IsNextWavePending());
+			}
+			if (UFunction* StartNextWaveFunction = Scenario->FindFunction(TEXT("StartNextWave")))
+			{
+				Scenario->ProcessEvent(StartNextWaveFunction, nullptr);
+				TestEqual(TEXT("The scheduled callback starts wave two"), Scenario->GetCurrentWaveNumber(), 2);
+				TestNotNull(TEXT("Wave two spawns a fresh ram"), Scenario->GetActiveRam());
+				TestFalse(TEXT("Starting the next wave consumes its pending timer"), Scenario->IsNextWavePending());
+			}
+
+			Scenario->ProcessEvent(WaveDefeatedFunction, &WaveDefeatedParams);
+			if (AOngseongRamActor* SecondWaveRam = Scenario->GetActiveRam())
+			{
+				FCombatDamageSpec FatalRamDamage;
+				FatalRamDamage.Amount = 1000.0f;
+				FatalRamDamage.bIgnoreFaction = true;
+				SecondWaveRam->ReceiveCombatDamage_Implementation(FatalRamDamage);
+			}
+			TestTrue(TEXT("A later fully cleared group schedules another wave"), Scenario->IsNextWavePending());
+			if (UFunction* GateDestroyedFunction = Scenario->FindFunction(TEXT("HandleGateDestroyed")))
+			{
+				Scenario->ProcessEvent(GateDestroyedFunction, nullptr);
+				TestFalse(TEXT("Failure cancels a pending repeated wave"), Scenario->IsNextWavePending());
+			}
+		}
+		else
+		{
+			AddError(TEXT("HandleWaveDefeated must remain bound as a scenario event handler"));
 		}
 	}
 
