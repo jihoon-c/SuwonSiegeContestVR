@@ -45,6 +45,7 @@ void AGameplayProjectileActor::LifeSpanExpired()
 
 void AGameplayProjectileActor::OnAcquiredFromPool_Implementation()
 {
+	CollisionComponent->ClearMoveIgnoreActors();
 	DamageSpec = FCombatDamageSpec();
 	ProjectileMovement->StopMovementImmediately();
 	ProjectileMovement->Deactivate();
@@ -53,6 +54,7 @@ void AGameplayProjectileActor::OnAcquiredFromPool_Implementation()
 
 void AGameplayProjectileActor::OnReleasedToPool_Implementation()
 {
+	CollisionComponent->ClearMoveIgnoreActors();
 	ProjectileMovement->StopMovementImmediately();
 	ProjectileMovement->Deactivate();
 	DamageSpec = FCombatDamageSpec();
@@ -73,6 +75,8 @@ void AGameplayProjectileActor::SetDamageSpec(const FCombatDamageSpec& InDamageSp
 	{
 		DamageSpec.DamageCauser = this;
 	}
+	if (IsValid(DamageSpec.InstigatorActor)) CollisionComponent->IgnoreActorWhenMoving(DamageSpec.InstigatorActor, true);
+	if (IsValid(GetOwner())) CollisionComponent->IgnoreActorWhenMoving(GetOwner(), true);
 }
 
 void AGameplayProjectileActor::HandleProjectileHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)

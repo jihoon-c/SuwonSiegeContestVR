@@ -1,9 +1,59 @@
 #include "Ongseong/ChongtongProjectileActor.h"
 
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SphereComponent.h"
+#include "Engine/OverlapResult.h"
+#include "Gameplay/Combat/CombatDamageLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 
 AChongtongProjectileActor::AChongtongProjectileActor()
 {
 	ProjectileMovement->ProjectileGravityScale = 0.15f;
 	ProjectileMovement->MaxSpeed = 8000.0f;
+	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
+	ProjectileMesh->SetupAttachment(CollisionComponent);
+	ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ProjectileMesh->SetRelativeScale3D(FVector(0.12f));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> TempExplosion(TEXT("/Niagara/DefaultAssets/Templates/Systems/SimpleExplosion.SimpleExplosion"));
+	static ConstructorHelpers::FObjectFinder<USoundBase> TempSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
+	ProjectileMesh->SetStaticMesh(Sphere.Object);
+	ExplosionEffect = TempExplosion.Object;
+	ExplosionSound = TempSound.Object;
+}
+
+void AChongtongProjectileActor::BeginPlay()
+{
+	Super::BeginPlay();
+	OnProjectileImpact.AddUniqueDynamic(this, &AChongtongProjectileActor::HandleExplosion);
+}
+
+void AChongtongProjectileActor::HandleExplosion(AGameplayProjectileActor* Projectile, AActor* HitActor, const FHitResult Hit)
+{
+	const FVector Location = Hit.ImpactPoint.IsNearlyZero() ? GetActorLocation() : FVector(Hit.ImpactPoint);
+	if (ExplosionEffect) UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, ExplosionEffect, Location);
+	if (ExplosionSound) UGameplayStatics::PlaySoundAtLocation(this, ExplosionSound, Location, 1.0f, 0.7f);
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_Pawn);
+	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ChongtongExplosion), false, this);
+	GetWorld()->OverlapMultiByObjectType(Overlaps, Location, FQuat::Identity, Objects, FCollisionShape::MakeSphere(ExplosionRadius), Params);
+	TSet<AActor*> DamagedActors;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AActor* Target = Overlap.GetActor();
+		if (!IsValid(Target) || Target == HitActor || Target == GetOwner() || DamagedActors.Contains(Target)) continue;
+		DamagedActors.Add(Target);
+		FCombatDamageSpec ExplosionDamage = DamageSpec;
+		ExplosionDamage.Amount = AreaDamage;
+		ExplosionDamage.DamageCauser = this;
+		UCombatDamageLibrary::ApplyCombatDamage(Target, ExplosionDamage);
+	}
 }

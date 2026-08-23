@@ -12,4 +12,20 @@ class GF_ONGSEONGCROSSBOW_API AChongtongProjectileActor : public AGameplayProjec
 
 public:
 	AChongtongProjectileActor();
+	virtual void BeginPlay() override;
+
+protected:
+	UFUNCTION()
+	void HandleExplosion(AGameplayProjectileActor* Projectile, AActor* HitActor, FHitResult Hit);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	TObjectPtr<class UStaticMeshComponent> ProjectileMesh;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Explosion", meta=(ClampMin="0.0"))
+	float ExplosionRadius = 350.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Explosion", meta=(ClampMin="0.0"))
+	float AreaDamage = 80.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	TObjectPtr<class UNiagaraSystem> ExplosionEffect;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	TObjectPtr<class USoundBase> ExplosionSound;
 };

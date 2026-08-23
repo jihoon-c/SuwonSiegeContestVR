@@ -32,7 +32,7 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 | 음성 인식 | `Planned` | **관련 플러그인·SDK·C++ 모듈이 전혀 없다.** 기술 선정 자체가 미완 |
 | Experience 전환 | `Implemented` | `UExperienceSubsystem`의 Soft Level `OpenLevel`, 상태 전이, Scenario 완료 Bridge 구현 |
 | 진행도 관리 | `Partial` | Experience 완료 목록과 Main Scenario 복귀 체크포인트를 세션 동안 복원. SaveGame 영속화는 없음 |
-| 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD와 후속 World Widget 표시 영역 구현 |
+| 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD, 후속 World Widget, `UVRHUDComponent` 기반 목표·진행도·Prompt·알림 채널 및 `WBP_VRHUD` 구현 |
 
 ### 새로 구현된 Core 요소
 

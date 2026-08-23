@@ -5,6 +5,7 @@
 #include "FirePitActor.generated.h"
 
 class UScenarioInteractableComponent;
+class USoundBase;
 class USphereComponent;
 class UStaticMeshComponent;
 
@@ -44,6 +45,10 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UScenarioInteractableComponent> IgniteTorchScenarioInteractor;
+
+    /** Sound played once after a scenario-approved torch ignition. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Singijeon|Fire Pit|Audio")
+    TObjectPtr<USoundBase> TorchIgnitionSound;
 
     /** Local offset that accounts for the imported Fire Pit mesh pivot. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Singijeon|Fire Pit|Visual")

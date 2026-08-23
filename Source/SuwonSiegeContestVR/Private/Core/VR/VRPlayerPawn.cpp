@@ -33,7 +33,8 @@
 
 AVRPlayerPawn::AVRPlayerPawn()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -221,6 +222,49 @@ void AVRPlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	}
 
 	ConfigureLocomotionInput();
+}
+
+void AVRPlayerPawn::Tick(const float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (!MountedCameraAnchor.IsValid() || !VRCamera)
+	{
+		SetActorTickEnabled(false);
+		return;
+	}
+
+	const FTransform AnchorTransform = MountedCameraAnchor->GetComponentTransform();
+	const FVector CameraOffset = VRCamera->GetComponentLocation() - GetActorLocation();
+	SetActorLocationAndRotation(
+		AnchorTransform.GetLocation() - CameraOffset,
+		FRotator(0.0f, AnchorTransform.Rotator().Yaw, 0.0f),
+		false, nullptr, ETeleportType::TeleportPhysics);
+}
+
+void AVRPlayerPawn::EnterMountedInteraction(USceneComponent* CameraAnchor)
+{
+	if (!IsValid(CameraAnchor))
+	{
+		return;
+	}
+
+	bMoveEnabledBeforeMountedInteraction = bEnableMove;
+	MountedCameraAnchor = CameraAnchor;
+	bEnableMove = false;
+	SetActorTickEnabled(true);
+	Tick(0.0f);
+}
+
+void AVRPlayerPawn::ExitMountedInteraction(USceneComponent* CameraAnchor)
+{
+	if (CameraAnchor && MountedCameraAnchor.Get() != CameraAnchor)
+	{
+		return;
+	}
+
+	MountedCameraAnchor.Reset();
+	bEnableMove = bMoveEnabledBeforeMountedInteraction;
+	SetActorTickEnabled(false);
 }
 
 void AVRPlayerPawn::BeginPlay()

@@ -31,6 +31,10 @@ AFirePitActor::AFirePitActor()
     IgniteTorchScenarioInteractor->SupportedInteractionTypes = {
         EScenarioInteractionType::Trigger
     };
+
+    static ConstructorHelpers::FObjectFinder<USoundBase> LightFireSound(
+        TEXT("/GF_Singijeon/Asset/Sound/Effect/lightfire.lightfire"));
+    TorchIgnitionSound = LightFireSound.Succeeded() ? LightFireSound.Object : nullptr;
 }
 
 void AFirePitActor::BeginPlay()
@@ -98,8 +102,10 @@ bool AFirePitActor::TryIgniteTorch(AActor* Candidate)
         Torch->SetIgnitionActive(false);
         return false;
     }
-    static ConstructorHelpers::FObjectFinder<USoundBase> LightFireSound(TEXT("/GF_Singijeon/Asset/Sound/Effect/lightfire.lightfire"));
-    if (LightFireSound.Succeeded()) UGameplayStatics::PlaySoundAtLocation(this, LightFireSound.Object, Torch->GetActorLocation());
+    if (TorchIgnitionSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, TorchIgnitionSound, Torch->GetActorLocation());
+    }
     OnTorchIgnited.Broadcast(Torch);
     return true;
 }

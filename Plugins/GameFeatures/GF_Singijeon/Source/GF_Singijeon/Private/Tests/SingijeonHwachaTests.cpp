@@ -277,7 +277,7 @@ bool FSingijeonHwachaAutoFillGridConfigurationTest::RunTest(const FString& Param
     if (Hwacha)
     {
         TestEqual(TEXT("Default auto-fill capacity is 6 x 15"), Hwacha->GetAmmunitionCapacity(), 90);
-        TestNull(TEXT("Arrow launch sound is optional for each placed Hwacha"), Hwacha->GetArrowLaunchSound());
+        TestNotNull(TEXT("Hwacha has the project default arrow launch sound"), Hwacha->GetArrowLaunchSound());
         UInstancedStaticMeshComponent* Instances = Hwacha->FindComponentByClass<UInstancedStaticMeshComponent>();
         TestNotNull(TEXT("Hwacha owns an Instanced Static Mesh component"), Instances);
         TestEqual(TEXT("Hwacha starts without loaded ammunition"), Hwacha->GetLoadedAmmunitionCount(), 0);

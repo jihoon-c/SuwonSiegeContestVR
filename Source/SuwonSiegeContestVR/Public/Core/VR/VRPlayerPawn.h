@@ -25,7 +25,15 @@ class SUWONSIEGECONTESTVR_API AVRPlayerPawn : public APawn
 
 public:
 	AVRPlayerPawn();
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+
+	/** Temporarily anchors the HMD camera to a mounted interaction such as the Chongtong. */
+	UFUNCTION(BlueprintCallable, Category = "VR|Mounted Interaction")
+	void EnterMountedInteraction(USceneComponent* CameraAnchor);
+
+	UFUNCTION(BlueprintCallable, Category = "VR|Mounted Interaction")
+	void ExitMountedInteraction(USceneComponent* CameraAnchor = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Narration")
 	void DismissNarrationWidget(bool bContinueSequence = true);
@@ -207,7 +215,9 @@ protected:
 	bool bTeleportTraceActive = false;
 	bool bValidTeleportLocation = false;
 	bool bTurnLatched = false;
+	bool bMoveEnabledBeforeMountedInteraction = true;
 	FVector ProjectedTeleportLocation = FVector::ZeroVector;
+	TWeakObjectPtr<USceneComponent> MountedCameraAnchor;
 
 	/** Distance and height can be tuned per Blueprint for headset comfort. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
