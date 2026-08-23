@@ -16,15 +16,15 @@ UNokroNarrationComponent::UNokroNarrationComponent()
 		Binding.NarrationRow = FName(Row);
 		Binding.bPlayOnce = bOnce;
 	};
-	Add(TEXT("ScenarioStarted"), TEXT("NK_01"));
+	Add(TEXT("ScenarioStarted"), TEXT("NK_31"));
 	Add(TEXT("HandleGrabbed"), TEXT("NK_09"));
 	Add(TEXT("HeightAdjusted"), TEXT("NK_12"));
 	Add(TEXT("DirectionAdjusted"), TEXT("NK_16"));
-	Add(TEXT("PlacementSucceeded"), TEXT("NK_18"), false);
-	Add(TEXT("PlacementFailed"), TEXT("NK_21"), false);
-	Add(TEXT("Progress"), TEXT("NK_24"), false);
-	Add(TEXT("LastStone"), TEXT("NK_26"));
-	Add(TEXT("ScenarioCompleted"), TEXT("NK_28"));
+	Add(TEXT("PlacementSucceeded"), TEXT("NK_17"));
+	Add(TEXT("PlacementFailed"), TEXT("NK_20"), false);
+	Add(TEXT("Progress"), TEXT("NK_23"), false);
+	Add(TEXT("LastStone"), TEXT("NK_25"));
+	Add(TEXT("ScenarioCompleted"), TEXT("NK_27"));
 }
 
 bool UNokroNarrationComponent::InitializeNarration()
@@ -36,8 +36,21 @@ bool UNokroNarrationComponent::InitializeNarration()
 	if (NarrationSequence)
 	{
 		NarrationSequence->OnSequenceFinished.AddUniqueDynamic(this, &ThisClass::HandleSequenceFinished);
+		NarrationSequence->OnNarrationStarted.AddUniqueDynamic(this, &ThisClass::HandleNarrationStarted);
+		NarrationSequence->OnNarrationFinished.AddUniqueDynamic(this, &ThisClass::HandleNarrationFinished);
 	}
 	return NarrationSequence != nullptr;
+}
+
+void UNokroNarrationComponent::ResetNarrationState()
+{
+	if (bOwnsCurrentNarration && NarrationSequence)
+	{
+		NarrationSequence->StopSequence();
+	}
+	PendingRows.Reset();
+	PlayedOnceEvents.Reset();
+	bOwnsCurrentNarration = false;
 }
 
 void UNokroNarrationComponent::ReportScenarioEvent(const FName EventName)
@@ -73,11 +86,23 @@ void UNokroNarrationComponent::HandleSequenceFinished()
 	TryPlayNext();
 }
 
+void UNokroNarrationComponent::HandleNarrationStarted(const FName RowName)
+{
+	OnNarrationRowStarted.Broadcast(RowName);
+}
+
+void UNokroNarrationComponent::HandleNarrationFinished(const FName RowName)
+{
+	OnNarrationRowFinished.Broadcast(RowName);
+}
+
 void UNokroNarrationComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (NarrationSequence)
 	{
 		NarrationSequence->OnSequenceFinished.RemoveDynamic(this, &ThisClass::HandleSequenceFinished);
+		NarrationSequence->OnNarrationStarted.RemoveDynamic(this, &ThisClass::HandleNarrationStarted);
+		NarrationSequence->OnNarrationFinished.RemoveDynamic(this, &ThisClass::HandleNarrationFinished);
 	}
 	PendingRows.Reset();
 	Super::EndPlay(EndPlayReason);

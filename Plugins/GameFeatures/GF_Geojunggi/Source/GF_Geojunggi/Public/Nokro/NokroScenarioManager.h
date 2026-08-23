@@ -19,6 +19,7 @@ enum class ENokroScenarioState : uint8
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNokroRepairProgress, int32, RepairedCount, int32, TotalCount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnNokroPlacementResult, bool, bSucceeded);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnNokroActiveTargetChanged, ANokroRepairTargetActor*, ActiveTarget, int32, TargetIndex);
 
 /** Owns the repair targets, validation/reset loop, shared HUD/narration, and Experience completion. */
 UCLASS(Blueprintable)
@@ -49,10 +50,15 @@ public:
 	UFUNCTION(BlueprintPure, Category="Nokro|Scenario")
 	ENokroScenarioState GetScenarioState() const { return ScenarioState; }
 
+	UFUNCTION(BlueprintPure, Category="Nokro|Scenario")
+	ANokroRepairTargetActor* GetActiveRepairTarget() const;
+
 	UPROPERTY(BlueprintAssignable, Category="Nokro|Events")
 	FOnNokroRepairProgress OnRepairProgress;
 	UPROPERTY(BlueprintAssignable, Category="Nokro|Events")
 	FOnNokroPlacementResult OnPlacementResult;
+	UPROPERTY(BlueprintAssignable, Category="Nokro|Events")
+	FOnNokroActiveTargetChanged OnActiveTargetChanged;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Nokro|Setup")
 	TObjectPtr<ANokroCraneActor> Crane;
@@ -72,6 +78,11 @@ public:
 	bool bCompleteExperienceOnFinish = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nokro|Scenario", meta=(ClampMin="0.0"))
 	float ExperienceCompletionDelay = 20.0f;
+	/** Keep the yellow target hidden until the narration explicitly introduces it. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nokro|Scenario")
+	bool bRevealTargetWithNarration = true;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nokro|Scenario")
+	FName TargetRevealNarrationRow = TEXT("NK_06");
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Nokro|Narration")
 	TObjectPtr<UNokroNarrationComponent> Narration;
 
@@ -81,6 +92,8 @@ private:
 	void UpdateHUD();
 	void CompleteScenario();
 	void CompleteExperience();
+	void ActivateTargetAtIndex(int32 TargetIndex, bool bShowMarker);
+	void ActivateNextUnrepairedTarget(bool bShowMarker);
 
 	UFUNCTION()
 	void HandlePlacementRequested(FTransform StoneTransform);
@@ -90,10 +103,15 @@ private:
 	void HandleHeightAdjusted();
 	UFUNCTION()
 	void HandleDirectionAdjusted();
+	UFUNCTION()
+	void HandleNarrationRowStarted(FName RowName);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVRHUDComponent> VRHUD;
 	UPROPERTY(VisibleInstanceOnly, Category="Nokro|Scenario")
 	ENokroScenarioState ScenarioState = ENokroScenarioState::Idle;
+	UPROPERTY(VisibleInstanceOnly, Category="Nokro|Scenario")
+	int32 ActiveTargetIndex = INDEX_NONE;
+	bool bTargetsRevealed = false;
 	FTimerHandle ExperienceCompletionTimer;
 };

@@ -7,6 +7,8 @@
 class UBoxComponent;
 class UStaticMeshComponent;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnNokroTargetStateChanged);
+
 /** A yellow damaged-wall marker and its final placed stone. */
 UCLASS(Blueprintable)
 class GF_GEOJUNGGI_API ANokroRepairTargetActor : public AActor
@@ -25,8 +27,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Nokro|Repair")
 	void ResetRepair();
 
+	/** Only the current repair point is highlighted and eligible for placement. */
+	UFUNCTION(BlueprintCallable, Category="Nokro|Repair")
+	void SetTargetActive(bool bActive);
+
 	UFUNCTION(BlueprintPure, Category="Nokro|Repair")
 	bool IsRepaired() const { return bRepaired; }
+
+	UFUNCTION(BlueprintPure, Category="Nokro|Repair")
+	bool IsTargetActive() const { return bTargetActive; }
 
 	UFUNCTION(BlueprintPure, Category="Nokro|Repair")
 	FTransform GetPlacementTransform() const;
@@ -46,7 +55,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nokro|Validation", meta=(ClampMin="0.0", ClampMax="180.0"))
 	float YawTolerance = 18.0f;
 
+	/** Designer hooks for replacing the placeholder highlight/placement particles without changing flow code. */
+	UPROPERTY(BlueprintAssignable, Category="Nokro|Events")
+	FOnNokroTargetStateChanged OnTargetActivated;
+
+	UPROPERTY(BlueprintAssignable, Category="Nokro|Events")
+	FOnNokroTargetStateChanged OnRepairCompleted;
+
+	/** Implement in BP_NokroRepairTarget to swap the target-highlight particle. */
+	UFUNCTION(BlueprintImplementableEvent, Category="Nokro|FX", meta=(DisplayName="On Target Activated FX"))
+	void BP_OnTargetActivatedFX();
+
+	/** Implement in BP_NokroRepairTarget to swap the stone-placement particle. */
+	UFUNCTION(BlueprintImplementableEvent, Category="Nokro|FX", meta=(DisplayName="On Repair Completed FX"))
+	void BP_OnRepairCompletedFX();
+
 private:
+	void RefreshVisualState();
+
 	UPROPERTY(VisibleInstanceOnly, Category="Nokro|Repair")
 	bool bRepaired = false;
+
+	UPROPERTY(VisibleInstanceOnly, Category="Nokro|Repair")
+	bool bTargetActive = false;
 };

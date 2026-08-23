@@ -37,6 +37,9 @@ public:
 	void ResetCarriedStone(bool bShowStone = true);
 
 	UFUNCTION(BlueprintCallable, Category="Nokro|Control")
+	void SetPlacementEnabled(bool bEnabled) { bPlacementEnabled = bEnabled; }
+
+	UFUNCTION(BlueprintCallable, Category="Nokro|Control")
 	void NotifyHandleGrabbed();
 
 	/** Captures the right-stick axis at higher input priority while any hand operates the crane. */
@@ -89,6 +92,9 @@ public:
 	float RotationSpeedDegrees = 45.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nokro|Control", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float JoystickDeadZone = 0.2f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Nokro|Control")
+	bool bPlacementEnabled = false;
 
 private:
 	float ReadRotationJoystick() const;

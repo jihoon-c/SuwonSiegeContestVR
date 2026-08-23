@@ -31,13 +31,16 @@ void ANokroScenarioManager::BeginPlay()
 	DiscoverOrSpawnLayout();
 	BindCrane();
 	if (APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0)) VRHUD = Pawn->FindComponentByClass<UVRHUDComponent>();
-	Narration->InitializeNarration();
+	const bool bNarrationAvailable = Narration->InitializeNarration();
+	Narration->OnNarrationRowStarted.AddUniqueDynamic(this, &ThisClass::HandleNarrationRowStarted);
+	if (!bNarrationAvailable) bRevealTargetWithNarration = false;
 	if (bAutoStart) StartScenario();
 }
 
 void ANokroScenarioManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearAllTimersForObject(this);
+	Narration->OnNarrationRowStarted.RemoveDynamic(this, &ThisClass::HandleNarrationRowStarted);
 	if (Crane)
 	{
 		Crane->OnPlacementRequested.RemoveDynamic(this, &ThisClass::HandlePlacementRequested);
@@ -96,10 +99,17 @@ void ANokroScenarioManager::BindCrane()
 bool ANokroScenarioManager::StartScenario()
 {
 	if (!IsValid(Crane) || RepairTargets.IsEmpty()) return false;
+	RepairTargets.RemoveAll([](const TObjectPtr<ANokroRepairTargetActor>& Target) { return !IsValid(Target); });
+	if (RepairTargets.IsEmpty()) return false;
 	GetWorldTimerManager().ClearTimer(ExperienceCompletionTimer);
 	for (ANokroRepairTargetActor* Target : RepairTargets) if (Target) Target->ResetRepair();
 	Crane->ResetCarriedStone(true);
+	Crane->SetPlacementEnabled(false);
 	ScenarioState = ENokroScenarioState::Repairing;
+	ActiveTargetIndex = INDEX_NONE;
+	bTargetsRevealed = !bRevealTargetWithNarration;
+	ActivateNextUnrepairedTarget(bTargetsRevealed);
+	Narration->ResetNarrationState();
 	Narration->ReportScenarioEvent(TEXT("ScenarioStarted"));
 	if (RepairTargets.Num() == 1) Narration->ReportScenarioEvent(TEXT("LastStone"));
 	UpdateHUD();
@@ -116,15 +126,8 @@ void ANokroScenarioManager::ResetScenario()
 bool ANokroScenarioManager::TryPlaceStoneAtTransform(const FTransform& StoneTransform)
 {
 	if (ScenarioState != ENokroScenarioState::Repairing) return false;
-	ANokroRepairTargetActor* MatchedTarget = nullptr;
-	for (ANokroRepairTargetActor* Target : RepairTargets)
-	{
-		if (IsValid(Target) && Target->IsStoneWithinTolerance(StoneTransform))
-		{
-			MatchedTarget = Target;
-			break;
-		}
-	}
+	ANokroRepairTargetActor* MatchedTarget = GetActiveRepairTarget();
+	if (!IsValid(MatchedTarget) || !MatchedTarget->IsStoneWithinTolerance(StoneTransform)) MatchedTarget = nullptr;
 
 	if (!MatchedTarget)
 	{
@@ -155,12 +158,45 @@ bool ANokroScenarioManager::TryPlaceStoneAtTransform(const FTransform& StoneTran
 	else
 	{
 		Crane->ResetCarriedStone(true);
-		Narration->ReportScenarioEvent(TEXT("PlacementSucceeded"));
-		if (Total - Repaired == 1) Narration->ReportScenarioEvent(TEXT("LastStone"));
+		ActivateNextUnrepairedTarget(true);
+		if (Repaired == 1) Narration->ReportScenarioEvent(TEXT("PlacementSucceeded"));
 		else Narration->ReportScenarioEvent(TEXT("Progress"));
+		if (Total - Repaired == 1) Narration->ReportScenarioEvent(TEXT("LastStone"));
 		UpdateHUD();
 	}
 	return true;
+}
+
+ANokroRepairTargetActor* ANokroScenarioManager::GetActiveRepairTarget() const
+{
+	return RepairTargets.IsValidIndex(ActiveTargetIndex) ? RepairTargets[ActiveTargetIndex] : nullptr;
+}
+
+void ANokroScenarioManager::ActivateTargetAtIndex(const int32 TargetIndex, const bool bShowMarker)
+{
+	for (int32 Index = 0; Index < RepairTargets.Num(); ++Index)
+	{
+		if (ANokroRepairTargetActor* Target = RepairTargets[Index])
+		{
+			Target->SetTargetActive(Index == TargetIndex && bShowMarker);
+		}
+	}
+	ActiveTargetIndex = RepairTargets.IsValidIndex(TargetIndex) ? TargetIndex : INDEX_NONE;
+	Crane->SetPlacementEnabled(ActiveTargetIndex != INDEX_NONE && bShowMarker);
+	OnActiveTargetChanged.Broadcast(GetActiveRepairTarget(), ActiveTargetIndex);
+}
+
+void ANokroScenarioManager::ActivateNextUnrepairedTarget(const bool bShowMarker)
+{
+	for (int32 Index = 0; Index < RepairTargets.Num(); ++Index)
+	{
+		if (IsValid(RepairTargets[Index]) && !RepairTargets[Index]->IsRepaired())
+		{
+			ActivateTargetAtIndex(Index, bShowMarker);
+			return;
+		}
+	}
+	ActivateTargetAtIndex(INDEX_NONE, false);
 }
 
 int32 ANokroScenarioManager::GetRepairedCount() const
@@ -205,6 +241,15 @@ void ANokroScenarioManager::HandleDirectionAdjusted()
 	}
 }
 
+void ANokroScenarioManager::HandleNarrationRowStarted(const FName RowName)
+{
+	if (ScenarioState == ENokroScenarioState::Repairing && !bTargetsRevealed && RowName == TargetRevealNarrationRow)
+	{
+		bTargetsRevealed = true;
+		ActivateTargetAtIndex(ActiveTargetIndex, true);
+	}
+}
+
 void ANokroScenarioManager::UpdateHUD()
 {
 	if (!VRHUD) return;
@@ -219,6 +264,8 @@ void ANokroScenarioManager::UpdateHUD()
 void ANokroScenarioManager::CompleteScenario()
 {
 	ScenarioState = ENokroScenarioState::Completed;
+	ActivateTargetAtIndex(INDEX_NONE, false);
+	Crane->SetPlacementEnabled(false);
 	Narration->ReportScenarioEvent(TEXT("ScenarioCompleted"));
 	if (VRHUD)
 	{

@@ -145,6 +145,7 @@ void ANokroCraneActor::SetBoomYaw(const float NewYaw)
 
 void ANokroCraneActor::RequestStonePlacement()
 {
+	if (!bPlacementEnabled || !CarriedStone->IsVisible()) return;
 	ScenarioInteraction->ReportInteractionStarted(EScenarioInteractionType::Trigger);
 	OnPlacementRequested.Broadcast(GetCarriedStoneTransform());
 }
