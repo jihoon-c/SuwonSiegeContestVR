@@ -12,6 +12,10 @@
 **어택 슬롯(총통당 2명)**, 충차 회전 보정, 포탄 곡사 탄도, 포신 조준 회전, 포구 화염·포격음,
 검병 Run 애니메이션 루프 수정. 9절 참조.
 
+**2026-08-25 후속 개정**: 궁병 사거리를 **2000cm**로 조정하고, 검병 Run의 시퀀스와
+컴파일된 Sequence Player가 모두 루프임을 검증했다. 아군 총통 조준은 포신 단독 3축 회전에서
+**포신+화차 전체 어셈블리의 Yaw 전용 회전**으로 교체했다.
+
 ---
 
 ## 1. 담당 범위
@@ -292,9 +296,10 @@ Actor `BeginPlay` 순서는 보장되지 않으므로 `AActorPool::AcquireActor`
 | 어택 슬롯 | `Implemented` | 총통당 2명, 가득 차면 다음 총통, 전부 차면 충차 호위 |
 | 충차 회전 | `Implemented (육안 확인 대기)` | `MeshYawOffset = -90` |
 | 포탄 탄도 | `Implemented` | 중력 0.7, 플레이어 2800cm/s, AI는 `SuggestProjectileVelocity_CustomArc` 곡사 |
-| 포신 조준 회전 | `Implemented (육안 확인 대기)` | 탄도 방향으로 포신을 돌린 뒤 포신 축으로 발사 |
+| 총통 어셈블리 조준 회전 | `Implemented (육안 확인 대기)` | 블루프린트 상대 배치를 유지한 포신+화차 전체를 표적 방향으로 Yaw만 회전 |
 | 포구 화염·포격음 | `Implemented (육안 확인 대기)` | `TryFire()`에 `PlayFeedback` 추가 |
-| 검병 Run 애니메이션 | `Asset fixed / ABP 노드 확인 필요` | 임포트된 시퀀스가 전부 `bLoop=false`였다 |
+| 검병 Run 애니메이션 | `Implemented / compiled node verified` | `AS_MeleeRun.loop=true`, ABP Run은 기본 루프가 켜진 Sequence Player |
+| 궁병 사거리 | `Implemented` | C++ 기본값과 본편/전투 테스트 WaveManager를 2000cm로 통일 |
 
 ### 밸런스 변화 — 반드시 인지할 것
 

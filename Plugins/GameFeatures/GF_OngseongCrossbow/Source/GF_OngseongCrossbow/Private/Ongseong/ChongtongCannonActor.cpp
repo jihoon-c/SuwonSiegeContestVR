@@ -179,20 +179,21 @@ bool AChongtongCannonActor::TryFire()
 	FVector TargetLocation;
 	FVector TargetExtent;
 	Target->GetActorBounds(true, TargetLocation, TargetExtent);
+	// Turn the authored assembly before solving the shot because rotating the carriage also moves
+	// its attached muzzle. Only yaw changes; the barrel and hwacha keep their Blueprint offsets.
+	AimAssemblyYawAtDirection(TargetLocation - HwachaBaseMesh->GetComponentLocation());
 
 	FVector LaunchVelocity;
 	const bool bSolved = SolveFiringArc(TargetLocation, LaunchVelocity);
 	if (!bSolved)
 	{
-		// Out of ballistic reach: keep the barrel honest by aiming straight at it and holding fire.
-		AimBarrelAtDirection((TargetLocation - Muzzle->GetComponentLocation()).GetSafeNormal());
 		UE_LOG(LogOngseong, Verbose, TEXT("%s cannot reach %s with an arc."), *GetName(), *Target->GetName());
 		return false;
 	}
 
-	// Aim first, then fire along the barrel, so the shot always leaves where the cannon points.
-	const FVector FireDirection = AimBarrelAtDirection(LaunchVelocity.GetSafeNormal());
-	AGameplayProjectileActor* Projectile = SpawnProjectile(FireDirection, LaunchVelocity.Size());
+	// The visual assembly turns horizontally only. The shell still uses the solved vertical
+	// component so its existing ballistic arc remains intact.
+	AGameplayProjectileActor* Projectile = SpawnProjectile(LaunchVelocity.GetSafeNormal(), LaunchVelocity.Size());
 	if (!Projectile)
 	{
 		return false;
@@ -202,19 +203,28 @@ bool AChongtongCannonActor::TryFire()
 	return true;
 }
 
-FVector AChongtongCannonActor::AimBarrelAtDirection(const FVector& WorldDirection)
+void AChongtongCannonActor::AimAssemblyYawAtDirection(const FVector& WorldDirection)
 {
-	const FVector Direction = WorldDirection.GetSafeNormal();
-	if (!BarrelPivot || Direction.IsNearlyZero())
+	if (!HwachaBaseMesh || !Muzzle)
 	{
-		return Muzzle ? Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y) : FVector::ForwardVector;
+		return;
 	}
-	// The barrel fires along its local +Y (the muzzle sits at +Y on the pivot), so map +Y onto the
-	// direction instead of the usual +X. A plain pitch would not elevate a +Y axis at all.
-	const FQuat AlignForwardToDirection = Direction.ToOrientationQuat();
-	const FQuat MapYAxisOntoForward(FVector::UpVector, FMath::DegreesToRadians(-90.0f));
-	BarrelPivot->SetWorldRotation(AlignForwardToDirection * MapYAxisOntoForward);
-	return Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y);
+
+	FVector DesiredHorizontal = WorldDirection;
+	DesiredHorizontal.Z = 0.0f;
+	FVector CurrentHorizontal = Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y);
+	CurrentHorizontal.Z = 0.0f;
+	if (!DesiredHorizontal.Normalize() || !CurrentHorizontal.Normalize())
+	{
+		return;
+	}
+
+	const float DeltaYaw = FMath::FindDeltaAngleDegrees(
+		CurrentHorizontal.Rotation().Yaw,
+		DesiredHorizontal.Rotation().Yaw);
+	FRotator AssemblyRotation = HwachaBaseMesh->GetComponentRotation();
+	AssemblyRotation.Yaw += DeltaYaw;
+	HwachaBaseMesh->SetWorldRotation(AssemblyRotation);
 }
 
 bool AChongtongCannonActor::SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const

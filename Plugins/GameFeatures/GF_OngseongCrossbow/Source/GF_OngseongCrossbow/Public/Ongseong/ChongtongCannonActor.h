@@ -121,8 +121,12 @@ protected:
 	void ExitReadyStation();
 	void SpawnPlaceholderLoadingItems();
 	AGameplayProjectileActor* SpawnProjectile(const FVector& Direction, float Speed);
-	/** Points the barrel so its muzzle axis follows WorldDirection, then returns that axis. */
-	FVector AimBarrelAtDirection(const FVector& WorldDirection);
+	/**
+	 * Turns the complete barrel-and-carriage assembly toward WorldDirection in yaw only.
+	 * Child component relative transforms are deliberately left untouched so the authored
+	 * Blueprint appearance cannot separate the barrel from its hwacha support.
+	 */
+	void AimAssemblyYawAtDirection(const FVector& WorldDirection);
 	/** Solves the launch velocity that drops a shell on TargetLocation under the shell's own gravity. */
 	bool SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const;
 	void PruneAttackerSlots() const;

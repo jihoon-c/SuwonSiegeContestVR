@@ -180,7 +180,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float ArcherHitChance = 0.65f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="100.0"))
-	float ArcherRange = 3500.0f;
+	float ArcherRange = 2000.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="0.1"))
 	float ArcherFireInterval = 2.75f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="0.0"))

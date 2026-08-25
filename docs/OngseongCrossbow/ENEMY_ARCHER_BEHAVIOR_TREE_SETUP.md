@@ -38,7 +38,7 @@ Root
 └─ Sequence  [Blackboard: TargetActor Is Set]
    ├─ Move To
    │  ├─ Blackboard Key: TargetActor
-   │  ├─ Acceptable Radius: 3150
+   │  ├─ Acceptable Radius: 1800
    │  ├─ Stop on Overlap: false
    │  └─ Observe Blackboard Value: true
    ├─ Fire Ongseong Arrow
@@ -52,7 +52,7 @@ Pawn의 `UOngseongArcherCombatComponent::TryFireArrow()`를 호출한다. 즉 �
 사격은 Component가 결정한다. 화살 발사는 이 BT 태스크가 유일한 경로이므로,
 **BT가 없으면 궁병은 화살을 쏘지 않는다.**
 
-`3150`은 기본 `ArcherRange` 3500의 90%다. Blueprint에서 사거리를 바꾸면 이 값도
+`1800`은 기본 `ArcherRange` 2000의 90%다. Blueprint에서 사거리를 바꾸면 이 값도
 같은 비율로 조정한다.
 
 `Observe Blackboard Value: true` 덕분에 `TargetActor`가 바뀌면 이동이 즉시 중단되고
@@ -87,8 +87,8 @@ Pawn의 `UOngseongArcherCombatComponent::TryFireArrow()`를 호출한다. 즉 �
 
 * 궁병 슬롯 7명 vs 총통 4문 × 2슬롯 = 8칸이므로 **평시에는 전원이 슬롯을 얻는다.**
   호위(충차) 분기는 총통이 파괴되었을 때 주로 발생한다.
-* `Move To`의 `Acceptable Radius: 3150`은 **총통 교전 거리** 기준이다. 충차 호위로 갈 때는
-  충차에서 3150cm 떨어진 곳에 멈추므로 "근처"라기엔 멀다. 호위 연출을 다듬으려면
+* `Move To`의 `Acceptable Radius: 1800`은 **총통 교전 거리** 기준이다. 충차 호위로 갈 때는
+  충차에서 1800cm 떨어진 곳에 멈추므로 "근처"라기엔 여전히 멀다. 호위 연출을 다듬으려면
   호위 전용 분기(작은 Acceptable Radius를 가진 두 번째 `Move To`)를 BT에 추가해야 한다.
   현재는 위 이유로 발생 빈도가 낮아 보류했다.
 

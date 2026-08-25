@@ -61,7 +61,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float HitChance = 0.65f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="100.0"))
-	float EngagementRange = 3500.0f;
+	float EngagementRange = 2000.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.1"))
 	float FireInterval = 2.75f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
