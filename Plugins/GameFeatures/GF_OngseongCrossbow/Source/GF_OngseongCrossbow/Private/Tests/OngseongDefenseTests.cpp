@@ -21,6 +21,11 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 	if (!TestNotNull(TEXT("Test world is created"), World)) return false;
 	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
 	Context.SetCurrentWorld(World);
+	// AActor::ProcessEvent drops every UFUNCTION call, including dynamic delegates, until the world
+	// reports its actors as initialized. Without this the death/objective callbacks never arrive.
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
 
 	AOngseongGateActor* Gate = World->SpawnActor<AOngseongGateActor>();
 	AOngseongEnemyWaveManager* Wave = World->SpawnActor<AOngseongEnemyWaveManager>();
@@ -28,8 +33,10 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 	AOngseongRamActor* Ram = World->SpawnActor<AOngseongRamActor>(FVector::ZeroVector, FRotator::ZeroRotator);
 	if (TestNotNull(TEXT("Gate is spawned"), Gate) && TestNotNull(TEXT("Scenario is spawned"), Scenario))
 	{
-		TestEqual(TEXT("Default wave contains three swordsmen"), Wave->GetSwordsmenToSpawn(), 3);
-		TestEqual(TEXT("Default wave contains two archers"), Wave->GetArchersToSpawn(), 2);
+		TestEqual(TEXT("The ongseong holds fifteen enemies"), Wave->GetMaxConcurrentEnemies(), 15);
+		TestTrue(TEXT("Defeated enemies are replaced during the defense"), Wave->IsMaintainingPopulation());
+		TestFalse(TEXT("The defense is cleared by the ram, not by a timer"), Scenario->IsDefenseTimeLimited());
+		TestFalse(TEXT("No ram has been destroyed while the scenario is idle"), Scenario->IsRamDestroyed());
 
 		FCombatDamageSpec Damage;
 		Damage.Amount = 25.0f;
@@ -56,6 +63,44 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Ram impact damages the gate once"), Gate->GetHealthComponent()->GetCurrentHealth(), 25.0f);
 			Ram->Tick(10.0f);
 			TestEqual(TEXT("Ram begins another charge after returning"), Ram->GetRamState(), EOngseongRamState::Charging);
+		}
+
+		Gate->ResetGate();
+		TestTrue(TEXT("Configured defense starts"), Scenario->StartDefense());
+		TestEqual(TEXT("Starting the defense enters the defending state"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
+		TestEqual(TEXT("No enemy has been defeated yet"), Scenario->GetTotalDefeatedEnemies(), 0);
+
+		AOngseongRamActor* FirstRam = Scenario->GetActiveRam();
+		if (TestNotNull(TEXT("The defense starts with a ram"), FirstRam))
+		{
+			FCombatDamageSpec FatalRamDamage;
+			FatalRamDamage.Amount = 1000.0f;
+			FatalRamDamage.bIgnoreFaction = true;
+			TestTrue(TEXT("Fatal damage reaches the ram"), FirstRam->ReceiveCombatDamage_Implementation(FatalRamDamage));
+			TestTrue(TEXT("Destroying the ram clears the experience"), Scenario->IsRamDestroyed());
+			TestNull(TEXT("A destroyed ram leaves no active ram"), Scenario->GetActiveRam());
+			TestEqual(TEXT("Destroying the ram succeeds the defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Succeeded);
+		}
+
+		if (UFunction* GateDestroyedFunction = Scenario->FindFunction(TEXT("HandleGateDestroyed")))
+		{
+			Scenario->ProcessEvent(GateDestroyedFunction, nullptr);
+			TestEqual(TEXT("A late gate report cannot overwrite a cleared defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Succeeded);
+
+			// Restart, then lose the gate before the ram dies.
+			Scenario->RetryDefense();
+			TestEqual(TEXT("Retry restarts the defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
+			TestFalse(TEXT("Retry clears the previous ram result"), Scenario->IsRamDestroyed());
+			TestNotNull(TEXT("Retry sends in a single new ram"), Scenario->GetActiveRam());
+
+			Scenario->ProcessEvent(GateDestroyedFunction, nullptr);
+			TestEqual(TEXT("Gate destruction fails the defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Failed);
+			TestFalse(TEXT("Failure stops enemy spawning"), Wave->IsSpawningActive());
+			TestEqual(TEXT("Failure clears the population"), Wave->GetLivingEnemyCount(), 0);
+		}
+		else
+		{
+			AddError(TEXT("HandleGateDestroyed must remain bound as a scenario event handler"));
 		}
 	}
 

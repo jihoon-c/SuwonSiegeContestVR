@@ -1,6 +1,7 @@
 #include "Ongseong/ChongtongLoadingItemActor.h"
 
 #include "Components/StaticMeshComponent.h"
+#include "Core/VR/InteractionHighlightComponent.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/StructOnScope.h"
@@ -11,6 +12,11 @@ AChongtongLoadingItemActor::AChongtongLoadingItemActor()
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	SetRootComponent(Mesh);
 	Mesh->SetCollisionProfileName(TEXT("PhysicsActor"));
+	LoadingPrompt = CreateDefaultSubobject<UInteractionHighlightComponent>(TEXT("LoadingPrompt"));
+	LoadingPrompt->SetupAttachment(Mesh);
+	// The placeholder meshes are scaled per item type (the rammer is 24x taller than it is wide),
+	// so the prompt effect must not inherit that scale.
+	LoadingPrompt->SetUsingAbsoluteScale(true);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -47,8 +53,22 @@ void AChongtongLoadingItemActor::ApplyPlaceholderAppearance()
 	}
 }
 
+void AChongtongLoadingItemActor::SetLoadingPromptActive(const bool bActive)
+{
+	if (LoadingPrompt)
+	{
+		LoadingPrompt->SetHighlightActive(bActive && !IsHidden());
+	}
+}
+
+bool AChongtongLoadingItemActor::IsLoadingPromptActive() const
+{
+	return LoadingPrompt && LoadingPrompt->IsHighlightActive();
+}
+
 void AChongtongLoadingItemActor::ConsumeAndRespawn(float DelaySeconds)
 {
+	SetLoadingPromptActive(false);
 	TInlineComponentArray<USceneComponent*> SceneComponents(this);
 	for (USceneComponent* Component : SceneComponents)
 	{

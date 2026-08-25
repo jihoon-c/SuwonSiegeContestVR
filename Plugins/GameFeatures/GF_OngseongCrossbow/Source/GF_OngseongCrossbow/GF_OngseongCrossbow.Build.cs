@@ -10,6 +10,9 @@ public class GF_OngseongCrossbow : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"AIModule",
+			"NavigationSystem",
+			"GameplayTasks",
 			"HeadMountedDisplay",
 			"Niagara",
 			"SuwonSiegeContestVR"

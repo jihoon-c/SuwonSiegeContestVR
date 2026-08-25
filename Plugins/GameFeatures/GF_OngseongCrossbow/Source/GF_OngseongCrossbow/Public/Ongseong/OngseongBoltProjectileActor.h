@@ -6,7 +6,7 @@
 
 class UStaticMeshComponent;
 
-/** Lightweight physical bolt shared by the player crossbow and enemy archers. */
+/** Lightweight physical arrow fired by the Ongseong enemy archers. */
 UCLASS(Blueprintable)
 class GF_ONGSEONGCROSSBOW_API AOngseongBoltProjectileActor : public AGameplayProjectileActor
 {

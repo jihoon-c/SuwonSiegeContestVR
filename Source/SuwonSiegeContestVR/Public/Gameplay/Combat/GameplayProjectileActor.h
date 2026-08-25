@@ -36,6 +36,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Combat|Projectile")
 	FCombatDamageSpec GetDamageSpec() const { return DamageSpec; }
 
+	/** Lets a shooter solve a ballistic arc with the same gravity this projectile will fall under. */
+	UFUNCTION(BlueprintPure, Category = "Combat|Projectile")
+	float GetProjectileGravityScale() const;
+
 	UPROPERTY(BlueprintAssignable, Category = "Combat|Projectile")
 	FOnGameplayProjectileImpact OnProjectileImpact;
 

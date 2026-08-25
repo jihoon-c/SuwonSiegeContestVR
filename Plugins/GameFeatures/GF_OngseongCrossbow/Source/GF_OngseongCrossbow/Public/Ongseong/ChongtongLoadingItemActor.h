@@ -5,6 +5,7 @@
 #include "Ongseong/ChongtongInteractionTypes.h"
 #include "ChongtongLoadingItemActor.generated.h"
 
+class UInteractionHighlightComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 
@@ -26,12 +27,20 @@ public:
 	UFUNCTION(BlueprintPure, Category="Ongseong|Chongtong|Loading")
 	float GetDistanceToPoint(FVector WorldPoint) const;
 
+	/** Glows while this is the item the loading sequence is waiting for. */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Chongtong|Loading")
+	void SetLoadingPromptActive(bool bActive);
+	UFUNCTION(BlueprintPure, Category="Ongseong|Chongtong|Loading")
+	bool IsLoadingPromptActive() const;
+
 protected:
 	void ApplyPlaceholderAppearance();
 	void RespawnAtHome();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<UStaticMeshComponent> Mesh;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
+	TObjectPtr<UInteractionHighlightComponent> LoadingPrompt;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading|Appearance")
 	TObjectPtr<UStaticMesh> PowderMesh;
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading|Appearance")

@@ -35,6 +35,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VR|Mounted Interaction")
 	void ExitMountedInteraction(USceneComponent* CameraAnchor = nullptr);
 
+	/**
+	 * Locks or unlocks locomotion for an experience that keeps the player on one spot.
+	 * Turning, grabbing and mounted interactions stay available.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "VR|Locomotion")
+	void SetLocomotionEnabled(bool bMoveEnabled, bool bTeleportEnabled);
+
 	UFUNCTION(BlueprintCallable, Category = "Narration")
 	void DismissNarrationWidget(bool bContinueSequence = true);
 
@@ -181,6 +188,10 @@ protected:
 	/** Enables right-stick smooth locomotion. Turning and interactions remain enabled. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR|Locomotion", meta = (DisplayName = "Enable Move"))
 	bool bEnableMove = true;
+
+	/** Enables the teleport arc. Experiences that fix the player to one spot turn this off. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR|Locomotion", meta = (DisplayName = "Enable Teleport"))
+	bool bEnableTeleport = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VR|Locomotion", meta = (ClampMin = "0.0", Units = "cm/s"))
 	float SmoothMoveSpeed = 180.0f;

@@ -67,6 +67,19 @@ void UHealthComponent::ResetHealth()
 	}
 }
 
+void UHealthComponent::SetMaxHealth(const float NewMaxHealth, const bool bRefill)
+{
+	MaxHealth = FMath::Max(0.0f, NewMaxHealth);
+	if (bRefill)
+	{
+		ResetHealth();
+	}
+	else
+	{
+		SetCurrentHealth(FMath::Min(CurrentHealth, MaxHealth));
+	}
+}
+
 void UHealthComponent::SetCurrentHealth(const float NewHealth)
 {
 	const float PreviousHealth = CurrentHealth;

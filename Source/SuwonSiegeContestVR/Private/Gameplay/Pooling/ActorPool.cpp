@@ -2,6 +2,8 @@
 
 #include "Gameplay/Pooling/PoolableActorInterface.h"
 
+DEFINE_LOG_CATEGORY(LogActorPool);
+
 AActorPool::AActorPool()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -15,6 +17,11 @@ void AActorPool::BeginPlay()
 
 AActor* AActorPool::AcquireActor(const FTransform& SpawnTransform)
 {
+	if (!bHasPrewarmed)
+	{
+		// A consumer can run BeginPlay before this pool does. Fill on first use instead of failing.
+		PrewarmPool();
+	}
 	PruneInvalidActors();
 	AActor* PooledActor = nullptr;
 	while (!AvailableActors.IsEmpty() && !IsValid(PooledActor))
@@ -27,6 +34,15 @@ AActor* AActorPool::AcquireActor(const FTransform& SpawnTransform)
 	}
 	if (!IsValid(PooledActor))
 	{
+		++ExhaustedRequestCount;
+		UE_LOG(LogActorPool, Warning,
+			TEXT("%s exhausted: %s, active %d, total %d, expansion %s. Increase InitialPoolSize or lower the concurrency budget."),
+			*GetName(),
+			PooledActorClass ? *PooledActorClass->GetName() : TEXT("<no class>"),
+			ActiveActors.Num(),
+			GetTotalCount(),
+			bAllowPoolExpansion ? TEXT("on") : TEXT("off"));
+		OnPoolExhausted.Broadcast(this, ActiveActors.Num());
 		return nullptr;
 	}
 
@@ -56,6 +72,7 @@ bool AActorPool::ReleaseActor(AActor* ActorToRelease)
 
 void AActorPool::PrewarmPool()
 {
+	bHasPrewarmed = true;
 	PruneInvalidActors();
 	const int32 DesiredAvailableCount = FMath::Max(0, InitialPoolSize - GetTotalCount());
 	for (int32 Index = 0; Index < DesiredAvailableCount; ++Index)

@@ -34,6 +34,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat|Health")
 	void SetCurrentHealth(float NewHealth);
 
+	/** Retunes durability from construction code or a Blueprint. Refilling also clears the dead flag. */
+	UFUNCTION(BlueprintCallable, Category = "Combat|Health")
+	void SetMaxHealth(float NewMaxHealth, bool bRefill = true);
+
 	UFUNCTION(BlueprintPure, Category = "Combat|Health")
 	float GetCurrentHealth() const { return CurrentHealth; }
 

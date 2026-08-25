@@ -1,5 +1,7 @@
 #include "Ongseong/OngseongRamActor.h"
 
+#include "GF_OngseongCrossbow.h"
+
 #include "Components/StaticMeshComponent.h"
 #include "Gameplay/Combat/CombatDamageLibrary.h"
 #include "Gameplay/Combat/CombatFactionComponent.h"
@@ -13,6 +15,10 @@ AOngseongRamActor::AOngseongRamActor()
 	SetRootComponent(RamMesh);
 	RamMesh->SetMobility(EComponentMobility::Movable);
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+	// The ram is the objective, not a mook. At the default 100 a single chongtong shell
+	// (40 direct + 80 area) destroyed it seconds after the defense began, which ended the
+	// experience before the three-minute approach could play out. Matches the gate's 1000.
+	HealthComponent->SetMaxHealth(1000.0f);
 	FactionComponent = CreateDefaultSubobject<UCombatFactionComponent>(TEXT("FactionComponent"));
 	FactionComponent->SetFaction(ECombatFaction::Enemy);
 }
@@ -56,6 +62,26 @@ bool AOngseongRamActor::ReceiveCombatDamage_Implementation(const FCombatDamageSp
 	return HealthComponent && HealthComponent->ApplyDamage(DamageSpec);
 }
 
+void AOngseongRamActor::OnAcquiredFromPool_Implementation()
+{
+	RamState = EOngseongRamState::Inactive;
+	GateTarget = nullptr;
+	StagingLocation = FVector::ZeroVector;
+	if (HealthComponent)
+	{
+		HealthComponent->ResetHealth();
+		HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongRamActor::HandleDeath);
+	}
+	SetActorHiddenInGame(false);
+	SetActorEnableCollision(true);
+}
+
+void AOngseongRamActor::OnReleasedToPool_Implementation()
+{
+	StopRam();
+	GateTarget = nullptr;
+}
+
 void AOngseongRamActor::ActivateRam(AActor* NewGateTarget)
 {
 	GateTarget = NewGateTarget;
@@ -69,6 +95,7 @@ void AOngseongRamActor::ActivateRam(AActor* NewGateTarget)
 	StagingLocation = GateTarget->GetActorLocation() - ApproachDirection.GetSafeNormal() * StagingDistance;
 	StagingLocation.Z = GetActorLocation().Z;
 	RamState = EOngseongRamState::Advancing;
+	UE_LOG(LogOngseong, Display, TEXT("Ram advancing toward %s at %.0f cm/s."), *GetNameSafe(GateTarget), MoveSpeed);
 }
 
 void AOngseongRamActor::StopRam()
@@ -81,15 +108,19 @@ bool AOngseongRamActor::MoveTowards(const FVector& TargetLocation, const float S
 	FVector Delta = TargetLocation - GetActorLocation();
 	Delta.Z = 0.0f;
 	const float Distance = Delta.Size();
+	// Movement is a scripted path and damage is applied explicitly in ImpactGate, so sweeping is not
+	// used: a swept move wedges the ram against the terrain or the gate and stalls the assault.
 	if (Distance <= ArrivalTolerance)
 	{
-		SetActorLocation(TargetLocation, true);
+		SetActorLocation(TargetLocation, false);
 		return true;
 	}
 	const FVector Direction = Delta / Distance;
-	SetActorRotation(Direction.Rotation());
+	FRotator TravelRotation = Direction.Rotation();
+	TravelRotation.Yaw += MeshYawOffset;
+	SetActorRotation(TravelRotation);
 	const float Step = FMath::Min(Distance, FMath::Max(0.0f, Speed) * DeltaSeconds);
-	SetActorLocation(GetActorLocation() + Direction * Step, true);
+	SetActorLocation(GetActorLocation() + Direction * Step, false);
 	return Distance - Step <= ArrivalTolerance;
 }
 
@@ -128,6 +159,7 @@ void AOngseongRamActor::ImpactGate()
 	if (RamState == EOngseongRamState::Charging)
 	{
 		RamState = EOngseongRamState::Returning;
+		UE_LOG(LogOngseong, Display, TEXT("Ram struck %s for %.0f damage."), *GetNameSafe(GateTarget), AttackDamage);
 	}
 }
 

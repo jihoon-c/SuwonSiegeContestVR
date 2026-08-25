@@ -83,10 +83,9 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 	}
 	if (WaveManager)
 	{
-		WaveManager->OnWaveStarted.AddUniqueDynamic(this, &ThisClass::HandleWaveStarted);
+		WaveManager->OnSpawningStarted.AddUniqueDynamic(this, &ThisClass::HandleSpawningStarted);
 		WaveManager->OnEnemySpawned.AddUniqueDynamic(this, &ThisClass::HandleEnemySpawned);
-		WaveManager->OnWaveProgress.AddUniqueDynamic(this, &ThisClass::HandleWaveProgress);
-		WaveManager->OnAllEnemiesDefeated.AddUniqueDynamic(this, &ThisClass::HandleAllEnemiesDefeated);
+		WaveManager->OnPopulationChanged.AddUniqueDynamic(this, &ThisClass::HandlePopulationChanged);
 		if (!GateActor)
 		{
 			GateActor = WaveManager->GetObjectiveTarget();
@@ -126,10 +125,10 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 		}
 	}
 
-	if (WaveManager && WaveManager->HasWaveStarted())
+	if (WaveManager && WaveManager->IsSpawningActive())
 	{
-		HandleWaveStarted(WaveManager->GetTotalEnemiesToSpawn());
-		HandleWaveProgress(WaveManager->GetDefeatedEnemyCount(), WaveManager->GetTotalEnemiesToSpawn());
+		HandleSpawningStarted(WaveManager->GetMaxConcurrentEnemies());
+		HandlePopulationChanged(WaveManager->GetLivingEnemyCount(), WaveManager->GetMaxConcurrentEnemies());
 	}
 	return NarrationSequence != nullptr;
 }
@@ -264,39 +263,29 @@ void UOngseongNarrationComponent::HandleRammingProgress(const int32 CompletedRam
 	}
 }
 
-void UOngseongNarrationComponent::HandleWaveStarted(const int32 TotalEnemies)
+void UOngseongNarrationComponent::HandleSpawningStarted(const int32 MaxConcurrentEnemies)
 {
-	if (VRHUD && TotalEnemies > 0)
+	if (VRHUD && MaxConcurrentEnemies > 0)
 	{
-		VRHUD->SetProgress(LOCTEXT("DefenseProgress", "적 저지"), 0, TotalEnemies);
+		VRHUD->SetProgress(LOCTEXT("EnemyPresence", "옹성 내 적"), 0, MaxConcurrentEnemies);
 	}
 	ReportScenarioEvent(OngseongNarrationEvents::WaveStarted, WaveManager);
 }
 
-void UOngseongNarrationComponent::HandleEnemySpawned(AEnemyCombatCharacter* Enemy, const int32 SpawnedEnemies, const int32 TotalEnemies)
+void UOngseongNarrationComponent::HandleEnemySpawned(AEnemyCombatCharacter* Enemy, const int32 LivingEnemies, const int32 MaxConcurrentEnemies)
 {
-	if (SpawnedEnemies == 1)
+	if (LivingEnemies == 1)
 	{
 		ReportScenarioEvent(OngseongNarrationEvents::EnemyAssault, Enemy);
 	}
 }
 
-void UOngseongNarrationComponent::HandleWaveProgress(const int32 DefeatedEnemies, const int32 TotalEnemies)
+void UOngseongNarrationComponent::HandlePopulationChanged(const int32 LivingEnemies, const int32 MaxConcurrentEnemies)
 {
 	if (VRHUD)
 	{
-		VRHUD->SetProgress(LOCTEXT("DefenseProgress", "적 저지"), DefeatedEnemies, TotalEnemies);
+		VRHUD->SetProgress(LOCTEXT("EnemyPresence", "옹성 내 적"), LivingEnemies, MaxConcurrentEnemies);
 	}
-}
-
-void UOngseongNarrationComponent::HandleAllEnemiesDefeated(const int32 TotalEnemies)
-{
-	if (VRHUD)
-	{
-		VRHUD->SetProgress(LOCTEXT("DefenseProgress", "적 저지"), TotalEnemies, TotalEnemies);
-		VRHUD->ShowNotification(LOCTEXT("DefenseSucceeded", "성문 방어에 성공했습니다"), EVRHUDNotificationType::Success, 5.0f);
-	}
-	ReportScenarioEvent(OngseongNarrationEvents::DefenseSucceeded, WaveManager);
 }
 
 void UOngseongNarrationComponent::BindHealthActor(AActor* Actor, const bool bIsGate)
@@ -352,10 +341,9 @@ void UOngseongNarrationComponent::UnbindSources()
 	}
 	if (WaveManager)
 	{
-		WaveManager->OnWaveStarted.RemoveDynamic(this, &ThisClass::HandleWaveStarted);
+		WaveManager->OnSpawningStarted.RemoveDynamic(this, &ThisClass::HandleSpawningStarted);
 		WaveManager->OnEnemySpawned.RemoveDynamic(this, &ThisClass::HandleEnemySpawned);
-		WaveManager->OnWaveProgress.RemoveDynamic(this, &ThisClass::HandleWaveProgress);
-		WaveManager->OnAllEnemiesDefeated.RemoveDynamic(this, &ThisClass::HandleAllEnemiesDefeated);
+		WaveManager->OnPopulationChanged.RemoveDynamic(this, &ThisClass::HandlePopulationChanged);
 	}
 	for (UHealthComponent* Health : BoundHealthComponents)
 	{

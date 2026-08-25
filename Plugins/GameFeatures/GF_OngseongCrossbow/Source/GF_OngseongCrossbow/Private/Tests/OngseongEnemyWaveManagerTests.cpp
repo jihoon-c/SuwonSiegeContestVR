@@ -31,11 +31,29 @@ bool FOngseongWaveManagerConfigurationTest::RunTest(const FString& Parameters)
 		TestNotNull(TEXT("Enemy pool is spawned"), Pool) &&
 		TestNotNull(TEXT("Objective target is spawned"), Target))
 	{
+		TestEqual(TEXT("The ongseong holds fifteen enemies"), Manager->GetMaxConcurrentEnemies(), 15);
+		TestEqual(TEXT("Eight of them are swordsmen"), Manager->GetSwordsmanSlots(), 8);
+		TestEqual(TEXT("Seven of them are archers"), Manager->GetArcherSlots(), 7);
+		TestEqual(TEXT("Slot counts match the concurrency cap"),
+			Manager->GetSwordsmanSlots() + Manager->GetArcherSlots(), Manager->GetMaxConcurrentEnemies());
+		TestTrue(TEXT("Defeated enemies are replaced by default"), Manager->IsMaintainingPopulation());
+		TestEqual(TEXT("Replacements arrive five seconds later"), Manager->GetRespawnDelay(), 5.0f);
+		TestEqual(TEXT("Nothing is alive before spawning starts"), Manager->GetLivingEnemyCount(), 0);
+		TestEqual(TEXT("Nothing has been defeated before spawning starts"), Manager->GetTotalDefeatedEnemies(), 0);
+		TestFalse(TEXT("Spawning is inactive before it is started"), Manager->IsSpawningActive());
+
 		TestFalse(TEXT("Unconfigured manager is rejected"), Manager->IsSpawnConfigured());
 		Manager->SetEnemyPool(Pool);
 		Manager->SetObjectiveTarget(Target);
 		TestTrue(TEXT("Pool and target form a valid configuration"), Manager->IsSpawnConfigured());
 		TestFalse(TEXT("A pool without an enemy class cannot spawn"), Manager->SpawnEnemy());
+		TestEqual(TEXT("A failed spawn is reported by the pool"), Pool->GetExhaustedRequestCount(), 1);
+		TestEqual(TEXT("A failed spawn adds nobody to the population"), Manager->GetLivingEnemyCount(), 0);
+
+		Manager->ResetWave();
+		TestEqual(TEXT("Reset clears the population"), Manager->GetLivingEnemyCount(), 0);
+		TestEqual(TEXT("Reset cancels pending respawns"), Manager->GetPendingRespawnCount(), 0);
+		TestFalse(TEXT("Reset stops spawning"), Manager->IsSpawningActive());
 	}
 
 	World->DestroyWorld(false);

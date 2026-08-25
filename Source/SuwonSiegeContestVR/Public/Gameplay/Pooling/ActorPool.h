@@ -4,6 +4,12 @@
 #include "GameFramework/Actor.h"
 #include "ActorPool.generated.h"
 
+class AActorPool;
+
+SUWONSIEGECONTESTVR_API DECLARE_LOG_CATEGORY_EXTERN(LogActorPool, Log, All);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnActorPoolExhausted, AActorPool*, Pool, int32, ActiveCount);
+
 /** Prewarms and reuses Actors to avoid spawn/destruction spikes on standalone VR hardware. */
 UCLASS(Blueprintable)
 class SUWONSIEGECONTESTVR_API AActorPool : public AActor
@@ -33,6 +39,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
 	int32 GetTotalCount() const { return AvailableActors.Num() + ActiveActors.Num(); }
 
+	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
+	TSubclassOf<AActor> GetPooledActorClass() const { return PooledActorClass; }
+
+	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
+	int32 GetExhaustedRequestCount() const { return ExhaustedRequestCount; }
+
+	/** Raised whenever a request could not be served. Pools stay fixed size, so this means the budget is too small. */
+	UPROPERTY(BlueprintAssignable, Category = "Gameplay|Pooling")
+	FOnActorPoolExhausted OnPoolExhausted;
+
 protected:
 	AActor* CreatePooledActor();
 	void DeactivateActor(AActor* ActorToDeactivate);
@@ -53,4 +69,11 @@ protected:
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Gameplay|Pooling")
 	TArray<TObjectPtr<AActor>> ActiveActors;
+
+	/** BeginPlay order between a pool and its consumers is not guaranteed, so the first acquire prewarms. */
+	bool bHasPrewarmed = false;
+
+	/** Counts silent acquisition failures so undersized pools are visible in logs and tests. */
+	UPROPERTY(VisibleInstanceOnly, Category = "Gameplay|Pooling")
+	int32 ExhaustedRequestCount = 0;
 };
