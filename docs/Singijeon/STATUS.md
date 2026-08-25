@@ -19,10 +19,10 @@
 | 신기전 기본 투사체 | `ASingijeonProjectileActor` |
 | 한 손 화차 운반 | `UTwoHandCarryComponent`; 보이는 좌·우 원통 전체 Bounds Grab, 바닥 접촉에 막히지 않는 non-sweep 직접 추종, 두 손 전환 지원 |
 | 화차 이동 가이드 | 보이는 원통과 native 지점 모두 `VRGrab`, 손 이동량 직접 추종, 250cm 전방 화차 홀로그램, 55cm 반경 도착 시 스냅·`Hwacha_Aim` 완료 |
-| 적군 돌진 최적화 | 45명 중 피격 Actor 3명 + 풀 캐릭터 GPU 스켈레탈 인스턴스 42명, 8개 공유 애니메이션 위상·GPU LOD·10Hz 이동·거리 컬링·그림자 비활성 |
+| 적군 돌진 최적화 | 실행 전 EditorOnly 편대 프리뷰 45명; 런타임은 피격 Actor 3명 + 일반 Skeletal Mesh 프록시 42명, 8개 포즈 리더 공유·LOD1·10Hz 이동; Samurai 175cm 정규화; GPU 인스턴스는 선택 옵션 |
 | 적군 절차 접근 게이트 | 장전 35% → 화차 배치 60% → 점화 82% → 발사 95%, 전탄 종료 후 생존자만 최종 도착 허용 |
 | 인터랙션 순서 게이트 | 현재 Scenario Target/Type이 일치할 때만 장전·FirePit 점화·Fuse·발사 물리 상태 변경 허용 |
-| 자동 장전 외형 | 6 x 15 ISM을 `RackRoot` 로컬 자식으로 고정, 발사마다 Remove/Render 갱신, 물리·ISM·Spawn 화살에 `M_SingijeonArrow_Runtime` 재적용 |
+| 자동 장전 외형 | 6 x 11 ISM을 `RackRoot` 로컬 자식으로 고정, 발사마다 Remove/Render 갱신, 물리·ISM·Spawn 화살에 `M_SingijeonArrow_Runtime` 재적용 |
 | 화로 불꽃 위치 | FirePit 메시 CPU 접근 허용, 부모 상대좌표 강제 및 월드 `Z≈210` 보정 |
 | Blueprint 확장 이벤트 | 상태, 장전 수, 발사 완료, 점화, 운반 상태 이벤트 |
 | 이전 클래스 호환 | `SingijeonInteraction` 및 초기 게임 모듈 경로 Core Redirect |

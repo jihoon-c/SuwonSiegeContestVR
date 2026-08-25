@@ -196,6 +196,14 @@ Plugins/
 
 ## 3. 현재 `Source/` 구조 (실제)
 
+> 2026-08-23 추가: 메인 레벨 교육 전용 Runtime 코드는 Game Feature Plugin이 아닌
+> `Source/SuwonSiegeContestVR/{Public,Private}/Main/Education/`에 배치한다. 이 계층은 Core의
+> Scenario/Experience를 소비하며 개별 `GF_*` C++ 모듈을 직접 참조하지 않는다.
+>
+> 2026-08-24 추가: 메인 교육용 교체 가능 예시 이미지와 원본 PNG는
+> `Content/Art/MainEducation/Examples/`에서 관리한다. 최종 고증 이미지도 동일 계층에 두고
+> `DA_Scenario_MainEducation.EditorFlow`에서 교체한다.
+
 ```text
 Source/
 ├─ SuwonSiegeContestVR.Target.cs

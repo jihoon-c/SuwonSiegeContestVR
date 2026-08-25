@@ -41,9 +41,9 @@ if hwacha_bp and arrow_mesh_asset and hwacha_mesh_asset:
     cdo = unreal.get_default_object(hwacha_bp.generated_class())
     check(cdo.get_editor_property("auto_fill_on_first_load"), "Auto fill is enabled")
     check(cdo.get_editor_property("auto_fill_rows") == 6, "Auto fill has 6 rows")
-    check(cdo.get_editor_property("auto_fill_columns") == 15, "Auto fill has 15 columns")
-    check(cdo.get_editor_property("minimum_loaded_ammunition") == 90,
-          "Hwacha requires the completed 90-arrow load")
+    check(cdo.get_editor_property("auto_fill_columns") == 11, "Auto fill has 11 columns")
+    check(cdo.get_editor_property("minimum_loaded_ammunition") == 66,
+          "Hwacha requires the completed 66-arrow load")
     check(cdo.get_editor_property("auto_fill_arrow_mesh") == arrow_mesh_asset,
           "Auto-fill ISM uses the Arrow mesh")
     check(cdo.get_editor_property("auto_fill_arrow_material") == arrow_material_asset,
@@ -91,8 +91,8 @@ check(hwacha is not None, "LV_Singijeon contains the playable Hwacha")
 if hwacha:
     check(hwacha.get_editor_property("auto_fill_rows") == 6,
           "Placed Hwacha resolves 6 rows")
-    check(hwacha.get_editor_property("auto_fill_columns") == 15,
-          "Placed Hwacha resolves 15 columns")
+    check(hwacha.get_editor_property("auto_fill_columns") == 11,
+          "Placed Hwacha resolves 11 columns")
     check(hwacha.get_editor_property("auto_fill_arrow_mesh") == arrow_mesh_asset,
           "Placed Hwacha resolves the Arrow mesh")
     check(hwacha.get_editor_property("auto_fill_arrow_material") == arrow_material_asset,

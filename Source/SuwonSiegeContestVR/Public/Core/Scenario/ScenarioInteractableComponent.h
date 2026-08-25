@@ -6,6 +6,7 @@
 #include "ScenarioInteractableComponent.generated.h"
 
 class UScenarioManagerComponent;
+class UArrowComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnScenarioTargetEvent, FName, TargetID, EScenarioInteractionType, InteractionType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnScenarioTargetProgress, FName, TargetID, EScenarioInteractionType, InteractionType, float, Progress);
@@ -18,6 +19,14 @@ class SUWONSIEGECONTESTVR_API UScenarioInteractableComponent : public UActorComp
 
 public:
 	UScenarioInteractableComponent();
+
+	/** Bounds-top guide anchor used both by the editor preview and runtime Widget. */
+	UFUNCTION(BlueprintPure, Category = "Scenario|Guide")
+	FVector GetGuideAnchorWorldLocation() const;
+
+	/** Moves the guide pivot in world space and stores the result in GuideAnchorOffset. */
+	UFUNCTION(BlueprintCallable, Category = "Scenario|Guide")
+	void SetGuideAnchorWorldLocation(const FVector& WorldLocation);
 
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Interaction")
 	void SetInteractionEnabled(bool bEnabled);
@@ -54,6 +63,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Interaction")
 	bool bAutoReportToScenarioManager = true;
 
+	/** World-space adjustment from this Actor's bounds top to the guide pivot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Guide", meta = (Units = "cm"))
+	FVector GuideAnchorOffset = FVector(0.0f, 0.0f, 10.0f);
+
+	/** Shows a yellow editor-only arrow where the runtime guide pivot will appear. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Guide")
+	bool bShowGuideAnchorInEditor = true;
+
 	UPROPERTY(BlueprintAssignable, Category = "Scenario|Interaction")
 	FOnScenarioTargetEvent OnInteractionStarted;
 
@@ -67,8 +84,22 @@ public:
 	FOnScenarioTargetEvent OnInteractionFailed;
 
 protected:
+	virtual void OnRegister() override;
+	virtual void OnUnregister() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
 	UScenarioManagerComponent* FindScenarioManager() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scenario|Interaction")
 	bool bInteractionEnabled = true;
+
+private:
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
+	TObjectPtr<UArrowComponent> EditorGuideAnchor;
+#endif
+
+	void RefreshEditorGuideAnchor();
 };

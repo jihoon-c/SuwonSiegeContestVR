@@ -7,6 +7,8 @@
 #include "Core/Scenario/ScenarioTypes.h"
 #include "NiagaraComponent.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "Particles/ParticleSystem.h"
+#include "UObject/ConstructorHelpers.h"
 
 AIgnitionSourceActor::AIgnitionSourceActor()
 {
@@ -27,6 +29,19 @@ AIgnitionSourceActor::AIgnitionSourceActor()
     GrabScenarioInteractor = CreateDefaultSubobject<UScenarioInteractableComponent>(TEXT("GrabScenarioInteractor"));
     GrabScenarioInteractor->TargetID = TEXT("Singijeon_Torch");
     GrabScenarioInteractor->SupportedInteractionTypes = { EScenarioInteractionType::Grab };
+
+    TorchFlameEffect = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("TorchFlameEffect"));
+    TorchFlameEffect->SetupAttachment(IgnitionArea);
+    TorchFlameEffect->SetRelativeLocation(FVector::ZeroVector);
+    TorchFlameEffect->SetRelativeScale3D(FVector(0.18f));
+    TorchFlameEffect->bAutoActivate = false;
+    TorchFlameEffect->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    static ConstructorHelpers::FObjectFinder<UParticleSystem> PointFireTemplate(
+        TEXT("/Game/StarterContent/Particles/P_Fire.P_Fire"));
+    if (PointFireTemplate.Succeeded())
+    {
+        TorchFlameEffect->SetTemplate(PointFireTemplate.Object);
+    }
 }
 
 void AIgnitionSourceActor::BeginPlay()
@@ -65,6 +80,13 @@ void AIgnitionSourceActor::RefreshIgnitionVisuals()
 
         if (UNiagaraComponent* NiagaraEffect = Cast<UNiagaraComponent>(Effect))
         {
+            if (bUsePointSourceFlame)
+            {
+                NiagaraEffect->SetRenderingEnabled(false);
+                NiagaraEffect->SetPaused(true);
+                NiagaraEffect->DeactivateImmediate();
+                continue;
+            }
             if (bIgnitionActive)
             {
                 // The instance is already allocated and warmed by BeginPlay. Do not
@@ -104,7 +126,14 @@ void AIgnitionSourceActor::PrepareIgnitionVisuals()
             continue;
         }
 
-        NiagaraEffect->SetAutoActivate(false);
+        if (bUsePointSourceFlame)
+        {
+            NiagaraEffect->SetRenderingEnabled(false);
+            NiagaraEffect->SetPaused(true);
+            NiagaraEffect->DeactivateImmediate();
+            continue;
+        }
+
         NiagaraEffect->SetAllowScalability(true);
         NiagaraEffect->SetCullDistance(FMath::Max(0.0f, IgnitionEffectCullDistance));
         NiagaraEffect->SetRenderingEnabled(false);
@@ -117,6 +146,12 @@ void AIgnitionSourceActor::PrepareIgnitionVisuals()
             NiagaraEffect->AdvanceSimulation(IgnitionEffectWarmupTicks, 1.0f / 30.0f);
         }
         NiagaraEffect->SetPaused(true);
+        bIgnitionVisualsPrepared = true;
+    }
+
+    if (bUsePointSourceFlame && TorchFlameEffect && TorchFlameEffect->Template)
+    {
+        TorchFlameEffect->DeactivateSystem();
         bIgnitionVisualsPrepared = true;
     }
 }

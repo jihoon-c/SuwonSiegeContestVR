@@ -90,6 +90,9 @@ protected:
 	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
 
+	/** Feature-level managers may temporarily defer the configured scenario (for example, until a level intro finishes). */
+	virtual bool ShouldAutoStartScenario() const { return true; }
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Scenario")
 	TObjectPtr<USceneComponent> SceneRoot;
 

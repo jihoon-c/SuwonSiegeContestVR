@@ -1,6 +1,7 @@
 #include "Core/Experience/ExperienceSubsystem.h"
 
 #include "Core/Experience/ExperienceDefinition.h"
+#include "Core/Experience/LevelFadeSubsystem.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/UObjectGlobals.h"
@@ -212,7 +213,25 @@ bool UExperienceSubsystem::TravelToLevel(
 	PendingDestinationLevelName = FName(*Level.ToSoftObjectPath().GetAssetName());
 	bPendingReturnTravel = bIsReturnTravel;
 	SetState(EExperienceState::Traveling);
-	UGameplayStatics::OpenLevelBySoftObjectPtr(this, Level, true, Options);
+	const TSoftObjectPtr<UWorld> LevelToOpen = Level;
+	const FString TravelOptions = Options;
+	UWorld* CurrentWorld = GetWorld();
+	const TWeakObjectPtr<UExperienceSubsystem> WeakThis(this);
+	auto OpenLevel = [WeakThis, LevelToOpen, TravelOptions]()
+	{
+		if (WeakThis.IsValid())
+		{
+			UGameplayStatics::OpenLevelBySoftObjectPtr(WeakThis.Get(), LevelToOpen, true, TravelOptions);
+		}
+	};
+	if (ULevelFadeSubsystem* FadeSubsystem = GetGameInstance()->GetSubsystem<ULevelFadeSubsystem>())
+	{
+		FadeSubsystem->FadeOutThen(CurrentWorld, MoveTemp(OpenLevel));
+	}
+	else
+	{
+		OpenLevel();
+	}
 	return true;
 }
 

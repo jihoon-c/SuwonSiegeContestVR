@@ -53,36 +53,51 @@ void UScenarioInteractionGuideComponent::HandleInteractionRequested(FScenarioInt
 		return;
 	}
 
-	TargetActor = ResolveTargetActor(Interaction);
+	ActiveInteraction = Interaction;
+	ActiveInteractionID = Interaction.InteractionID;
+	bHasActiveInteraction = true;
+	SetComponentTickInterval(FMath::Max(0.0f, ActiveGuideUpdateInterval));
+	SetComponentTickEnabled(true);
+	TryShowActiveGuide();
+}
+
+bool UScenarioInteractionGuideComponent::TryShowActiveGuide()
+{
+	if (!bHasActiveInteraction)
+	{
+		return false;
+	}
+
+	UScenarioInteractableComponent* ResolvedInteractor = nullptr;
+	TargetActor = ResolveTargetActor(ActiveInteraction, ResolvedInteractor);
+	TargetInteractor = ResolvedInteractor;
 	if (!TargetActor)
 	{
-		UE_LOG(LogTemp, Verbose, TEXT("Scenario guide could not resolve TargetID %s for %s."),
-			*Interaction.TargetID.ToString(), *Interaction.InteractionID.ToString());
-		return;
+		return false;
 	}
 
 	EnsureWidgetComponent();
 	if (!GuideWidgetComponent)
 	{
-		return;
+		return false;
 	}
 	GuideWidgetComponent->SetWidgetClass(GuideWidgetClass);
 	GuideWidgetComponent->InitWidget();
 	if (UScenarioInteractionGuideWidget* Widget =
 		Cast<UScenarioInteractionGuideWidget>(GuideWidgetComponent->GetUserWidgetObject()))
 	{
-		const FText Instruction = Interaction.GuideText.IsEmpty()
-			? GetDefaultInstruction(Action) : Interaction.GuideText;
+		const EScenarioGuideAction Action = ResolveGuideAction(ActiveInteraction);
+		const FText Instruction = ActiveInteraction.GuideText.IsEmpty()
+			? GetDefaultInstruction(Action) : ActiveInteraction.GuideText;
 		Widget->SetGuide(GetDefaultActionLabel(Action), Instruction,
 			Action == EScenarioGuideAction::Trigger || Action == EScenarioGuideAction::Combat
 				? FLinearColor(1.0f, 0.38f, 0.12f, 1.0f)
 				: FLinearColor(0.15f, 0.78f, 1.0f, 1.0f));
 	}
-	ActiveInteractionID = Interaction.InteractionID;
-	GuideWidgetComponent->SetVisibility(true);
-	SetComponentTickInterval(FMath::Max(0.0f, ActiveGuideUpdateInterval));
+	GuideWidgetComponent->SetHiddenInGame(false, true);
+	GuideWidgetComponent->SetVisibility(true, true);
 	UpdateGuideTransform();
-	SetComponentTickEnabled(true);
+	return true;
 }
 
 void UScenarioInteractionGuideComponent::HandleInteractionStateChanged(
@@ -106,8 +121,11 @@ void UScenarioInteractionGuideComponent::HandleScenarioStateChanged(
 	}
 }
 
-AActor* UScenarioInteractionGuideComponent::ResolveTargetActor(const FScenarioInteraction& Interaction) const
+AActor* UScenarioInteractionGuideComponent::ResolveTargetActor(
+	const FScenarioInteraction& Interaction,
+	UScenarioInteractableComponent*& OutInteractor) const
 {
+	OutInteractor = nullptr;
 	if (!GetWorld())
 	{
 		return nullptr;
@@ -115,22 +133,23 @@ AActor* UScenarioInteractionGuideComponent::ResolveTargetActor(const FScenarioIn
 	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	const FVector PlayerLocation = PlayerPawn ? PlayerPawn->GetActorLocation() : FVector::ZeroVector;
 	AActor* BestMatch = nullptr;
+	UScenarioInteractableComponent* BestInteractor = nullptr;
 	float BestDistanceSquared = TNumericLimits<float>::Max();
 	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
 	{
 		TInlineComponentArray<UScenarioInteractableComponent*> Interactors;
 		It->GetComponents(Interactors);
-		bool bMatches = false;
+		UScenarioInteractableComponent* MatchingInteractor = nullptr;
 		for (const UScenarioInteractableComponent* Interactor : Interactors)
 		{
 			if (IsValid(Interactor) && Interactor->TargetID == Interaction.TargetID &&
 				Interactor->SupportsInteractionType(Interaction.InteractionType))
 			{
-				bMatches = true;
+				MatchingInteractor = const_cast<UScenarioInteractableComponent*>(Interactor);
 				break;
 			}
 		}
-		if (!bMatches)
+		if (!MatchingInteractor)
 		{
 			continue;
 		}
@@ -138,9 +157,11 @@ AActor* UScenarioInteractionGuideComponent::ResolveTargetActor(const FScenarioIn
 		if (!BestMatch || DistanceSquared < BestDistanceSquared)
 		{
 			BestMatch = *It;
+			BestInteractor = MatchingInteractor;
 			BestDistanceSquared = DistanceSquared;
 		}
 	}
+	OutInteractor = BestInteractor;
 	return BestMatch;
 }
 
@@ -159,7 +180,8 @@ void UScenarioInteractionGuideComponent::EnsureWidgetComponent()
 	GuideWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
 	GuideWidgetComponent->SetTwoSided(true);
 	GuideWidgetComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GuideWidgetComponent->SetTranslucentSortPriority(500);
+	GuideWidgetComponent->SetTranslucentSortPriority(10000);
+	GuideWidgetComponent->SetHiddenInGame(true, true);
 	GuideWidgetComponent->SetVisibility(false);
 }
 
@@ -167,20 +189,32 @@ void UScenarioInteractionGuideComponent::UpdateGuideTransform()
 {
 	if (!GuideWidgetComponent || !IsValid(TargetActor))
 	{
-		HideGuide();
+		TargetActor = nullptr;
+		TargetInteractor = nullptr;
+		if (GuideWidgetComponent)
+		{
+			GuideWidgetComponent->SetHiddenInGame(true, true);
+			GuideWidgetComponent->SetVisibility(false, true);
+		}
 		return;
 	}
-	FVector Origin;
-	FVector Extent;
-	TargetActor->GetActorBounds(false, Origin, Extent, true);
-	const FVector GuideLocation = Origin + FVector(0.0f, 0.0f, Extent.Z + HeightOffset);
+	FVector GuideLocation;
+	if (IsValid(TargetInteractor))
+	{
+		GuideLocation = TargetInteractor->GetGuideAnchorWorldLocation();
+	}
+	else
+	{
+		FVector Origin;
+		FVector Extent;
+		TargetActor->GetActorBounds(false, Origin, Extent, true);
+		GuideLocation = Origin + FVector(0.0f, 0.0f, Extent.Z + HeightOffset);
+	}
 	GuideWidgetComponent->SetWorldLocation(GuideLocation);
 
 	FVector ViewLocation;
-	FRotator ViewRotation;
-	if (const APlayerController* Controller = UGameplayStatics::GetPlayerController(this, 0))
+	if (ResolveViewLocation(ViewLocation))
 	{
-		Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
 		const float Distance = FVector::Distance(ViewLocation, GuideLocation);
 		const float AdjustedScale = bScaleWithViewDistance
 			? CalculateDistanceAdjustedScale(
@@ -192,15 +226,43 @@ void UScenarioInteractionGuideComponent::UpdateGuideTransform()
 	}
 }
 
+bool UScenarioInteractionGuideComponent::ResolveViewLocation(FVector& OutViewLocation) const
+{
+	if (const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+	{
+		TInlineComponentArray<UCameraComponent*> Cameras(PlayerPawn);
+		for (const UCameraComponent* Camera : Cameras)
+		{
+			if (IsValid(Camera) && Camera->IsActive())
+			{
+				OutViewLocation = Camera->GetComponentLocation();
+				return true;
+			}
+		}
+		if (!Cameras.IsEmpty() && IsValid(Cameras[0]))
+		{
+			OutViewLocation = Cameras[0]->GetComponentLocation();
+			return true;
+		}
+	}
+
+	if (const APlayerController* Controller = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		FRotator ViewRotation;
+		Controller->GetPlayerViewPoint(OutViewLocation, ViewRotation);
+		return true;
+	}
+	return false;
+}
+
 FRotator UScenarioInteractionGuideComponent::CalculateGuideFacingRotation(
 	const FVector& GuideLocation, const FVector& ViewLocation)
 {
 	FRotator FacingRotation = (ViewLocation - GuideLocation).Rotation();
-	// Keep world-space widgets level in HMD view; pitching the panel makes text
-	// hard to read when looking up/down. WidgetComponent's visual front is -X.
-	FacingRotation.Pitch = 0.0f;
+	// WidgetComponent faces along local +X. Preserve Pitch so close, low targets
+	// such as the Hwacha fuse remain perpendicular to the HMD view instead of
+	// appearing skewed below the player. Roll stays locked to prevent text tilt.
 	FacingRotation.Roll = 0.0f;
-	FacingRotation.Yaw += 180.0f;
 	return FacingRotation;
 }
 
@@ -223,6 +285,15 @@ void UScenarioInteractionGuideComponent::TickComponent(
 	float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	RefreshGuide();
+}
+
+void UScenarioInteractionGuideComponent::RefreshGuide()
+{
+	if (bHasActiveInteraction && (!IsValid(TargetActor) || !IsGuideVisible()))
+	{
+		TryShowActiveGuide();
+	}
 	UpdateGuideTransform();
 }
 
@@ -230,9 +301,13 @@ void UScenarioInteractionGuideComponent::HideGuide()
 {
 	if (GuideWidgetComponent)
 	{
-		GuideWidgetComponent->SetVisibility(false);
+		GuideWidgetComponent->SetHiddenInGame(true, true);
+		GuideWidgetComponent->SetVisibility(false, true);
 	}
 	TargetActor = nullptr;
+	TargetInteractor = nullptr;
+	bHasActiveInteraction = false;
+	ActiveInteraction = FScenarioInteraction();
 	ActiveInteractionID = NAME_None;
 	SetComponentTickEnabled(false);
 }

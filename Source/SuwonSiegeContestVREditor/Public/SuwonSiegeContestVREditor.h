@@ -2,6 +2,8 @@
 
 #include "Modules/ModuleManager.h"
 
+class FComponentVisualizer;
+
 class FSuwonSiegeContestVREditorModule final : public IModuleInterface
 {
 public:
@@ -10,4 +12,6 @@ public:
 
 private:
 	void RegisterMenus();
+
+	TSharedPtr<FComponentVisualizer> ScenarioGuideVisualizer;
 };

@@ -11,6 +11,7 @@
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "GameFramework/DamageType.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
@@ -18,6 +19,7 @@
 #include "Shared/Combat/LegacyHealthComponent.h"
 #include "Singijeon/SingijeonHwachaActor.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/UObjectGlobals.h"
 
 ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
 {
@@ -60,15 +62,25 @@ ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
     CharacterInstances->bCastStaticShadow = false;
     CharacterInstances->bReceivesDecals = false;
     CharacterInstances->SetHasPerInstancePrevTransforms(false);
+    CharacterInstances->SetVisibility(false, true);
+    CharacterInstances->SetHiddenInGame(true, true);
 
     ForegroundEnemyClass = AEnemySoldierActor::StaticClass();
 
     static ConstructorHelpers::FObjectFinder<USkeletalMesh> ProxySkeletalMeshFinder(
-        TEXT("/GF_Singijeon/Gameplay/Enemy/Samurai/SKM_Low_Poly_Samurai_VR.SKM_Low_Poly_Samurai_VR"));
+        TEXT("/Game/NiagaraExamples/Gallery/SkeletalMesh/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
     if (ProxySkeletalMeshFinder.Succeeded())
     {
         ProxySkeletalMesh = ProxySkeletalMeshFinder.Object;
         CharacterInstances->SetSkinnedAssetAndUpdate(ProxySkeletalMesh);
+    }
+
+    static ConstructorHelpers::FObjectFinder<UAnimationAsset> RunAnimationFinder(
+        TEXT("/Game/NiagaraExamples/Gallery/SkeletalMesh/Mannequins/Anims/Rifle/Jog/MF_Rifle_Jog_Fwd.MF_Rifle_Jog_Fwd"));
+    if (RunAnimationFinder.Succeeded())
+    {
+        RuntimeRunAnimationFallback = RunAnimationFinder.Object;
+        ForegroundRunAnimation = RunAnimationFinder.Object;
     }
 
     static ConstructorHelpers::FObjectFinder<UAnimSequenceTransformProviderData> AnimationProviderFinder(
@@ -79,12 +91,6 @@ ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
         CharacterInstances->SetTransformProvider(ProxyAnimationProvider);
     }
 
-    static ConstructorHelpers::FObjectFinder<UAnimationAsset> RunAnimationFinder(
-        TEXT("/GF_Singijeon/Gameplay/Enemy/Samurai/MF_Rifle_Jog_Fwd_Samurai.MF_Rifle_Jog_Fwd_Samurai"));
-    if (RunAnimationFinder.Succeeded())
-    {
-        ForegroundRunAnimation = RunAnimationFinder.Object;
-    }
 }
 
 void ASingijeonEnemyWaveActor::OnConstruction(const FTransform& Transform)
@@ -96,12 +102,18 @@ void ASingijeonEnemyWaveActor::OnConstruction(const FTransform& Transform)
     FormationColumnsPerPlatoon = FMath::Max(1, FormationColumnsPerPlatoon);
     ProxyUpdateInterval = FMath::Max(0.016f, ProxyUpdateInterval);
     ProxyMinLOD = FMath::Clamp(ProxyMinLOD, 0, 4);
+    DesiredEnemyHeight = FMath::Clamp(DesiredEnemyHeight, 100.0f, 240.0f);
+    SharedPoseLeaderCount = FMath::Clamp(SharedPoseLeaderCount, 1, 16);
     MinRunAnimationRate = FMath::Clamp(MinRunAnimationRate, 0.1f, 3.0f);
     MaxRunAnimationRate = FMath::Clamp(MaxRunAnimationRate, MinRunAnimationRate, 3.0f);
     LoadedApproachLimit = FMath::Clamp(LoadedApproachLimit, 0.0f, 1.0f);
     AimedApproachLimit = FMath::Clamp(AimedApproachLimit, LoadedApproachLimit, 1.0f);
     IgnitingApproachLimit = FMath::Clamp(IgnitingApproachLimit, AimedApproachLimit, 1.0f);
     FiringApproachLimit = FMath::Clamp(FiringApproachLimit, IgnitingApproachLimit, 1.0f);
+    PanicDuration = FMath::Clamp(PanicDuration, 0.0f, 10.0f);
+    PanicLateralDistance = FMath::Max(0.0f, PanicLateralDistance);
+    PanicRetreatDistance = FMath::Max(0.0f, PanicRetreatDistance);
+    PanicAnimationRateMultiplier = FMath::Clamp(PanicAnimationRateMultiplier, 0.1f, 3.0f);
     if (ProxyInstances)
     {
         // Serialized actors may still contain the old target-disc mesh. Keeping
@@ -120,13 +132,20 @@ void ASingijeonEnemyWaveActor::OnConstruction(const FTransform& Transform)
         CharacterInstances->SetAnimationMinScreenSize(ProxyAnimationMinScreenSize);
         CharacterInstances->OverrideMinLOD(ProxyMinLOD);
     }
+#if WITH_EDITOR
+    RefreshEditorEnemyPreview();
+#endif
 }
 
 void ASingijeonEnemyWaveActor::BeginPlay()
 {
     Super::BeginPlay();
+#if WITH_EDITOR
+    DestroyEditorEnemyPreview();
+#endif
     FindAndBindHwacha();
     PrepareWave();
+    RefreshProcedureStateFromHwacha();
     if (bStartOnBeginPlay)
     {
         StartWave();
@@ -135,6 +154,9 @@ void ASingijeonEnemyWaveActor::BeginPlay()
 
 void ASingijeonEnemyWaveActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+#if WITH_EDITOR
+    DestroyEditorEnemyPreview();
+#endif
     UnbindHwacha();
     DestroyVisualRepresentations();
     Super::EndPlay(EndPlayReason);
@@ -143,6 +165,34 @@ void ASingijeonEnemyWaveActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void ASingijeonEnemyWaveActor::Tick(const float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
+    if (WaveState == ESingijeonEnemyWaveState::Panicking)
+    {
+        PanicElapsed += FMath::Max(0.0f, DeltaSeconds);
+        UpdateInteractiveEnemies();
+        ProxyUpdateAccumulator += FMath::Max(0.0f, DeltaSeconds);
+        if (ProxyUpdateAccumulator >= ProxyUpdateInterval)
+        {
+            ProxyUpdateAccumulator = FMath::Fmod(ProxyUpdateAccumulator, ProxyUpdateInterval);
+            UpdateProxyEnemies(true);
+        }
+        if (PanicElapsed >= PanicDuration && bVolleyResolutionPending)
+        {
+            bVolleyResolutionPending = false;
+            const int32 Casualties = ResolveVolley(PendingVolleyOrigin, PendingVolleyDirection);
+            if (AliveEnemyCount > 0)
+            {
+                SetPanicAnimationRates(false);
+                SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Unrestricted);
+                SetWaveState(ESingijeonEnemyWaveState::Charging);
+                SetActorTickEnabled(true);
+            }
+            else if (Casualties == 0)
+            {
+                SetActorTickEnabled(false);
+            }
+        }
+        return;
+    }
     if (WaveState != ESingijeonEnemyWaveState::Charging)
     {
         SetActorTickEnabled(false);
@@ -184,6 +234,79 @@ void ASingijeonEnemyWaveActor::Tick(const float DeltaSeconds)
         SetActorTickEnabled(false);
     }
 }
+
+#if WITH_EDITOR
+void ASingijeonEnemyWaveActor::RefreshEditorEnemyPreview()
+{
+    DestroyEditorEnemyPreview();
+    UWorld* World = GetWorld();
+    if (!GIsEditor || !World || World->IsGameWorld() || IsTemplate() ||
+        !bShowEnemyPreviewInEditor || !ProxySkeletalMesh || !SceneRoot)
+    {
+        return;
+    }
+
+    if (!RebuildRoute())
+    {
+        return;
+    }
+    BuildFormationSlots();
+    EditorPreviewMeshes.Reserve(EnemySlots.Num());
+    for (int32 Index = 0; Index < EnemySlots.Num(); ++Index)
+    {
+        FEnemySlot PreviewSlot = EnemySlots[Index];
+        PreviewSlot.ReliableProxyIndex = Index;
+        const FName PreviewName = MakeUniqueObjectName(
+            this,
+            USkeletalMeshComponent::StaticClass(),
+            *FString::Printf(TEXT("EnemyPreview_%02d"), Index + 1));
+        USkeletalMeshComponent* Preview = NewObject<USkeletalMeshComponent>(
+            this, PreviewName, RF_Transient | RF_TextExportTransient);
+        if (!Preview)
+        {
+            continue;
+        }
+
+        Preview->CreationMethod = EComponentCreationMethod::Instance;
+        Preview->SetupAttachment(SceneRoot);
+        Preview->SetSkeletalMesh(ProxySkeletalMesh);
+        Preview->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Preview->SetGenerateOverlapEvents(false);
+        Preview->SetCanEverAffectNavigation(false);
+        Preview->SetCastShadow(false);
+        Preview->bCastDynamicShadow = false;
+        Preview->bCastStaticShadow = false;
+        Preview->bReceivesDecals = false;
+        Preview->SetComponentTickEnabled(false);
+        Preview->OverrideMinLOD(ProxyMinLOD);
+        Preview->bIsEditorOnly = true;
+        // Editor-only objects are stripped from cooked builds, so keep the
+        // visibility flag on for both viewport drawing and editor automation.
+        Preview->SetHiddenInGame(false, true);
+        AddInstanceComponent(Preview);
+        Preview->RegisterComponent();
+        Preview->SetWorldTransform(GetSlotTransform(PreviewSlot));
+        Preview->SetVisibility(true, true);
+        EditorPreviewMeshes.Add(Preview);
+    }
+}
+
+void ASingijeonEnemyWaveActor::DestroyEditorEnemyPreview()
+{
+    TInlineComponentArray<USkeletalMeshComponent*> SkeletalComponents(this);
+    for (USkeletalMeshComponent* Preview : SkeletalComponents)
+    {
+        if (IsValid(Preview) &&
+            (EditorPreviewMeshes.Contains(Preview) ||
+             Preview->GetName().StartsWith(TEXT("EnemyPreview_"))))
+        {
+            RemoveInstanceComponent(Preview);
+            Preview->DestroyComponent();
+        }
+    }
+    EditorPreviewMeshes.Reset();
+}
+#endif
 
 void ASingijeonEnemyWaveActor::SetProcedureApproachPhase(
     const ESingijeonEnemyApproachPhase NewPhase)
@@ -239,9 +362,7 @@ bool ASingijeonEnemyWaveActor::RebuildRoute()
     RouteLength = 0.0f;
 
     const FVector Start = SpawnVolume ? SpawnVolume->GetComponentLocation() : GetActorLocation();
-    const FVector End = IsValid(TargetActor)
-        ? TargetActor->GetActorLocation()
-        : (DefaultTargetPoint ? DefaultTargetPoint->GetComponentLocation() : Start + GetActorForwardVector() * 10000.0f);
+    const FVector End = GetDestinationLocation();
 
     if (GetWorld())
     {
@@ -271,6 +392,20 @@ bool ASingijeonEnemyWaveActor::RebuildRoute()
 
 bool ASingijeonEnemyWaveActor::PrepareWave()
 {
+#if WITH_EDITOR
+    if (GetWorld() && !GetWorld()->IsGameWorld())
+    {
+        DestroyEditorEnemyPreview();
+    }
+#endif
+	// A serialized level flag or a previously hidden wave must never suppress
+	// dynamically-created child meshes for the entire play session.
+	SetActorHiddenInGame(false);
+	if (SceneRoot)
+	{
+		SceneRoot->SetVisibility(true, false);
+		SceneRoot->SetHiddenInGame(false, false);
+	}
     StopWave(true);
     DestroyVisualRepresentations();
     if (!RebuildRoute())
@@ -286,10 +421,12 @@ bool ASingijeonEnemyWaveActor::PrepareWave()
     }
     WaveDistance = 0.0f;
     ProxyUpdateAccumulator = 0.0f;
+    PanicElapsed = 0.0f;
+    bVolleyResolutionPending = false;
     AliveEnemyCount = EnemySlots.Num();
     UpdateInteractiveEnemies();
     UpdateProxyEnemies(true);
-    SetVisualsActive(false);
+    SetVisualsActive(bShowEnemiesWhileReady);
     SetWaveState(ESingijeonEnemyWaveState::Ready);
     return true;
 }
@@ -324,6 +461,9 @@ void ASingijeonEnemyWaveActor::ResetWave()
     WaveDistance = 0.0f;
     ProxyUpdateAccumulator = 0.0f;
     AliveEnemyCount = EnemySlots.Num();
+    PanicElapsed = 0.0f;
+    bVolleyResolutionPending = false;
+    SetPanicAnimationRates(false);
     for (FEnemySlot& Slot : EnemySlots)
     {
         Slot.bAlive = true;
@@ -334,33 +474,57 @@ void ASingijeonEnemyWaveActor::ResetWave()
     }
     UpdateInteractiveEnemies();
     UpdateProxyEnemies(true);
-    SetVisualsActive(false);
+    SetVisualsActive(bShowEnemiesWhileReady);
     SetWaveState(ESingijeonEnemyWaveState::Ready);
     CurrentApproachLimitFraction = 1.0f;
     ApproachPhase = ESingijeonEnemyApproachPhase::Unrestricted;
-    if (BoundHwacha && bLimitApproachByHwachaProcedure)
+    RefreshProcedureStateFromHwacha();
+}
+
+FVector ASingijeonEnemyWaveActor::GetDestinationLocation() const
+{
+    if (IsValid(DestinationActor))
     {
-        if (BoundHwacha->GetHwachaState() == ESingijeonHwachaState::Fired)
-        {
-            SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Firing);
-        }
-        else if (BoundHwacha->GetHwachaState() == ESingijeonHwachaState::Igniting)
-        {
-            SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Igniting);
-        }
-        else if (BoundHwacha->IsAimInteractionComplete())
-        {
-            SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Aimed);
-        }
-        else if (BoundHwacha->GetLoadedAmmunitionCount() > 0)
-        {
-            SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Loaded);
-        }
-        else
-        {
-            SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Waiting);
-        }
+        return DestinationActor->GetActorLocation();
     }
+    if (DefaultTargetPoint)
+    {
+        return DefaultTargetPoint->GetComponentLocation();
+    }
+    return GetActorLocation() + GetActorForwardVector() * 10000.0f;
+}
+
+void ASingijeonEnemyWaveActor::BeginPanic(
+    const FVector VolleyOrigin,
+    const FVector VolleyDirection)
+{
+    if (AliveEnemyCount <= 0 ||
+        (WaveState != ESingijeonEnemyWaveState::Charging &&
+         WaveState != ESingijeonEnemyWaveState::Ready))
+    {
+        return;
+    }
+    PendingVolleyOrigin = VolleyOrigin;
+    PendingVolleyDirection = VolleyDirection.GetSafeNormal();
+    PanicElapsed = 0.0f;
+    bVolleyResolutionPending = true;
+    SetVisualsActive(true);
+    SetPanicAnimationRates(true);
+    SetWaveState(ESingijeonEnemyWaveState::Panicking);
+    if (PanicDuration <= KINDA_SMALL_NUMBER)
+    {
+        bVolleyResolutionPending = false;
+        ResolveVolley(PendingVolleyOrigin, PendingVolleyDirection);
+        if (AliveEnemyCount > 0)
+        {
+            SetPanicAnimationRates(false);
+            SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Unrestricted);
+            SetWaveState(ESingijeonEnemyWaveState::Charging);
+            SetActorTickEnabled(true);
+        }
+        return;
+    }
+    SetActorTickEnabled(true);
 }
 
 int32 ASingijeonEnemyWaveActor::ResolveVolley(const FVector Origin, const FVector Direction)
@@ -428,7 +592,8 @@ int32 ASingijeonEnemyWaveActor::GetInteractiveEnemyCount() const
 
 int32 ASingijeonEnemyWaveActor::GetProxyEnemyCount() const
 {
-    return CharacterInstances ? CharacterInstances->GetInstanceCount() : 0;
+    const int32 GpuCount = CharacterInstances ? CharacterInstances->GetInstanceCount() : 0;
+    return GpuCount + ReliableProxyMeshes.Num();
 }
 
 void ASingijeonEnemyWaveActor::HandleHwachaLoadCountChanged(const int32 LoadedCount, const int32)
@@ -445,15 +610,13 @@ void ASingijeonEnemyWaveActor::HandleHwachaLoadCountChanged(const int32 LoadedCo
 
 void ASingijeonEnemyWaveActor::HandleHwachaVolleyLaunched()
 {
-    if (!BoundHwacha || WaveState != ESingijeonEnemyWaveState::Charging)
+    if (!BoundHwacha ||
+        (WaveState != ESingijeonEnemyWaveState::Charging &&
+         WaveState != ESingijeonEnemyWaveState::Ready))
     {
         return;
     }
-    ResolveVolley(BoundHwacha->GetActorLocation(), BoundHwacha->GetActorForwardVector());
-    if (AliveEnemyCount > 0)
-    {
-        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Unrestricted);
-    }
+    BeginPanic(BoundHwacha->GetActorLocation(), BoundHwacha->GetActorForwardVector());
 }
 
 void ASingijeonEnemyWaveActor::HandleHwachaAimCompleted()
@@ -516,15 +679,11 @@ void ASingijeonEnemyWaveActor::FindAndBindHwacha()
         return;
     }
     BoundHwacha = Hwacha;
-    TargetActor = Hwacha;
     Hwacha->OnLoadCountChanged.AddUniqueDynamic(this, &ThisClass::HandleHwachaLoadCountChanged);
     Hwacha->OnVolleyLaunched.AddUniqueDynamic(this, &ThisClass::HandleHwachaVolleyLaunched);
     Hwacha->OnAimCompleted.AddUniqueDynamic(this, &ThisClass::HandleHwachaAimCompleted);
     Hwacha->OnHwachaStateChanged.AddUniqueDynamic(this, &ThisClass::HandleHwachaStateChanged);
-    if (bLimitApproachByHwachaProcedure)
-    {
-        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Waiting);
-    }
+    RefreshProcedureStateFromHwacha();
 }
 
 void ASingijeonEnemyWaveActor::UnbindHwacha()
@@ -537,6 +696,44 @@ void ASingijeonEnemyWaveActor::UnbindHwacha()
         BoundHwacha->OnHwachaStateChanged.RemoveDynamic(this, &ThisClass::HandleHwachaStateChanged);
     }
     BoundHwacha = nullptr;
+}
+
+void ASingijeonEnemyWaveActor::RefreshProcedureStateFromHwacha()
+{
+    if (!bLimitApproachByHwachaProcedure)
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Unrestricted);
+        return;
+    }
+    if (!BoundHwacha)
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Waiting);
+        return;
+    }
+    if (BoundHwacha->GetHwachaState() == ESingijeonHwachaState::Fired)
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Firing);
+    }
+    else if (BoundHwacha->GetHwachaState() == ESingijeonHwachaState::Igniting)
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Igniting);
+    }
+    else if (BoundHwacha->IsAimInteractionComplete())
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Aimed);
+    }
+    else if (BoundHwacha->GetLoadedAmmunitionCount() > 0)
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Loaded);
+        if (bStartWhenHwachaLoaded && WaveState == ESingijeonEnemyWaveState::Ready)
+        {
+            StartWave();
+        }
+    }
+    else
+    {
+        SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Waiting);
+    }
 }
 
 void ASingijeonEnemyWaveActor::BuildFormationSlots()
@@ -572,6 +769,9 @@ void ASingijeonEnemyWaveActor::BuildFormationSlots()
         Slot.SpeedScale = Random.FRandRange(MinRunAnimationRate, MaxRunAnimationRate);
         Slot.YawOffset = Random.FRandRange(-YawJitterDegrees, YawJitterDegrees);
         Slot.UniformScale = Random.FRandRange(1.0f - ScaleVariation, 1.0f + ScaleVariation);
+        Slot.PanicLateralScale = Random.FRandRange(0.55f, 1.0f) * (Random.RandBool() ? 1.0f : -1.0f);
+        Slot.PanicRetreatScale = Random.FRandRange(0.65f, 1.15f);
+        Slot.PanicPhase = Random.FRandRange(0.0f, 2.0f * PI);
         Slot.AnimationIndex = Random.RandRange(0, 11);
         Slot.bAlive = true;
     }
@@ -594,6 +794,8 @@ bool ASingijeonEnemyWaveActor::SpawnVisualRepresentations()
     CharacterInstances->SetCullDistances(ProxyStartCullDistance, ProxyEndCullDistance);
     CharacterInstances->SetAnimationMinScreenSize(ProxyAnimationMinScreenSize);
     CharacterInstances->OverrideMinLOD(ProxyMinLOD);
+    CharacterInstances->SetVisibility(false, true);
+    CharacterInstances->SetHiddenInGame(true, true);
 
     const int32 InteractiveCount = ForegroundEnemyClass
         ? FMath::Min(MaxInteractiveEnemies, EnemySlots.Num())
@@ -605,6 +807,10 @@ bool ASingijeonEnemyWaveActor::SpawnVisualRepresentations()
         {
             FActorSpawnParameters Params;
             Params.Owner = this;
+            Params.OverrideLevel = GetLevel();
+            Params.Name = MakeUniqueObjectName(
+                GetLevel(), ForegroundEnemyClass.Get(),
+                *FString::Printf(TEXT("SingijeonEnemy_%02d"), Index + 1));
             Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
             AEnemySoldierActor* Enemy = GetWorld()->SpawnActor<AEnemySoldierActor>(
                 ForegroundEnemyClass, GetSlotTransform(Slot), Params);
@@ -612,35 +818,55 @@ bool ASingijeonEnemyWaveActor::SpawnVisualRepresentations()
             {
                 return false;
             }
+#if WITH_EDITOR
+            Enemy->SetActorLabel(FString::Printf(TEXT("Singijeon Enemy %02d"), Index + 1));
+#endif
             Slot.InteractiveActor = Enemy;
             if (ULegacyHealthComponent* Health = Enemy->GetHealthComponent())
             {
                 Health->OnHealthDepleted.AddUniqueDynamic(this, &ThisClass::HandleInteractiveEnemyDepleted);
             }
-            if (ForegroundRunAnimation && Enemy->GetMesh())
-            {
-                Enemy->GetMesh()->SetSkeletalMesh(ProxySkeletalMesh);
-                Enemy->GetMesh()->PlayAnimation(ForegroundRunAnimation, true);
-                Enemy->GetMesh()->SetPlayRate(Slot.SpeedScale);
-            }
             if (USkeletalMeshComponent* EnemyMesh = Enemy->GetMesh())
             {
+                if (ProxySkeletalMesh)
+                {
+                    EnemyMesh->SetSkeletalMesh(ProxySkeletalMesh);
+                }
+                if (UAnimationAsset* RunAnimation = GetRunAnimation())
+                {
+                    EnemyMesh->PlayAnimation(RunAnimation, true);
+                    EnemyMesh->SetPlayRate(Slot.SpeedScale);
+                    const float Phase = static_cast<float>(Slot.AnimationIndex % 12) / 12.0f;
+                    EnemyMesh->SetPosition(RunAnimation->GetPlayLength() * Phase, false);
+                }
                 // These foreground actors are visual/shot targets only; their
                 // shadows are disproportionately expensive in standalone VR.
                 EnemyMesh->SetCastShadow(false);
                 EnemyMesh->bCastDynamicShadow = false;
                 EnemyMesh->VisibilityBasedAnimTickOption =
-                    EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+                    EVisibilityBasedAnimTickOption::AlwaysTickPose;
                 EnemyMesh->OverrideMinLOD(ProxyMinLOD);
+				EnemyMesh->SetRelativeScale3D(
+					ProxyScale * GetEnemyHeightNormalizationScale());
+				EnemyMesh->SetBoundsScale(2.0f);
+				EnemyMesh->bNeverDistanceCull = true;
             }
             Enemy->SetSoldierActive(false);
         }
-        else if (ProxySkeletalMesh)
+        else if (ProxySkeletalMesh && bUseGpuInstancedCrowd && ProxyAnimationProvider)
         {
             // Store the stable dense index before building the transform so the
             // skeletal-pivot ground offset and proxy scale are selected.
             Slot.ProxyInstanceIndex = CharacterInstances->GetInstanceCount();
             CharacterInstances->AddInstance(GetSlotTransform(Slot), Slot.AnimationIndex, true);
+        }
+        else if (ProxySkeletalMesh)
+        {
+            Slot.ReliableProxyIndex = ReliableProxyMeshes.Num();
+            if (!CreateReliableProxyMesh(Slot, Slot.ReliableProxyIndex))
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -669,6 +895,27 @@ void ASingijeonEnemyWaveActor::DestroyVisualRepresentations()
     {
         CharacterInstances->ClearInstances();
     }
+    // Components from older hot-reload instances were owned directly by the
+    // Wave. New Quest-safe proxies are owned by their SkeletalMeshActor and
+    // are destroyed with that Actor below.
+    for (USkeletalMeshComponent* ProxyMeshComponent : ReliableProxyMeshes)
+    {
+        if (IsValid(ProxyMeshComponent) && ProxyMeshComponent->GetOwner() == this)
+        {
+            RemoveInstanceComponent(ProxyMeshComponent);
+            ProxyMeshComponent->DestroyComponent();
+        }
+    }
+    for (AEnemySoldierActor* ProxyActor : ReliableProxyActors)
+    {
+        if (IsValid(ProxyActor))
+        {
+            ProxyActor->Destroy();
+        }
+    }
+    ReliableProxyMeshes.Reset();
+    ReliableProxyActors.Reset();
+    SharedPoseLeaders.Reset();
     AliveEnemyCount = 0;
 }
 
@@ -686,26 +933,141 @@ void ASingijeonEnemyWaveActor::UpdateInteractiveEnemies()
     }
 }
 
+USkeletalMeshComponent* ASingijeonEnemyWaveActor::CreateReliableProxyMesh(
+    const FEnemySlot& Slot,
+    const int32 ProxyOrdinal)
+{
+    if (!ProxySkeletalMesh || !GetWorld())
+    {
+        return nullptr;
+    }
+
+    FActorSpawnParameters SpawnParameters;
+    SpawnParameters.Owner = this;
+    SpawnParameters.OverrideLevel = GetLevel();
+    const int32 SlotIndex = FMath::Clamp(MaxInteractiveEnemies, 0, EnemyCount) + ProxyOrdinal;
+    SpawnParameters.Name = MakeUniqueObjectName(
+        GetLevel(), AEnemySoldierActor::StaticClass(),
+        *FString::Printf(TEXT("SingijeonEnemy_%02d"), SlotIndex + 1));
+    SpawnParameters.SpawnCollisionHandlingOverride =
+        ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    SpawnParameters.ObjectFlags |= RF_Transient;
+    // SkeletalMeshActor proxies can disappear from the OpenXR frame after the
+    // editor-only formation preview is destroyed.  Use the same lightweight
+    // EnemySoldier actor path as the three foreground targets instead.
+    AEnemySoldierActor* ProxyActor = GetWorld()->SpawnActor<AEnemySoldierActor>(
+        AEnemySoldierActor::StaticClass(), GetSlotTransform(Slot), SpawnParameters);
+    if (!ProxyActor)
+    {
+        return nullptr;
+    }
+#if WITH_EDITOR
+    ProxyActor->SetActorLabel(FString::Printf(TEXT("Singijeon Enemy %02d"), SlotIndex + 1));
+#endif
+    ProxyActor->SetActorTickEnabled(false);
+    if (UCharacterMovementComponent* Movement = ProxyActor->GetCharacterMovement())
+    {
+        Movement->SetComponentTickEnabled(false);
+    }
+    USkeletalMeshComponent* Proxy = ProxyActor->GetMesh();
+    if (!Proxy)
+    {
+        ProxyActor->Destroy();
+        return nullptr;
+    }
+    Proxy->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Proxy->SetGenerateOverlapEvents(false);
+    Proxy->SetSkeletalMesh(ProxySkeletalMesh);
+    Proxy->SetRelativeLocation(FVector::ZeroVector);
+    Proxy->SetRelativeRotation(FRotator::ZeroRotator);
+    Proxy->SetCanEverAffectNavigation(false);
+    Proxy->SetCastShadow(false);
+    Proxy->bCastDynamicShadow = false;
+    Proxy->bCastStaticShadow = false;
+    Proxy->bReceivesDecals = false;
+	Proxy->SetRenderInMainPass(true);
+	Proxy->SetRenderInDepthPass(true);
+	Proxy->bNeverDistanceCull = true;
+	Proxy->SetBoundsScale(2.0f);
+    Proxy->bEnableUpdateRateOptimizations = true;
+    Proxy->OverrideMinLOD(ProxyMinLOD);
+    Proxy->SetComponentTickInterval(1.0f / 30.0f);
+    Proxy->SetVisibility(true, true);
+    Proxy->SetHiddenInGame(false, true);
+    ProxyActor->SetSoldierActive(true);
+    ProxyActor->SetActorEnableCollision(false);
+
+    const int32 ProxyCount = FMath::Max(1, EnemyCount - MaxInteractiveEnemies);
+    const int32 LeaderCount = FMath::Clamp(SharedPoseLeaderCount, 1, ProxyCount);
+    if (ProxyOrdinal < LeaderCount)
+    {
+        Proxy->VisibilityBasedAnimTickOption =
+            EVisibilityBasedAnimTickOption::AlwaysTickPose;
+        if (UAnimationAsset* RunAnimation = GetRunAnimation())
+        {
+            Proxy->PlayAnimation(RunAnimation, true);
+            Proxy->SetPlayRate(Slot.SpeedScale);
+            const float Phase = static_cast<float>(Slot.AnimationIndex % 12) / 12.0f;
+            Proxy->SetPosition(RunAnimation->GetPlayLength() * Phase, false);
+        }
+        SharedPoseLeaders.Add(Proxy);
+    }
+    else if (!SharedPoseLeaders.IsEmpty())
+    {
+        Proxy->VisibilityBasedAnimTickOption =
+            EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+        Proxy->SetLeaderPoseComponent(
+            SharedPoseLeaders[ProxyOrdinal % SharedPoseLeaders.Num()]);
+    }
+
+	Proxy->UpdateBounds();
+	Proxy->MarkRenderTransformDirty();
+	Proxy->MarkRenderStateDirty();
+
+    ReliableProxyActors.Add(ProxyActor);
+    ReliableProxyMeshes.Add(Proxy);
+    return Proxy;
+}
+
 void ASingijeonEnemyWaveActor::UpdateProxyEnemies(const bool /*bMarkRenderStateDirty*/)
 {
-    if (!CharacterInstances || !ProxySkeletalMesh || CharacterInstances->GetInstanceCount() == 0)
+    if (!ProxySkeletalMesh)
     {
         return;
     }
     for (const FEnemySlot& Slot : EnemySlots)
     {
-        if (Slot.ProxyInstanceIndex == INDEX_NONE ||
-            Slot.ProxyInstanceIndex >= CharacterInstances->GetInstanceCount())
+        if (Slot.ProxyInstanceIndex != INDEX_NONE && CharacterInstances &&
+            Slot.ProxyInstanceIndex < CharacterInstances->GetInstanceCount())
         {
-            continue;
+            FTransform Transform = GetSlotTransform(Slot);
+            if (!Slot.bAlive)
+            {
+                Transform.SetScale3D(FVector::ZeroVector);
+            }
+            CharacterInstances->SetInstanceTransform(
+                CharacterInstances->GetInstanceId(Slot.ProxyInstanceIndex), Transform, true);
         }
-        FTransform Transform = GetSlotTransform(Slot);
-        if (!Slot.bAlive)
+        else if (ReliableProxyMeshes.IsValidIndex(Slot.ReliableProxyIndex))
         {
-            Transform.SetScale3D(FVector::ZeroVector);
+            USkeletalMeshComponent* Proxy = ReliableProxyMeshes[Slot.ReliableProxyIndex];
+            if (IsValid(Proxy))
+            {
+                if (ReliableProxyActors.IsValidIndex(Slot.ReliableProxyIndex) &&
+                    IsValid(ReliableProxyActors[Slot.ReliableProxyIndex]))
+                {
+                    ReliableProxyActors[Slot.ReliableProxyIndex]->SetActorTransform(
+                        GetSlotTransform(Slot), false, nullptr, ETeleportType::TeleportPhysics);
+                }
+                else
+                {
+                    Proxy->SetWorldTransform(GetSlotTransform(Slot), false, nullptr,
+                        ETeleportType::TeleportPhysics);
+                }
+                Proxy->SetVisibility(Slot.bAlive, true);
+                Proxy->SetHiddenInGame(!Slot.bAlive, true);
+            }
         }
-        CharacterInstances->SetInstanceTransform(
-            CharacterInstances->GetInstanceId(Slot.ProxyInstanceIndex), Transform, true);
     }
 }
 
@@ -716,14 +1078,70 @@ FTransform ASingijeonEnemyWaveActor::GetSlotTransform(const FEnemySlot& Slot) co
     SampleRoute(GetSlotRouteDistance(Slot), Location, Direction);
     const FVector Right = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal();
     Location += Right * Slot.LateralOffset;
-    const bool bGpuCharacter = Slot.ProxyInstanceIndex != INDEX_NONE;
-    Location.Z += bGpuCharacter ? ProxyGroundOffset : AgentGroundOffset;
+    if (WaveState == ESingijeonEnemyWaveState::Panicking && PanicDuration > KINDA_SMALL_NUMBER)
+    {
+        const float PanicAlpha = FMath::Clamp(PanicElapsed / PanicDuration, 0.0f, 1.0f);
+        const float Ease = FMath::InterpEaseOut(0.0f, 1.0f, PanicAlpha, 2.0f);
+        const float Weave = FMath::Sin(PanicElapsed * 5.0f + Slot.PanicPhase) *
+            PanicLateralDistance * 0.12f * (1.0f - PanicAlpha);
+        Location += Right * (Slot.PanicLateralScale * PanicLateralDistance * Ease + Weave);
+        Location -= Direction * Slot.PanicRetreatScale * PanicRetreatDistance * Ease;
+    }
+    const bool bVisualProxy = Slot.ProxyInstanceIndex != INDEX_NONE ||
+        Slot.ReliableProxyIndex != INDEX_NONE;
+    Location.Z += bVisualProxy ? ProxyGroundOffset : AgentGroundOffset;
     FRotator Rotation = Direction.Rotation();
     Rotation.Yaw += Slot.YawOffset;
-    const FVector Scale = bGpuCharacter
-        ? ProxyScale * Slot.UniformScale
+    if (WaveState == ESingijeonEnemyWaveState::Panicking)
+    {
+        Rotation.Yaw += Slot.PanicLateralScale * 70.0f +
+            FMath::Sin(PanicElapsed * 6.0f + Slot.PanicPhase) * 22.0f;
+    }
+    const FVector Scale = bVisualProxy
+		? ProxyScale * GetEnemyHeightNormalizationScale() * Slot.UniformScale
         : FVector(Slot.UniformScale);
     return FTransform(Rotation, Location, Scale);
+}
+
+UAnimationAsset* ASingijeonEnemyWaveActor::GetRunAnimation() const
+{
+    return ForegroundRunAnimation
+        ? ForegroundRunAnimation.Get()
+        : RuntimeRunAnimationFallback.Get();
+}
+
+void ASingijeonEnemyWaveActor::SetPanicAnimationRates(const bool bPanic)
+{
+    const float Multiplier = bPanic ? PanicAnimationRateMultiplier : 1.0f;
+    for (const FEnemySlot& Slot : EnemySlots)
+    {
+        if (AEnemySoldierActor* Enemy = Slot.InteractiveActor.Get())
+        {
+            if (USkeletalMeshComponent* Mesh = Enemy->GetMesh())
+            {
+                Mesh->SetPlayRate(Slot.SpeedScale * Multiplier);
+            }
+        }
+    }
+    for (USkeletalMeshComponent* Leader : SharedPoseLeaders)
+    {
+        if (IsValid(Leader))
+        {
+            Leader->SetPlayRate(Multiplier);
+        }
+    }
+}
+
+float ASingijeonEnemyWaveActor::GetEnemyHeightNormalizationScale() const
+{
+	if (!ProxySkeletalMesh)
+	{
+		return 1.0f;
+	}
+	const float ImportedHeight = ProxySkeletalMesh->GetBounds().BoxExtent.Z * 2.0f;
+	return ImportedHeight > KINDA_SMALL_NUMBER
+		? DesiredEnemyHeight / ImportedHeight
+		: 1.0f;
 }
 
 float ASingijeonEnemyWaveActor::GetSlotRouteDistance(const FEnemySlot& Slot) const
@@ -819,6 +1237,15 @@ void ASingijeonEnemyWaveActor::SetWaveState(const ESingijeonEnemyWaveState NewSt
 
 void ASingijeonEnemyWaveActor::SetVisualsActive(const bool bActive)
 {
+	if (bActive)
+	{
+		SetActorHiddenInGame(false);
+		if (SceneRoot)
+		{
+			SceneRoot->SetVisibility(true, false);
+			SceneRoot->SetHiddenInGame(false, false);
+		}
+	}
     if (ProxyInstances)
     {
         ProxyInstances->SetVisibility(false, true);
@@ -826,14 +1253,36 @@ void ASingijeonEnemyWaveActor::SetVisualsActive(const bool bActive)
     }
     if (CharacterInstances)
     {
-        CharacterInstances->SetVisibility(bActive, true);
-        CharacterInstances->SetHiddenInGame(!bActive, true);
+        const bool bGpuVisible = bActive && bUseGpuInstancedCrowd;
+        CharacterInstances->SetVisibility(bGpuVisible, true);
+        CharacterInstances->SetHiddenInGame(!bGpuVisible, true);
     }
     for (FEnemySlot& Slot : EnemySlots)
     {
         if (AEnemySoldierActor* Enemy = Slot.InteractiveActor.Get())
         {
             Enemy->SetSoldierActive(bActive && Slot.bAlive);
+        }
+        if (ReliableProxyMeshes.IsValidIndex(Slot.ReliableProxyIndex))
+        {
+            if (USkeletalMeshComponent* Proxy = ReliableProxyMeshes[Slot.ReliableProxyIndex])
+            {
+                const bool bProxyVisible = bActive && Slot.bAlive;
+                if (ReliableProxyActors.IsValidIndex(Slot.ReliableProxyIndex) &&
+                    IsValid(ReliableProxyActors[Slot.ReliableProxyIndex]))
+                {
+                    ReliableProxyActors[Slot.ReliableProxyIndex]->SetActorHiddenInGame(
+                        !bProxyVisible);
+                }
+                Proxy->SetVisibility(bProxyVisible, true);
+                Proxy->SetHiddenInGame(!bProxyVisible, true);
+				if (bProxyVisible)
+				{
+					Proxy->UpdateBounds();
+					Proxy->MarkRenderTransformDirty();
+					Proxy->MarkRenderStateDirty();
+				}
+            }
         }
     }
 }

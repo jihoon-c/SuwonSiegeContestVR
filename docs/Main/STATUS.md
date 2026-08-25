@@ -2,7 +2,7 @@
 
 **조사 기준일**: 2026-08-11 · **조사 기준 커밋**: `57dd875`
 **계층**: Core (Game Feature Plugin 없음)
-**전체 상태**: `Status: Partial` — VR Pawn, Scenario, Main→공심돈→Main→신기전→Main 흐름과 세션 진행 복원 구현
+**전체 상태**: `Status: Partial` — VR Pawn, Scenario/Experience 기반, 전체 Main 교육 흐름 베이스와 세션 진행 복원 구현
 
 Shared 전투·AI·풀링 현황과 Editor 통합 계획은 [Gameplay/README.md](Gameplay/README.md)를 참고한다.
 
@@ -25,14 +25,24 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 
 | 요소 | 상태 | 실제 확인 내용 |
 |---|---|---|
-| `L_Main` Level | `Implemented` | `/Game/Maps/Main/L_Main`. Main Manager, PlayerStart, 공심돈·신기전 순차 이동 Trigger 배치 |
-| Tutorial Flow | `Partial` | `DA_Scenario_Main`에 공심돈 복귀 후 신기전으로 이어지는 인라인 흐름 구현. 전체 NPC/퀴즈 콘텐츠는 미작성 |
+| `L_Main` Level | `Implemented` | `/Game/Maps/Main/L_Main`. Main Manager, PlayerStart, 공심돈·신기전 순차 이동 Trigger 배치. `/Game/Maps/Main/L_NamhansanseongLandscape`를 Always Loaded 지형 서브레벨로 연결 |
+| Main Landscape | `Implemented` | `Demo_Namhansanseong`의 Landscape 1개 + Streaming Proxy 121개와 `MI_Landscape`를 지형 전용 서브레벨로 분리 이식. 기존 평면 Landscape 제거, Demo PlayerStart 안전 지점으로 Main 시작 위치·체험 Trigger 정렬 |
+| Tutorial Flow | `Partial` | `DA_Scenario_MainEducation.01 Editor Flow`의 6 Stage/42 Step 트리에서 순서·화면·행동·완료 조건·가이드를 편집하고 Runtime 흐름을 자동 생성. 미구현 체험 Level 연결은 남음 |
 | NPC | `Partial` | NPC Actor/애니메이션은 없으나 DT 기반 음성·자막 진행 구조 구현 |
-| 초성 퀴즈 | `Planned` | Quiz Blueprint / Widget / Data Table 없음 |
-| 음성 인식 | `Planned` | **관련 플러그인·SDK·C++ 모듈이 전혀 없다.** 기술 선정 자체가 미완 |
+| 초성 퀴즈 | `Partial` | 네 개 초성/정답 데이터, 공백 정규화, 정답/재시도 흐름 및 UI 이벤트 구현. 최종 Quiz Widget은 남음 |
+| 음성 인식 | `Planned` | 외부 담당자용 `RequestVoiceRecognition`/`CancelVoiceRecognition`/`SubmitQuizAnswer` 포트만 제공. 캡처·SDK·STT는 의도적으로 미구현 |
 | Experience 전환 | `Implemented` | `UExperienceSubsystem`의 Soft Level `OpenLevel`, 상태 전이, Scenario 완료 Bridge 구현 |
 | 진행도 관리 | `Partial` | Experience 완료 목록과 Main Scenario 복귀 체크포인트를 세션 동안 복원. SaveGame 영속화는 없음 |
-| 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD, 후속 World Widget, `UVRHUDComponent` 기반 목표·진행도·Prompt·알림 채널 및 `WBP_VRHUD` 구현 |
+| 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD와 `UVRHUDComponent` 채널 구현. Main Step별 Interaction Guide Text를 HUD에 반영하며 최종 교육 Widget은 남음 |
+
+메인 전용 나레이션은 `/Game/Audio/Narration/DT_Narration_Main`에 01~33번이 등록되어 있으며,
+`DA_Scenario_MainEducation`의 부임부터 녹로 원리 설명까지 14개 재생 구간으로 연결되어 있다.
+`/Game/Art/MainEducation/Examples`의 5개 예시 Texture가 12개 화면 슬롯에 연결되어 있다.
+
+남한산성 공용 지형은 `/Game/Maps/Main/L_NamhansanseongLandscape`에서 독립 편집한다. 이 맵은
+`Demo_Namhansanseong`의 지형만 보유하며 성벽·조명·게임플레이 Blueprint·Foliage는 포함하지 않는다.
+`L_Main`에서는 Always Loaded 서브레벨로 사용하며, 다른 레벨에서도 에디터 콘솔의
+`Suwon.AttachNamhansanseongLandscape`로 같은 공용 지형을 연결할 수 있다. 연결 뒤 대상 레벨을 저장한다.
 
 ### 새로 구현된 Core 요소
 
@@ -53,6 +63,9 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 - `Content/Core/Experience/Definitions/DA_Experience_Main`
 - `AExperienceTravelTriggerActor`, Interaction 순서 가드, Main Scenario 체크포인트 복원
 - Experience 하나만 Level Manager에 지정하는 자동 Scenario/Narration 해석
+- `UMainEducationScenarioDefinition`, `AMainEducationScenarioManagerActor`
+- `Content/Data/DA_Scenario_MainEducation` 전체 교육 흐름
+- `Content/Core/Experience/Definitions/DA_Experience_Ongseong`
 
 나레이션은 `docs/Main/specs/NARRATION_SYSTEM.md`, Scenario 제작은 `docs/Main/specs/SCENARIO_SYSTEM.md`를 참고한다. `BP_XRGameMode`는 `BP_VRPlayerPawn`을 기본 Pawn으로 사용하며 `LV_Singijeon`에도 명시적으로 지정되어 있다.
 

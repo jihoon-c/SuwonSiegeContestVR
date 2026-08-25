@@ -4,6 +4,8 @@ import unreal
 HWACHA_BP_PATH = "/GF_Singijeon/Gameplay/BP_SingijeonHwacha"
 LEVEL_PATHS = ("/Game/Maps/LV_Singijeon", "/GF_Singijeon/Maps/LV_Singijeon")
 FIRE_SYSTEM_PATH = "/Game/NiagaraExamples/FX_Misc/NS_Fire"
+HWACHA_MESH_PATH = "/GF_Singijeon/Asset/Hwacha/hwacha/StaticMeshes/hwacha"
+TORCH_MESH_PATH = "/GF_Singijeon/Asset/Torch/Burning_Wood_Torch"
 FUSE_GUIDE_MESH_PATH = "/Engine/BasicShapes/Sphere"
 FUSE_GUIDE_MATERIAL_PATH = "/Game/LevelPrototyping/Interactable/JumpPad/Assets/Materials/MI_GlowNT"
 
@@ -47,10 +49,20 @@ def configure_hwacha(actor):
 
 hwacha_bp = unreal.load_asset(HWACHA_BP_PATH)
 fire_system = unreal.load_asset(FIRE_SYSTEM_PATH)
+hwacha_mesh = unreal.load_asset(HWACHA_MESH_PATH)
+torch_mesh = unreal.load_asset(TORCH_MESH_PATH)
 fuse_guide_mesh = unreal.load_asset(FUSE_GUIDE_MESH_PATH)
 fuse_guide_material = unreal.load_asset(FUSE_GUIDE_MATERIAL_PATH)
-if not hwacha_bp or not fire_system or not fuse_guide_mesh or not fuse_guide_material:
+if (not hwacha_bp or not fire_system or not hwacha_mesh or not torch_mesh or
+        not fuse_guide_mesh or not fuse_guide_material):
     raise RuntimeError("Hwacha Blueprint or Fuse guide assets are missing")
+
+# NS_Fire uses a CPU Static Mesh data interface. Without CPU access it retries
+# against the owning Hwacha mesh every frame and floods the VR PIE log.
+hwacha_mesh.set_editor_property("allow_cpu_access", True)
+unreal.EditorAssetLibrary.save_loaded_asset(hwacha_mesh, only_if_is_dirty=False)
+torch_mesh.set_editor_property("allow_cpu_access", True)
+unreal.EditorAssetLibrary.save_loaded_asset(torch_mesh, only_if_is_dirty=False)
 
 unreal.BlueprintEditorLibrary.compile_blueprint(hwacha_bp)
 configure_hwacha(unreal.get_default_object(hwacha_bp.generated_class()))

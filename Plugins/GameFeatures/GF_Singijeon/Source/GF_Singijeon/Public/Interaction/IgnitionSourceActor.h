@@ -9,6 +9,7 @@ class USceneComponent;
 class UScenarioInteractableComponent;
 class USphereComponent;
 class UStaticMeshComponent;
+class UParticleSystemComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnIgnitionSourceStateChanged, bool, bIsActive);
 
@@ -51,8 +52,16 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UScenarioInteractableComponent> GrabScenarioInteractor;
 
+    /** Point-source flame attached to the torch tip; does not sample the whole torch mesh. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UParticleSystemComponent> TorchFlameEffect;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ignition")
     bool bIgnitionActive = false;
+
+    /** Disables legacy mesh-sampling Niagara effects that spread over a horizontal torch. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ignition|Visual")
+    bool bUsePointSourceFlame = true;
 
     /** Small hidden warmup avoids allocating the torch Niagara system on overlap. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ignition|Performance",

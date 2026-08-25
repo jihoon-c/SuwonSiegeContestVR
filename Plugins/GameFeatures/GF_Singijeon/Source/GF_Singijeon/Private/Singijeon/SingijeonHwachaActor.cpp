@@ -1,6 +1,7 @@
 #include "Singijeon/SingijeonHwachaActor.h"
 
 #include "Components/SceneComponent.h"
+#include "Components/ArrowComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -43,6 +44,32 @@ ASingijeonHwachaActor::ASingijeonHwachaActor()
     AutoLoadedArrowInstances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     AutoLoadedArrowInstances->SetGenerateOverlapEvents(false);
 
+#if WITH_EDITORONLY_DATA
+    AmmoGridEditorPreview = CreateEditorOnlyDefaultSubobject<UInstancedStaticMeshComponent>(
+        TEXT("AmmoGridEditorPreview"));
+    // WITH_EDITORONLY_DATA is also defined for an Editor target launched with
+    // -game, where CreateEditorOnlyDefaultSubobject can intentionally return
+    // null. Never let the authoring preview block standalone/VR startup.
+    if (AmmoGridEditorPreview)
+    {
+        AmmoGridEditorPreview->SetupAttachment(RackRoot);
+        AmmoGridEditorPreview->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        AmmoGridEditorPreview->SetGenerateOverlapEvents(false);
+        AmmoGridEditorPreview->SetCanEverAffectNavigation(false);
+        AmmoGridEditorPreview->SetCastShadow(false);
+        AmmoGridEditorPreview->SetHiddenInGame(true);
+    }
+#endif
+
+    AmmoGridCenterArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("AmmoGridCenterArrow"));
+    AmmoGridCenterArrow->SetupAttachment(RackRoot);
+    AmmoGridCenterArrow->ArrowColor = FColor(255, 200, 32);
+    AmmoGridCenterArrow->ArrowSize = 1.5f;
+    AmmoGridCenterArrow->ArrowLength = 80.0f;
+    AmmoGridCenterArrow->bIsScreenSizeScaled = true;
+    AmmoGridCenterArrow->SetHiddenInGame(true);
+    AmmoGridCenterArrow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
     Fuse = CreateDefaultSubobject<UFuseIgnitionComponent>(TEXT("Fuse"));
     Fuse->SetupAttachment(BodyMesh);
 
@@ -77,6 +104,24 @@ ASingijeonHwachaActor::ASingijeonHwachaActor()
     if (FuseGuideMaterialFinder.Succeeded())
     {
         FuseGuide->SetMaterial(0, FuseGuideMaterialFinder.Object);
+    }
+
+    FuseCord = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FuseCord"));
+    FuseCord->SetupAttachment(BodyMesh);
+    FuseCord->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    FuseCord->SetGenerateOverlapEvents(false);
+    FuseCord->SetCastShadow(false);
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> FuseCordMeshFinder(
+        TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+    if (FuseCordMeshFinder.Succeeded())
+    {
+        FuseCord->SetStaticMesh(FuseCordMeshFinder.Object);
+    }
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> FuseCordMaterialFinder(
+        TEXT("/Game/NiagaraExamples/Gallery/StaticMesh/BeachBall/M_BeachBallWhite.M_BeachBallWhite"));
+    if (FuseCordMaterialFinder.Succeeded())
+    {
+        FuseCord->SetMaterial(0, FuseCordMaterialFinder.Object);
     }
 
     TwoHandCarry = CreateDefaultSubobject<UTwoHandCarryComponent>(TEXT("TwoHandCarry"));
@@ -161,11 +206,103 @@ void ASingijeonHwachaActor::OnConstruction(const FTransform& Transform)
     SetHandleHighlightsVisible(false);
     SetMoveTargetVisible(false);
     SetFuseGuideVisible(false);
+    UpdateAuthoringVisuals();
 }
+
+void ASingijeonHwachaActor::UpdateAuthoringVisuals()
+{
+#if WITH_EDITOR
+    RefreshAmmoGridEditorPreview();
+#endif
+
+    if (AmmoGridCenterArrow && DefaultAmmoSlot)
+    {
+        const FVector GridCenterOffset = AutoFillGridOffset + FVector(
+            0.0f,
+            0.5f * FMath::Max(0, AutoFillColumns - 1) * AutoFillColumnSpacing,
+            0.5f * FMath::Max(0, AutoFillRows - 1) * AutoFillRowSpacing);
+        AmmoGridCenterArrow->SetRelativeLocation(
+            DefaultAmmoSlot->GetRelativeLocation() + GridCenterOffset + AmmoGridCenterArrowOffset);
+        AmmoGridCenterArrow->SetRelativeRotation(
+            (DefaultAmmoSlot->GetRelativeRotation().Quaternion() *
+                AmmoGridCenterArrowRotation.Quaternion()).Rotator());
+    }
+
+    if (FuseCord && Fuse)
+    {
+        const FVector FuseCordEnd = Fuse->GetRelativeLocation();
+        const FVector CordVector = FuseCordEnd - FuseCordStart;
+        const float CordLength = CordVector.Size();
+        if (CordLength > KINDA_SMALL_NUMBER)
+        {
+            FuseCord->SetRelativeLocation((FuseCordStart + FuseCordEnd) * 0.5f);
+            FuseCord->SetRelativeRotation(
+                FQuat::FindBetweenNormals(FVector::UpVector, CordVector / CordLength));
+            // Engine Cylinder is 100 cm high with a 50 cm radius.
+            FuseCord->SetRelativeScale3D(FVector(
+                FMath::Max(FuseCordRadius, 0.1f) / 50.0f,
+                FMath::Max(FuseCordRadius, 0.1f) / 50.0f,
+                CordLength / 100.0f));
+        }
+    }
+}
+
+#if WITH_EDITOR
+void ASingijeonHwachaActor::RefreshAmmoGridEditorPreview()
+{
+#if WITH_EDITORONLY_DATA
+    if (!AmmoGridEditorPreview)
+    {
+        return;
+    }
+
+    AmmoGridEditorPreview->ClearInstances();
+    AmmoGridEditorPreview->SetVisibility(bShowAmmoGridPreviewInEditor);
+    AmmoGridEditorPreview->SetHiddenInGame(true);
+    if (!bShowAmmoGridPreviewInEditor || !DefaultAmmoSlot || !AutoFillArrowMesh)
+    {
+        AmmoGridEditorPreview->SetStaticMesh(nullptr);
+        return;
+    }
+
+    AmmoGridEditorPreview->SetRelativeTransform(FTransform::Identity);
+    AmmoGridEditorPreview->SetStaticMesh(AutoFillArrowMesh);
+    if (AutoFillArrowMaterial)
+    {
+        const int32 MaterialSlotCount = FMath::Max(1, AmmoGridEditorPreview->GetNumMaterials());
+        for (int32 MaterialIndex = 0; MaterialIndex < MaterialSlotCount; ++MaterialIndex)
+        {
+            AmmoGridEditorPreview->SetMaterial(MaterialIndex, AutoFillArrowMaterial);
+        }
+    }
+
+    const FTransform SlotTransform = DefaultAmmoSlot->GetRelativeTransform();
+    const int32 Rows = FMath::Max(1, AutoFillRows);
+    const int32 Columns = FMath::Max(1, AutoFillColumns);
+    for (int32 Row = 0; Row < Rows; ++Row)
+    {
+        for (int32 Column = 0; Column < Columns; ++Column)
+        {
+            FTransform InstanceTransform = SlotTransform;
+            InstanceTransform.AddToTranslation(AutoFillGridOffset + FVector(
+                0.0f, Column * AutoFillColumnSpacing, Row * AutoFillRowSpacing));
+            AmmoGridEditorPreview->AddInstance(InstanceTransform);
+        }
+    }
+#endif
+}
+#endif
 
 void ASingijeonHwachaActor::BeginPlay()
 {
     Super::BeginPlay();
+
+#if WITH_EDITORONLY_DATA
+    if (AmmoGridEditorPreview)
+    {
+        AmmoGridEditorPreview->ClearInstances();
+    }
+#endif
 
     // The authored relative transform defines the destination in the Blueprint
     // viewport. Detaching freezes it in the level while the Hwacha is dragged.
@@ -191,6 +328,21 @@ void ASingijeonHwachaActor::BeginPlay()
     Fuse->OnIgnited.AddUniqueDynamic(this, &ThisClass::HandleFuseIgnited);
     TwoHandCarry->OnCarryStateChanged.AddUniqueDynamic(this, &ThisClass::HandleCarryStateChanged);
     ClearAutoFilledAmmunition();
+
+    // Allocate and warm the fuse effect before the interaction frame. Ignition
+    // then only resumes the existing simulation instead of resetting NS_Fire.
+    if (FuseIgnitionEffect && FuseIgnitionEffect->GetAsset())
+    {
+        FuseIgnitionEffect->SetAllowScalability(true);
+        FuseIgnitionEffect->SetCullDistance(1500.0f);
+        FuseIgnitionEffect->SetRenderingEnabled(false);
+        if (!FuseIgnitionEffect->IsActive())
+        {
+            FuseIgnitionEffect->Activate(false);
+        }
+        FuseIgnitionEffect->AdvanceSimulation(1, 1.0f / 30.0f);
+        FuseIgnitionEffect->SetPaused(true);
+    }
     SetFuseIgnitionEffectActive(false);
     RefreshLoadState();
 }
@@ -617,7 +769,8 @@ bool ASingijeonHwachaActor::CompleteAimInteraction()
         return false;
     }
 
-    const FVector TargetLocation = MoveTargetMarker->GetComponentLocation();
+    FVector TargetLocation = MoveTargetMarker->GetComponentLocation();
+    TargetLocation.Z = AimStartTransform.GetLocation().Z;
     const FRotator TargetRotation = MoveTargetMarker->GetComponentRotation();
     bAimInteractionComplete = true;
     TwoHandCarry->SetCarryEnabled(false);
@@ -649,11 +802,17 @@ void ASingijeonHwachaActor::SetFuseIgnitionEffectActive(const bool bActive)
 
     if (bActive)
     {
-        FuseIgnitionEffect->Activate(true);
+        if (!FuseIgnitionEffect->IsActive())
+        {
+            FuseIgnitionEffect->Activate(false);
+        }
+        FuseIgnitionEffect->SetPaused(false);
+        FuseIgnitionEffect->SetRenderingEnabled(true);
     }
     else
     {
-        FuseIgnitionEffect->DeactivateImmediate();
+        FuseIgnitionEffect->SetRenderingEnabled(false);
+        FuseIgnitionEffect->SetPaused(true);
     }
 }
 
@@ -788,6 +947,7 @@ void ASingijeonHwachaActor::ResetHwacha()
     bAimInteractionComplete = false;
     SetFuseIgnitionEffectActive(false);
     bHasAimStartTransform = false;
+    TwoHandCarry->ClearConstrainedWorldZ();
     SetHandleHighlightsVisible(false);
     SetMoveTargetVisible(false);
     SetFuseGuideVisible(false);
@@ -815,11 +975,13 @@ void ASingijeonHwachaActor::RefreshLoadState()
         AimStartTransform = GetActorTransform();
         bHasAimStartTransform = true;
         bAimInteractionComplete = false;
+        TwoHandCarry->SetConstrainedWorldZ(AimStartTransform.GetLocation().Z);
     }
     else if (!bHasEnoughAmmo)
     {
         bHasAimStartTransform = false;
         bAimInteractionComplete = false;
+        TwoHandCarry->ClearConstrainedWorldZ();
     }
     SetHandleHighlightsVisible(
         bEnableAimGuideHighlight && bHasEnoughAmmo && !bAimInteractionComplete &&

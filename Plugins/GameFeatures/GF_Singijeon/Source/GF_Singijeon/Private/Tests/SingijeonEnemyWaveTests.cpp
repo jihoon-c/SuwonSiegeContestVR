@@ -5,13 +5,49 @@
 #include "Enemy/SingijeonEnemyWaveActor.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/InstancedSkinnedMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Shared/Characters/EnemySoldierActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FSingijeonEnemyWaveScaleAndVolleyTest,
     "SuwonSiegeContestVR.GF_Singijeon.EnemyWave.ScaleAndVolley",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FSingijeonEnemyWaveEditorPreviewTest,
+    "SuwonSiegeContestVR.GF_Singijeon.EnemyWave.EditorPreview",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSingijeonEnemyWaveEditorPreviewTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Editor, false);
+	if (!TestNotNull(TEXT("Editor preview world is created"), World))
+	{
+		return false;
+	}
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Editor);
+	WorldContext.SetCurrentWorld(World);
+
+	ASingijeonEnemyWaveActor* Wave = World->SpawnActor<ASingijeonEnemyWaveActor>();
+	TestNotNull(TEXT("Enemy Wave is spawned in the editor world"), Wave);
+	TInlineComponentArray<USkeletalMeshComponent*> PreviewMeshes(Wave);
+	TestEqual(TEXT("Editor preview displays all 45 authored enemy positions"),
+		PreviewMeshes.Num(), 45);
+	for (USkeletalMeshComponent* Preview : PreviewMeshes)
+	{
+		TestTrue(TEXT("Preview mesh is editor-only"),
+			Preview && Preview->IsEditorOnly());
+		TestTrue(TEXT("Preview mesh has viewport visibility enabled"),
+			Preview && Preview->GetVisibleFlag() && !Preview->bHiddenInGame);
+	}
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
 
 bool FSingijeonEnemyWaveScaleAndVolleyTest::RunTest(const FString& Parameters)
 {
@@ -38,17 +74,40 @@ bool FSingijeonEnemyWaveScaleAndVolleyTest::RunTest(const FString& Parameters)
         TestNotNull(TEXT("Wave owns one instanced skeletal character renderer"), CharacterInstances);
         if (CharacterInstances)
         {
-            TestEqual(TEXT("All background enemies have full character instances"),
-                CharacterInstances->GetInstanceCount(), 42);
+            TestEqual(TEXT("Experimental GPU crowd remains disabled by default"),
+                CharacterInstances->GetInstanceCount(), 0);
 
             TSet<int32> QuantizedLateralLocations;
-            for (int32 InstanceIndex = 0; InstanceIndex < CharacterInstances->GetInstanceCount(); ++InstanceIndex)
+            TArray<AEnemySoldierActor*> OwnedEnemyActors;
+            for (TActorIterator<AEnemySoldierActor> It(World); It; ++It)
             {
-                FTransform InstanceTransform;
-                if (CharacterInstances->GetInstanceTransform(
-                    CharacterInstances->GetInstanceId(InstanceIndex), InstanceTransform, true))
+                if (It->GetOwner() == Wave)
                 {
-                    QuantizedLateralLocations.Add(FMath::RoundToInt(InstanceTransform.GetLocation().Y / 10.0f));
+                    OwnedEnemyActors.Add(*It);
+                }
+            }
+            TestEqual(TEXT("Reliable path creates all 45 named enemy Actors"),
+                OwnedEnemyActors.Num(), 45);
+            for (AEnemySoldierActor* ProxyActor : OwnedEnemyActors)
+            {
+                USkeletalMeshComponent* Proxy = ProxyActor
+                    ? ProxyActor->GetMesh()
+                    : nullptr;
+                if (Proxy)
+                {
+					TestTrue(TEXT("Reliable enemy proxy has its own Quest-safe Actor owner"),
+						Proxy->GetOwner() == ProxyActor && ProxyActor->GetOwner() == Wave);
+					TestTrue(TEXT("Reliable enemy proxy is registered with the runtime world"),
+						Proxy->IsRegistered());
+                    TestTrue(TEXT("Prepared reliable enemy proxy is visible"),
+                        Proxy->IsVisible() && !Proxy->bHiddenInGame);
+					TestTrue(TEXT("Prepared reliable enemy proxy renders in the main pass"),
+						Proxy->ShouldRender());
+                    QuantizedLateralLocations.Add(
+                        FMath::RoundToInt(Proxy->GetComponentLocation().Y / 10.0f));
+                    TestTrue(TEXT("Manny crowd remains at a valid human-scale range"),
+                        Proxy->GetComponentScale().Z > 0.5f &&
+                        Proxy->GetComponentScale().Z < 1.5f);
                 }
             }
             TestTrue(TEXT("Seeded formation jitter breaks the five-column grid"),
@@ -64,8 +123,12 @@ bool FSingijeonEnemyWaveScaleAndVolleyTest::RunTest(const FString& Parameters)
 
         Wave->StartWave();
         TestEqual(TEXT("StartWave begins the charge"), Wave->GetWaveState(), ESingijeonEnemyWaveState::Charging);
-        TestTrue(TEXT("One 90-arrow volley resolves the full default force"),
-            Wave->ResolveVolley(Wave->GetActorLocation(), Wave->GetActorForwardVector()) == 45);
+        Wave->PanicDuration = 0.25f;
+        Wave->BeginPanic(Wave->GetActorLocation(), Wave->GetActorForwardVector());
+        TestTrue(TEXT("Volley first enters the panic state"), Wave->IsPanicking());
+        Wave->Tick(0.1f);
+        TestEqual(TEXT("Enemies remain visible during the panic window"), Wave->GetAliveEnemyCount(), 45);
+        Wave->Tick(0.2f);
         TestEqual(TEXT("No logical enemies remain"), Wave->GetAliveEnemyCount(), 0);
         TestEqual(TEXT("Wave enters Defeated state"), Wave->GetWaveState(), ESingijeonEnemyWaveState::Defeated);
 

@@ -13,7 +13,7 @@
 
 # 구현 범위
 
-- 활성 가이드만 30Hz로 HMD를 향하도록 Yaw 회전을 갱신한다.
+- 활성 가이드만 30Hz로 HMD를 향하도록 Yaw/Pitch 회전을 갱신하고 Roll은 고정한다.
 - `SM_Stone_Barrier`의 Base Color만 사용하는 Fully Rough 경량 머터리얼과 1K 텍스처를 만든다.
 - 소스 메시를 사용하는 `BP_Stone_Barrier_Optimized` 프리팹을 만든다.
 

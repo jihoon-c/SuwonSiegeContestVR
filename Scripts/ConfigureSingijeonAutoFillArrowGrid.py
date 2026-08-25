@@ -22,12 +22,12 @@ hwacha_cdo = unreal.get_default_object(hwacha_bp.generated_class())
 hwacha_cdo.get_editor_property("body_mesh").set_static_mesh(hwacha_mesh_asset)
 hwacha_cdo.set_editor_property("auto_fill_on_first_load", True)
 hwacha_cdo.set_editor_property("auto_fill_rows", 6)
-hwacha_cdo.set_editor_property("auto_fill_columns", 15)
+hwacha_cdo.set_editor_property("auto_fill_columns", 11)
 hwacha_cdo.set_editor_property("auto_fill_column_spacing", 8.0)
 hwacha_cdo.set_editor_property("auto_fill_row_spacing", 8.0)
 hwacha_cdo.set_editor_property("auto_fill_arrow_mesh", arrow_mesh_asset)
 hwacha_cdo.set_editor_property("auto_fill_arrow_material", arrow_material_asset)
-hwacha_cdo.set_editor_property("minimum_loaded_ammunition", 90)
+hwacha_cdo.set_editor_property("minimum_loaded_ammunition", 66)
 
 instance_component = hwacha_cdo.get_editor_property("auto_loaded_arrow_instances")
 instance_component.set_editor_property("absolute_location", False)
@@ -63,6 +63,9 @@ hwacha_actor = next(
     None,
 )
 if hwacha_actor:
+    hwacha_actor.set_editor_property("auto_fill_rows", 6)
+    hwacha_actor.set_editor_property("auto_fill_columns", 11)
+    hwacha_actor.set_editor_property("minimum_loaded_ammunition", 66)
     hwacha_actor.set_editor_property("auto_fill_arrow_mesh", arrow_mesh_asset)
     hwacha_actor.set_editor_property("auto_fill_arrow_material", arrow_material_asset)
     for component in hwacha_actor.get_components_by_class(unreal.InstancedStaticMeshComponent):

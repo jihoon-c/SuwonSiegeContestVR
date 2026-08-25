@@ -93,6 +93,17 @@ bool UTwoHandCarryComponent::IsBeingCarried() const
         : LeftHand.IsValid() && RightHand.IsValid();
 }
 
+void UTwoHandCarryComponent::SetConstrainedWorldZ(const float WorldZ)
+{
+    ConstrainedWorldZ = WorldZ;
+    bHasConstrainedWorldZ = true;
+}
+
+void UTwoHandCarryComponent::ClearConstrainedWorldZ()
+{
+    bHasConstrainedWorldZ = false;
+}
+
 void UTwoHandCarryComponent::CaptureGripBaseline()
 {
     if (!IsBeingCarried() || !GetOwner())
@@ -151,7 +162,9 @@ void UTwoHandCarryComponent::TickComponent(const float DeltaTime, ELevelTick Tic
     FVector DesiredLocation = BaselineActorTransform.GetLocation() + (CurrentMidpoint - BaselineHandMidpoint);
     if (bConstrainToGroundPlane)
     {
-        DesiredLocation.Z = BaselineActorTransform.GetLocation().Z;
+        DesiredLocation.Z = bHasConstrainedWorldZ
+            ? ConstrainedWorldZ
+            : BaselineActorTransform.GetLocation().Z;
     }
 
     FQuat DesiredRotation = BaselineActorTransform.GetRotation();

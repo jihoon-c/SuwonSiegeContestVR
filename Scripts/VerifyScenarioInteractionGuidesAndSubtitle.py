@@ -45,6 +45,25 @@ if manager_class:
         check(abs(guide.get_editor_property("maximum_world_scale") - 0.65) < 0.01,
               "Interaction guide distance scaling has a safe upper bound")
 
+singijeon_scenario = unreal.load_asset("/Game/Data/DA_Scenario_Singijeon")
+check(singijeon_scenario is not None, "DA_Scenario_Singijeon loads")
+if singijeon_scenario:
+    interactions = [
+        interaction
+        for stage in singijeon_scenario.get_editor_property("stages")
+        for interaction in stage.get_editor_property("interactions")
+    ]
+    torch_grab = next((
+        interaction for interaction in interactions
+        if str(interaction.get_editor_property("interaction_id")) == "INT_04"
+    ), None)
+    check(torch_grab is not None, "Torch Grab interaction INT_04 exists")
+    if torch_grab:
+        check(torch_grab.get_editor_property("guide_action") == unreal.ScenarioGuideAction.GRAB,
+              "INT_04 keeps the Grab guide visible until the torch is grabbed")
+        check(bool(str(torch_grab.get_editor_property("guide_text")).strip()),
+              "INT_04 has an explicit torch Grab instruction")
+
 if errors:
     raise RuntimeError("Scenario guide/subtitle verification failed: " + "; ".join(errors))
 unreal.log("SCENARIO_INTERACTION_GUIDES_AND_SUBTITLE VERIFY SUCCESS")

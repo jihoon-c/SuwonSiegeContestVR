@@ -217,10 +217,62 @@ bool FScenarioInteractionGuidePresentationTest::RunTest(const FString& Parameter
 		0.65f));
 	const FRotator GuideFacing = UScenarioInteractionGuideComponent::CalculateGuideFacingRotation(
 		FVector::ZeroVector, FVector(100.0f, 0.0f, 100.0f));
-	TestTrue(TEXT("Guide billboard remains level for VR text readability"),
-		FMath::IsNearlyZero(GuideFacing.Pitch) && FMath::IsNearlyZero(GuideFacing.Roll));
+	TestTrue(TEXT("Guide billboard follows HMD pitch for low and high targets"),
+		FMath::IsNearlyEqual(GuideFacing.Pitch, 45.0f, 0.01f));
+	TestTrue(TEXT("Guide billboard keeps roll locked for VR text readability"),
+		FMath::IsNearlyZero(GuideFacing.Roll));
 	TestTrue(TEXT("Guide billboard faces the viewer on its horizontal axis"),
-		FMath::IsNearlyEqual(GuideFacing.Yaw, 180.0f));
+		FMath::IsNearlyZero(GuideFacing.Yaw));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FScenarioInteractionGuideDelayedTargetTest,
+	"SuwonSiegeContestVR.Core.Scenario.InteractionGuideDelayedTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FScenarioInteractionGuideDelayedTargetTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("Delayed guide test world is created"), World))
+	{
+		return false;
+	}
+	FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+	WorldContext.SetCurrentWorld(World);
+
+	AScenarioManagerActor* ManagerActor = World->SpawnActor<AScenarioManagerActor>();
+	FScenarioInteraction Grab;
+	Grab.InteractionID = TEXT("INT_DelayedGuide");
+	Grab.InteractionType = EScenarioInteractionType::Grab;
+	Grab.TargetID = TEXT("Delayed_Target");
+	FScenarioStageDefinition Stage;
+	Stage.StageID = TEXT("STAGE_DelayedGuide");
+	Stage.StartInteractionID = Grab.InteractionID;
+	Stage.Interactions = {Grab};
+	UScenarioDefinition* Scenario = NewObject<UScenarioDefinition>();
+	Scenario->ScenarioID = TEXT("SCENARIO_DelayedGuide");
+	Scenario->StartStageID = Stage.StageID;
+	Scenario->Stages = {Stage};
+
+	UScenarioInteractionGuideComponent* Guide = ManagerActor->GetInteractionGuide();
+	TestTrue(TEXT("Delayed guide binds to the Scenario Manager"), Guide->InitializeGuide());
+	TestTrue(TEXT("Scenario starts before its streamed target exists"),
+		ManagerActor->GetScenarioManager()->StartScenario(Scenario));
+	TestFalse(TEXT("Guide is initially hidden without a target"), Guide->IsGuideVisible());
+	TestTrue(TEXT("Guide keeps polling while the active target is delayed"),
+		Guide->IsComponentTickEnabled());
+
+	AActor* TargetActor = World->SpawnActor<AActor>();
+	UScenarioInteractableComponent* Interactor = NewObject<UScenarioInteractableComponent>(TargetActor);
+	Interactor->TargetID = Grab.TargetID;
+	Interactor->SupportedInteractionTypes = {EScenarioInteractionType::Grab};
+	Interactor->RegisterComponent();
+	Guide->RefreshGuide();
+	TestTrue(TEXT("Guide appears after the target streams in"), Guide->IsGuideVisible());
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
 	return true;
 }
 
@@ -244,7 +296,19 @@ bool FScenarioInteractionGuideRuntimeTest::RunTest(const FString& Parameters)
 	UScenarioInteractableComponent* Interactor = NewObject<UScenarioInteractableComponent>(TargetActor);
 	Interactor->TargetID = TEXT("Guide_Target");
 	Interactor->SupportedInteractionTypes = { EScenarioInteractionType::Grab };
+	Interactor->GuideAnchorOffset = FVector(4.0f, 5.0f, 6.0f);
 	Interactor->RegisterComponent();
+	FVector TargetBoundsOrigin;
+	FVector TargetBoundsExtent;
+	TargetActor->GetActorBounds(false, TargetBoundsOrigin, TargetBoundsExtent, true);
+	TestTrue(TEXT("Interactor exposes an editable bounds-top guide anchor"),
+		Interactor->GetGuideAnchorWorldLocation().Equals(
+			TargetBoundsOrigin + FVector(0.0f, 0.0f, TargetBoundsExtent.Z) +
+			Interactor->GuideAnchorOffset));
+	const FVector DraggedAnchor = Interactor->GetGuideAnchorWorldLocation() + FVector(25.0f, -10.0f, 15.0f);
+	Interactor->SetGuideAnchorWorldLocation(DraggedAnchor);
+	TestTrue(TEXT("Editor drag setter persists the requested world-space anchor"),
+		Interactor->GetGuideAnchorWorldLocation().Equals(DraggedAnchor));
 
 	FScenarioInteraction Grab;
 	Grab.InteractionID = TEXT("INT_GuideGrab");
