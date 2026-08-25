@@ -3,6 +3,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/ArrowComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Core/Scenario/ScenarioDefinition.h"
 #include "Core/Scenario/ScenarioManagerActor.h"
@@ -12,6 +14,7 @@
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
+#include "Particles/ParticleSystemComponent.h"
 #include "Engine/World.h"
 #include "Interaction/FirePitActor.h"
 #include "Interaction/IgnitionSourceActor.h"
@@ -45,6 +48,50 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     "SuwonSiegeContestVR.GF_Singijeon.Projectile.StandardDamage",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FSingijeonHwachaCarryHeightLockTest,
+    "SuwonSiegeContestVR.GF_Singijeon.Hwacha.CarryHeightLock",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSingijeonHwachaCarryHeightLockTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    if (!TestNotNull(TEXT("Carry height test world is created"), World))
+    {
+        return false;
+    }
+    FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+    WorldContext.SetCurrentWorld(World);
+
+    AActor* Cart = World->SpawnActor<AActor>();
+    USceneComponent* CartRoot = NewObject<USceneComponent>(Cart);
+    Cart->SetRootComponent(CartRoot);
+    CartRoot->RegisterComponent();
+    Cart->SetActorLocation(FVector(0.0f, 0.0f, 125.0f));
+    UTwoHandCarryComponent* Carry = NewObject<UTwoHandCarryComponent>(Cart);
+    Carry->RegisterComponent();
+    Carry->SetCarryEnabled(true);
+    Carry->SetConstrainedWorldZ(125.0f);
+
+    AActor* HandActor = World->SpawnActor<AActor>();
+    USceneComponent* Hand = NewObject<USceneComponent>(HandActor);
+    HandActor->SetRootComponent(Hand);
+    Hand->RegisterComponent();
+    HandActor->SetActorLocation(FVector::ZeroVector);
+    TestTrue(TEXT("Either hand can begin the constrained carry"),
+        Carry->BeginGrip(ECarryGripSide::Right, Hand));
+    HandActor->SetActorLocation(FVector(100.0f, 0.0f, 500.0f));
+    Carry->TickComponent(1.0f / 60.0f, LEVELTICK_All, nullptr);
+    TestTrue(TEXT("Carry follows horizontal hand movement"),
+        FMath::IsNearlyEqual(Cart->GetActorLocation().X, 100.0f, 0.1f));
+    TestTrue(TEXT("Carry preserves the Hwacha start Z"),
+        FMath::IsNearlyEqual(Cart->GetActorLocation().Z, 125.0f, 0.1f));
+
+    World->DestroyWorld(false);
+    GEngine->DestroyWorldContext(World);
+    return true;
+}
+
 bool FSingijeonProjectileDamageTest::RunTest(const FString& Parameters)
 {
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
@@ -60,6 +107,14 @@ bool FSingijeonProjectileDamageTest::RunTest(const FString& Parameters)
     AEnemySoldierActor* Enemy = World->SpawnActor<AEnemySoldierActor>();
     TestNotNull(TEXT("Launched projectile is spawned"), Arrow);
     TestNotNull(TEXT("Damage target is spawned"), Enemy);
+    UNiagaraComponent* FlightTrail = Arrow ? Arrow->FindComponentByClass<UNiagaraComponent>() : nullptr;
+    TestNotNull(TEXT("Projectile owns an optional Niagara flight-trail slot"), FlightTrail);
+    if (FlightTrail)
+    {
+        TestFalse(TEXT("Flight trail does not auto-activate before launch"), FlightTrail->IsActive());
+        TestTrue(TEXT("Flight trail is attached to the projectile mesh"),
+            FlightTrail->GetAttachParent() == Arrow->GetRootComponent());
+    }
     if (Arrow && Enemy && Enemy->GetHealthComponent())
     {
         Enemy->SetSoldierActive(true);
@@ -224,6 +279,9 @@ bool FSingijeonFirePitTorchIgnitionFlowTest::RunTest(const FString& Parameters)
         FuseEffect ? FuseEffect->GetAsset() : nullptr);
 
     UNiagaraComponent* TorchEffect = Torch ? NewObject<UNiagaraComponent>(Torch) : nullptr;
+	UParticleSystemComponent* PointTorchEffect = Torch
+		? Torch->FindComponentByClass<UParticleSystemComponent>()
+		: nullptr;
     if (TorchEffect)
     {
         TorchEffect->SetAsset(LoadObject<UNiagaraSystem>(
@@ -233,10 +291,15 @@ bool FSingijeonFirePitTorchIgnitionFlowTest::RunTest(const FString& Parameters)
         Torch->PrepareIgnitionVisuals();
     }
     TestNotNull(TEXT("Test torch fire effect is created"), TorchEffect);
-    TestTrue(TEXT("Torch prepares its Niagara instance before interaction"),
+    TestNotNull(TEXT("Torch owns a point-source flame at the ignition tip"), PointTorchEffect);
+    TestNotNull(TEXT("Point-source flame has a particle template"),
+		PointTorchEffect ? PointTorchEffect->Template.Get() : nullptr);
+    TestTrue(TEXT("Torch prepares its point-source flame before interaction"),
         Torch && Torch->AreIgnitionVisualsPrepared());
-    TestFalse(TEXT("Unlit prewarmed torch does not render"),
+    TestFalse(TEXT("Legacy mesh-sampling Niagara remains disabled"),
         TorchEffect && TorchEffect->GetRenderingEnabled());
+	TestFalse(TEXT("Unlit point-source flame is inactive"),
+		PointTorchEffect && PointTorchEffect->IsActive());
 
     if (Torch && FirePit && Fuse)
     {
@@ -249,8 +312,11 @@ bool FSingijeonFirePitTorchIgnitionFlowTest::RunTest(const FString& Parameters)
             FirePit->TryIgniteTorch(Torch));
         TestTrue(TEXT("Torch is active after touching Fire Pit"),
             IIgnitionSourceInterface::Execute_IsIgnitionActive(Torch));
-        TestTrue(TEXT("Ignited torch enables Niagara rendering"),
-            TorchEffect && TorchEffect->GetRenderingEnabled());
+		// Particle activation is suppressed by FApp::CanEverRender in a NullRHI
+		// commandlet. The runtime contract is verified through the active ignition
+		// state, point-source attachment/template, and disabled legacy Niagara.
+		TestFalse(TEXT("Ignited torch never re-enables whole-mesh Niagara"),
+			TorchEffect && TorchEffect->GetRenderingEnabled());
         TestFalse(TEXT("An unloaded Hwacha rejects even a lit torch"),
             Fuse->TryBeginIgnition(Torch));
     }
@@ -276,10 +342,51 @@ bool FSingijeonHwachaAutoFillGridConfigurationTest::RunTest(const FString& Param
     TestNotNull(TEXT("Hwacha actor is spawned"), Hwacha);
     if (Hwacha)
     {
-        TestEqual(TEXT("Default auto-fill capacity is 6 x 15"), Hwacha->GetAmmunitionCapacity(), 90);
+        TestEqual(TEXT("Default auto-fill capacity is 6 x 11"), Hwacha->GetAmmunitionCapacity(), 66);
         TestNotNull(TEXT("Hwacha has the project default arrow launch sound"), Hwacha->GetArrowLaunchSound());
-        UInstancedStaticMeshComponent* Instances = Hwacha->FindComponentByClass<UInstancedStaticMeshComponent>();
-        TestNotNull(TEXT("Hwacha owns an Instanced Static Mesh component"), Instances);
+        UInstancedStaticMeshComponent* Instances = nullptr;
+        UInstancedStaticMeshComponent* EditorPreview = nullptr;
+        TInlineComponentArray<UInstancedStaticMeshComponent*> HwachaInstanceMeshes(Hwacha);
+        for (UInstancedStaticMeshComponent* InstanceMesh : HwachaInstanceMeshes)
+        {
+            if (InstanceMesh && InstanceMesh->GetFName() == TEXT("AutoLoadedArrowInstances"))
+            {
+                Instances = InstanceMesh;
+            }
+            else if (InstanceMesh && InstanceMesh->GetFName() == TEXT("AmmoGridEditorPreview"))
+            {
+                EditorPreview = InstanceMesh;
+            }
+        }
+        TestNotNull(TEXT("Hwacha owns the runtime auto-loaded arrow ISM"), Instances);
+        TestNotNull(TEXT("Hwacha owns an editor loaded-arrow mesh preview"), EditorPreview);
+        TestTrue(TEXT("Editor arrow preview never renders during gameplay"),
+            EditorPreview && EditorPreview->bHiddenInGame);
+        TestTrue(TEXT("Editor arrow preview has no collision"),
+            EditorPreview && EditorPreview->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
+        TestFalse(TEXT("Editor arrow preview has no VR-costly shadow"),
+            EditorPreview && EditorPreview->CastShadow);
+        UArrowComponent* GridCenterArrow = Hwacha->FindComponentByClass<UArrowComponent>();
+        TestNotNull(TEXT("Hwacha exposes an editor arrow at the loaded grid center"), GridCenterArrow);
+        TestTrue(TEXT("Loaded grid center arrow is hidden during gameplay"),
+            GridCenterArrow && GridCenterArrow->bHiddenInGame);
+        UStaticMeshComponent* FuseCord = nullptr;
+        TInlineComponentArray<UStaticMeshComponent*> HwachaMeshes(Hwacha);
+        for (UStaticMeshComponent* MeshComponent : HwachaMeshes)
+        {
+            if (MeshComponent && MeshComponent->GetFName() == TEXT("FuseCord"))
+            {
+                FuseCord = MeshComponent;
+                break;
+            }
+        }
+        TestNotNull(TEXT("Hwacha owns a visible fuse cord mesh"), FuseCord);
+        TestNotNull(TEXT("Fuse cord uses a thin cylinder mesh"),
+            FuseCord ? FuseCord->GetStaticMesh().Get() : nullptr);
+        TestNotNull(TEXT("Fuse cord has a white material"),
+            FuseCord ? FuseCord->GetMaterial(0) : nullptr);
+        TestTrue(TEXT("Fuse cord cannot interfere with VR interaction collision"),
+            FuseCord && FuseCord->GetCollisionEnabled() == ECollisionEnabled::NoCollision);
         TestEqual(TEXT("Hwacha starts without loaded ammunition"), Hwacha->GetLoadedAmmunitionCount(), 0);
 
         ASingijeonProjectileActor* Arrow = World->SpawnActor<ASingijeonProjectileActor>();
@@ -311,10 +418,10 @@ bool FSingijeonHwachaAutoFillGridConfigurationTest::RunTest(const FString& Param
             TestTrue(TEXT("Ammunition slot is registered"), Slot->IsRegistered());
             TestTrue(TEXT("Test arrow root is registered"), ArrowMesh->IsRegistered());
             TestTrue(TEXT("Loading one physical arrow succeeds"), Slot->TryLoadAmmunition(Arrow));
-            TestEqual(TEXT("One physical arrow auto-fills to 90 loaded arrows"),
-                Hwacha->GetLoadedAmmunitionCount(), 90);
-            TestEqual(TEXT("Auto-fill creates the remaining 89 mesh instances"),
-                Instances->GetInstanceCount(), 89);
+            TestEqual(TEXT("One physical arrow auto-fills to 66 loaded arrows"),
+                Hwacha->GetLoadedAmmunitionCount(), 66);
+            TestEqual(TEXT("Auto-fill creates the remaining 65 mesh instances"),
+                Instances->GetInstanceCount(), 65);
             TestEqual(TEXT("Loading restores the physical arrow runtime material after Grab release"),
                 ArrowMesh->GetMaterial(0), RuntimeArrowMaterial);
             TestEqual(TEXT("Auto-fill uses the same runtime material as the physical arrow"),
@@ -331,8 +438,8 @@ bool FSingijeonHwachaAutoFillGridConfigurationTest::RunTest(const FString& Param
                 ArrowMesh->GetMaterial(0), RuntimeArrowMaterial);
             TestFalse(TEXT("The same physical arrow cannot be loaded twice"),
                 Slot->TryLoadAmmunition(Arrow));
-            TestEqual(TEXT("A repeated load attempt does not duplicate the 6 x 15 grid"),
-                Hwacha->GetLoadedAmmunitionCount(), 90);
+            TestEqual(TEXT("A repeated load attempt does not duplicate the 6 x 11 grid"),
+                Hwacha->GetLoadedAmmunitionCount(), 66);
 
             UFuseIgnitionComponent* LoadedFuse = Hwacha->FindComponentByClass<UFuseIgnitionComponent>();
             UNiagaraComponent* LoadedFuseEffect = Hwacha->FindComponentByClass<UNiagaraComponent>();
@@ -474,19 +581,19 @@ bool FSingijeonHwachaAutoFillGridConfigurationTest::RunTest(const FString& Param
             Hwacha->LaunchVolley();
             TestEqual(TEXT("Volley duration defaults to ten seconds"),
                 Hwacha->GetVolleyDuration(), 10.0f);
-            TestTrue(TEXT("A 90-arrow volley spaces launches across ten seconds"),
-                FMath::IsNearlyEqual(Hwacha->GetCurrentLaunchInterval(), 10.0f / 89.0f, 0.001f));
+            TestTrue(TEXT("A 66-arrow volley spaces launches across ten seconds"),
+                FMath::IsNearlyEqual(Hwacha->GetCurrentLaunchInterval(), 10.0f / 65.0f, 0.001f));
             TestEqual(TEXT("The first random arrow launches immediately"),
-                Hwacha->GetLoadedAmmunitionCount(), 89);
+                Hwacha->GetLoadedAmmunitionCount(), 65);
             UFunction* LaunchNextFunction = Hwacha->FindFunction(TEXT("LaunchNextAmmunition"));
             TestNotNull(TEXT("The sequential launch callback is registered"), LaunchNextFunction);
             if (LaunchNextFunction)
             {
                 Hwacha->ProcessEvent(LaunchNextFunction, nullptr);
                 TestEqual(TEXT("The second launch removes exactly one more visible arrow"),
-                    Hwacha->GetLoadedAmmunitionCount(), 88);
+                    Hwacha->GetLoadedAmmunitionCount(), 64);
             }
-            for (int32 ShotIndex = 0; LaunchNextFunction && ShotIndex < 88; ++ShotIndex)
+            for (int32 ShotIndex = 0; LaunchNextFunction && ShotIndex < 64; ++ShotIndex)
             {
                 Hwacha->ProcessEvent(LaunchNextFunction, nullptr);
             }

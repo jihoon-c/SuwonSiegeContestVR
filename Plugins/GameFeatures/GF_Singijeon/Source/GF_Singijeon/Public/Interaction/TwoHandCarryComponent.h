@@ -35,6 +35,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "VR Interaction|Two Hand Carry")
     void SetCarryEnabled(bool bEnabled);
 
+    /** Locks ground-constrained carrying to an authored world height until cleared. */
+    UFUNCTION(BlueprintCallable, Category = "VR Interaction|Two Hand Carry")
+    void SetConstrainedWorldZ(float WorldZ);
+
+    UFUNCTION(BlueprintCallable, Category = "VR Interaction|Two Hand Carry")
+    void ClearConstrainedWorldZ();
+
     UFUNCTION(BlueprintPure, Category = "VR Interaction|Two Hand Carry")
     bool IsBeingCarried() const;
 
@@ -97,4 +104,6 @@ protected:
     bool bBaselineUsesTwoHands = false;
     bool bHasBaseline = false;
     bool bLastBroadcastCarryState = false;
+    bool bHasConstrainedWorldZ = false;
+    float ConstrainedWorldZ = 0.0f;
 };

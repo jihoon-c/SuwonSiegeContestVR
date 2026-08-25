@@ -9,6 +9,7 @@ class UInstancedStaticMeshComponent;
 class UMaterialInterface;
 class UMotionControllerComponent;
 class UNiagaraComponent;
+class UArrowComponent;
 class USceneComponent;
 class UScenarioInteractableComponent;
 class USingijeonAmmoSlotComponent;
@@ -148,6 +149,10 @@ protected:
     bool LaunchNextAutoFilledAmmunition(int32 InstanceIndex);
     void ConfigureLaunchedAmmunitionCollision(AActor* Ammunition);
     void PlayArrowLaunchSound(const FVector& LaunchLocation) const;
+    void UpdateAuthoringVisuals();
+#if WITH_EDITOR
+    void RefreshAmmoGridEditorPreview();
+#endif
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UStaticMeshComponent> BodyMesh;
@@ -161,6 +166,16 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UInstancedStaticMeshComponent> AutoLoadedArrowInstances;
 
+#if WITH_EDITORONLY_DATA
+    /** Editor-only preview of all arrows produced by the auto-fill grid settings. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UInstancedStaticMeshComponent> AmmoGridEditorPreview;
+#endif
+
+    /** Editor-only center/direction marker for authoring the loaded-arrow grid. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UArrowComponent> AmmoGridCenterArrow;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UFuseIgnitionComponent> Fuse;
 
@@ -171,6 +186,10 @@ protected:
     /** Small emissive marker showing exactly where the torch flame must touch. */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UStaticMeshComponent> FuseGuide;
+
+    /** Thin white visual cord ending at the Fuse trigger. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UStaticMeshComponent> FuseCord;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UTwoHandCarryComponent> TwoHandCarry;
@@ -234,7 +253,7 @@ protected:
     int32 AutoFillRows = 6;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Auto Fill", meta = (ClampMin = "1"))
-    int32 AutoFillColumns = 15;
+    int32 AutoFillColumns = 11;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Auto Fill", meta = (ClampMin = "0.1"))
     float AutoFillColumnSpacing = 8.0f;
@@ -244,6 +263,28 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Auto Fill")
     FVector AutoFillGridOffset = FVector::ZeroVector;
+
+#if WITH_EDITORONLY_DATA
+    /** Shows the complete loaded-arrow mesh array before PIE. Never renders in game. */
+    UPROPERTY(EditAnywhere, Category = "Singijeon|Auto Fill|Authoring")
+    bool bShowAmmoGridPreviewInEditor = true;
+#endif
+
+    /** Extra editor marker offset after the computed grid center. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Auto Fill|Authoring")
+    FVector AmmoGridCenterArrowOffset = FVector(0.0f, 0.0f, 20.0f);
+
+    /** The imported arrow points along local -X. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Auto Fill|Authoring")
+    FRotator AmmoGridCenterArrowRotation = FRotator(0.0f, 180.0f, 0.0f);
+
+    /** Body-local point where the visible fuse cord begins. It ends at Fuse. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Fuse|Visual")
+    FVector FuseCordStart = FVector(15.0f, 0.0f, 75.0f);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Fuse|Visual",
+        meta = (ClampMin = "0.1", Units = "cm"))
+    float FuseCordRadius = 0.8f;
 
     /** Optional fixed mesh. When empty, the first loaded ammunition mesh is used. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Auto Fill")

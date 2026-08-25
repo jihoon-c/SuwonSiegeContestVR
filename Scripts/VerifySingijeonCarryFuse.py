@@ -14,10 +14,17 @@ def check(condition, message):
 
 bp = unreal.load_asset("/GF_Singijeon/Gameplay/BP_SingijeonHwacha")
 fire_system = unreal.load_asset("/Game/NiagaraExamples/FX_Misc/NS_Fire")
+hwacha_mesh = unreal.load_asset(
+    "/GF_Singijeon/Asset/Hwacha/hwacha/StaticMeshes/hwacha")
+torch_mesh = unreal.load_asset("/GF_Singijeon/Asset/Torch/Burning_Wood_Torch")
 guide_mesh = unreal.load_asset("/Engine/BasicShapes/Sphere")
 guide_material = unreal.load_asset(
     "/Game/LevelPrototyping/Interactable/JumpPad/Assets/Materials/MI_GlowNT")
 check(bp is not None, "BP_SingijeonHwacha loads")
+check(hwacha_mesh is not None and hwacha_mesh.get_editor_property("allow_cpu_access"),
+      "Hwacha mesh permits NS_Fire CPU sampling without per-frame warnings")
+check(torch_mesh is not None and torch_mesh.get_editor_property("allow_cpu_access"),
+      "Torch mesh permits NS_Fire CPU sampling without per-frame warnings")
 if bp:
     unreal.BlueprintEditorLibrary.compile_blueprint(bp)
     cdo = unreal.get_default_object(bp.generated_class())
@@ -42,7 +49,7 @@ if bp:
     check(effect and effect.get_editor_property("asset") == fire_system,
           "FuseIgnitionEffect uses NS_Fire")
     check(effect and not effect.get_editor_property("auto_activate"),
-          "Fuse effect only runs during ignition progress")
+          "Fuse effect is prepared explicitly instead of auto-activating")
     check(guide is not None and guide.get_editor_property("static_mesh") == guide_mesh,
           "Fuse owns a visible sphere guide")
     check(guide and guide.get_material(0) == guide_material,

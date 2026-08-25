@@ -7,6 +7,7 @@
 
 class AActor;
 class UScenarioManagerComponent;
+class UScenarioInteractableComponent;
 class UUserWidget;
 class UWidgetComponent;
 
@@ -24,6 +25,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Scenario|Guide")
 	void HideGuide();
+
+	/** Immediately retries target resolution and updates the active guide transform. */
+	UFUNCTION(BlueprintCallable, Category = "Scenario|Guide")
+	void RefreshGuide();
 
 	UFUNCTION(BlueprintPure, Category = "Scenario|Guide")
 	bool IsGuideVisible() const;
@@ -84,7 +89,11 @@ private:
 	UFUNCTION()
 	void HandleScenarioStateChanged(EScenarioState OldState, EScenarioState NewState);
 
-	AActor* ResolveTargetActor(const FScenarioInteraction& Interaction) const;
+	AActor* ResolveTargetActor(
+		const FScenarioInteraction& Interaction,
+		UScenarioInteractableComponent*& OutInteractor) const;
+	bool ResolveViewLocation(FVector& OutViewLocation) const;
+	bool TryShowActiveGuide();
 	void EnsureWidgetComponent();
 	void UpdateGuideTransform();
 	void Unbind();
@@ -98,5 +107,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<AActor> TargetActor;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UScenarioInteractableComponent> TargetInteractor;
+
+	FScenarioInteraction ActiveInteraction;
 	FName ActiveInteractionID;
+	bool bHasActiveInteraction = false;
 };

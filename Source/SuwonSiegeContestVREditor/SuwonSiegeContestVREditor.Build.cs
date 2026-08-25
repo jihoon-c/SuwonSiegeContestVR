@@ -13,6 +13,8 @@ public class SuwonSiegeContestVREditor : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"Foliage",
+			"Landscape",
 			"Slate",
 			"SlateCore",
 			"SuwonSiegeContestVR",

@@ -40,7 +40,7 @@ void AScenarioManagerActor::BeginPlay()
 	Super::BeginPlay();
 	ApplyConfiguration();
 	SetupDebugInput();
-	if (bAutoStartScenario)
+	if (bAutoStartScenario && ShouldAutoStartScenario())
 	{
 		if (StartConfiguredScenario() && ExperienceBridge)
 		{

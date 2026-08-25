@@ -1,18 +1,475 @@
 #include "SuwonSiegeContestVREditor.h"
 
+#include "Algo/MaxElement.h"
+#include "Algo/MinElement.h"
 #include "ContentBrowserMenuContexts.h"
+#include "ComponentVisualizer.h"
 #include "Core/Narration/NarrationTypes.h"
+#include "Core/Scenario/ScenarioInteractableComponent.h"
 #include "DataTableEditorUtils.h"
 #include "Editor.h"
 #include "Engine/DataTable.h"
+#include "EngineUtils.h"
+#include "FileHelpers.h"
+#include "Landscape.h"
+#include "LandscapeDataAccess.h"
+#include "LandscapeEdit.h"
+#include "LandscapeEditLayer.h"
+#include "LandscapeLayerInfoObject.h"
+#include "LandscapeStreamingProxy.h"
+#include "Materials/MaterialInterface.h"
 #include "Sound/SoundWave.h"
 #include "Subsystems/EditorAssetSubsystem.h"
 #include "ToolMenus.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "ScopedTransaction.h"
+#include "ScenarioGuideComponentVisualizer.h"
+#include "Editor/UnrealEdEngine.h"
+#include "EditorLevelUtils.h"
+#include "Engine/Font.h"
+#include "Engine/FontFace.h"
+#include "Engine/LevelStreamingAlwaysLoaded.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "UnrealEdGlobals.h"
 
 #define LOCTEXT_NAMESPACE "SuwonSiegeContestVREditor"
+
+namespace SuwonLandscapeTransfer
+{
+	constexpr const TCHAR* SourceMap = TEXT("/Game/Namhansanseong/Maps/Demo_Namhansanseong");
+	constexpr const TCHAR* TargetMap = TEXT("/GF_Singijeon/Maps/LV_Singijeon");
+	constexpr const TCHAR* LandscapeMaterialPath = TEXT("/Game/Namhansanseong/Materials/Landscape/MI_Landscape.MI_Landscape");
+
+	bool GetProxyHeightData(ALandscapeProxy* Proxy, TArray<uint16>& OutData, FIntRect& OutRect)
+	{
+		if (!Proxy || !Proxy->GetLandscapeInfo())
+		{
+			return false;
+		}
+
+		OutRect = Proxy->GetBoundingRect() + Proxy->GetSectionBase();
+		const int32 Width = OutRect.Width() + 1;
+		const int32 Height = OutRect.Height() + 1;
+		if (Width <= 1 || Height <= 1)
+		{
+			return false;
+		}
+
+		OutData.SetNumUninitialized(Width * Height);
+		FLandscapeEditDataInterface LandscapeEdit(Proxy->GetLandscapeInfo());
+		LandscapeEdit.GetHeightDataFast(
+			OutRect.Min.X,
+			OutRect.Min.Y,
+			OutRect.Max.X,
+			OutRect.Max.Y,
+			OutData.GetData(),
+			Width);
+		return true;
+	}
+
+	TArray<uint16> ResampleHeightData(
+		const TArray<uint16>& Source,
+		const int32 SourceWidth,
+		const int32 SourceHeight,
+		const int32 TargetWidth,
+		const int32 TargetHeight)
+	{
+		TArray<uint16> Result;
+		Result.SetNumUninitialized(TargetWidth * TargetHeight);
+
+		for (int32 Y = 0; Y < TargetHeight; ++Y)
+		{
+			const double SourceY = TargetHeight > 1
+				? static_cast<double>(Y) * static_cast<double>(SourceHeight - 1) / static_cast<double>(TargetHeight - 1)
+				: 0.0;
+			const int32 Y0 = FMath::FloorToInt(SourceY);
+			const int32 Y1 = FMath::Min(Y0 + 1, SourceHeight - 1);
+			const double YAlpha = SourceY - static_cast<double>(Y0);
+
+			for (int32 X = 0; X < TargetWidth; ++X)
+			{
+				const double SourceX = TargetWidth > 1
+					? static_cast<double>(X) * static_cast<double>(SourceWidth - 1) / static_cast<double>(TargetWidth - 1)
+					: 0.0;
+				const int32 X0 = FMath::FloorToInt(SourceX);
+				const int32 X1 = FMath::Min(X0 + 1, SourceWidth - 1);
+				const double XAlpha = SourceX - static_cast<double>(X0);
+
+				const double H00 = Source[Y0 * SourceWidth + X0];
+				const double H10 = Source[Y0 * SourceWidth + X1];
+				const double H01 = Source[Y1 * SourceWidth + X0];
+				const double H11 = Source[Y1 * SourceWidth + X1];
+				const double H0 = FMath::Lerp(H00, H10, XAlpha);
+				const double H1 = FMath::Lerp(H01, H11, XAlpha);
+				Result[Y * TargetWidth + X] = static_cast<uint16>(
+					FMath::Clamp(FMath::RoundToInt(FMath::Lerp(H0, H1, YAlpha)), 0, 65535));
+			}
+		}
+
+		return Result;
+	}
+
+	TArray<uint8> ResampleWeightData(
+		const TArray<uint8>& Source,
+		const int32 SourceWidth,
+		const int32 SourceHeight,
+		const int32 TargetWidth,
+		const int32 TargetHeight)
+	{
+		TArray<uint8> Result;
+		Result.SetNumUninitialized(TargetWidth * TargetHeight);
+
+		for (int32 Y = 0; Y < TargetHeight; ++Y)
+		{
+			const double SourceY = TargetHeight > 1
+				? static_cast<double>(Y) * static_cast<double>(SourceHeight - 1) / static_cast<double>(TargetHeight - 1)
+				: 0.0;
+			const int32 Y0 = FMath::FloorToInt(SourceY);
+			const int32 Y1 = FMath::Min(Y0 + 1, SourceHeight - 1);
+			const double YAlpha = SourceY - static_cast<double>(Y0);
+
+			for (int32 X = 0; X < TargetWidth; ++X)
+			{
+				const double SourceX = TargetWidth > 1
+					? static_cast<double>(X) * static_cast<double>(SourceWidth - 1) / static_cast<double>(TargetWidth - 1)
+					: 0.0;
+				const int32 X0 = FMath::FloorToInt(SourceX);
+				const int32 X1 = FMath::Min(X0 + 1, SourceWidth - 1);
+				const double XAlpha = SourceX - static_cast<double>(X0);
+
+				const double W00 = Source[Y0 * SourceWidth + X0];
+				const double W10 = Source[Y0 * SourceWidth + X1];
+				const double W01 = Source[Y1 * SourceWidth + X0];
+				const double W11 = Source[Y1 * SourceWidth + X1];
+				const double W0 = FMath::Lerp(W00, W10, XAlpha);
+				const double W1 = FMath::Lerp(W01, W11, XAlpha);
+				Result[Y * TargetWidth + X] = static_cast<uint8>(
+					FMath::Clamp(FMath::RoundToInt(FMath::Lerp(W0, W1, YAlpha)), 0, 255));
+			}
+		}
+
+		return Result;
+	}
+
+	struct FLandscapeLayerTransferData
+	{
+		TObjectPtr<ULandscapeLayerInfoObject> LayerInfo;
+		TArray<uint8> Weights;
+	};
+
+	void TransferNamhansanseongLandscape()
+	{
+		UE_LOG(LogTemp, Display, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER starting"));
+		if (!FEditorFileUtils::LoadMap(SourceMap, false, true))
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER could not load source map: %s"), SourceMap);
+			return;
+		}
+
+		UWorld* SourceWorld = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		ALandscapeStreamingProxy* SourceProxy = nullptr;
+		double BestDistanceSquared = TNumericLimits<double>::Max();
+		for (TActorIterator<ALandscapeStreamingProxy> It(SourceWorld); It; ++It)
+		{
+			const FVector Center = It->GetProxyBounds().GetCenter();
+			const double DistanceSquared = FMath::Square(Center.X) + FMath::Square(Center.Y);
+			if (DistanceSquared < BestDistanceSquared)
+			{
+				BestDistanceSquared = DistanceSquared;
+				SourceProxy = *It;
+			}
+		}
+
+		TArray<uint16> SourceData;
+		FIntRect SourceRect;
+		if (!GetProxyHeightData(SourceProxy, SourceData, SourceRect))
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER could not read central source proxy"));
+			return;
+		}
+
+		const int32 SourceWidth = SourceRect.Width() + 1;
+		const int32 SourceHeight = SourceRect.Height() + 1;
+		TSet<ULandscapeLayerInfoObject*> SourceLayers;
+		for (ULandscapeComponent* Component : SourceProxy->LandscapeComponents)
+		{
+			for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations())
+			{
+				if (Allocation.LayerInfo)
+				{
+					SourceLayers.Add(Allocation.LayerInfo);
+				}
+			}
+		}
+
+		TArray<FLandscapeLayerTransferData> LayerTransfers;
+		for (ULandscapeLayerInfoObject* LayerInfo : SourceLayers)
+		{
+			FLandscapeLayerTransferData& Transfer = LayerTransfers.AddDefaulted_GetRef();
+			Transfer.LayerInfo = LayerInfo;
+			Transfer.Weights.SetNumUninitialized(SourceWidth * SourceHeight);
+			FLandscapeEditDataInterface LandscapeEdit(SourceProxy->GetLandscapeInfo());
+			LandscapeEdit.GetWeightDataFast(
+				LayerInfo,
+				SourceRect.Min.X,
+				SourceRect.Min.Y,
+				SourceRect.Max.X,
+				SourceRect.Max.Y,
+				Transfer.Weights.GetData(),
+				SourceWidth);
+		}
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER source proxy=%s samples=%dx%d min=%u max=%u layers=%d"),
+			*GetNameSafe(SourceProxy),
+			SourceWidth,
+			SourceHeight,
+			*Algo::MinElement(SourceData),
+			*Algo::MaxElement(SourceData),
+			LayerTransfers.Num());
+
+		if (!FEditorFileUtils::LoadMap(TargetMap, false, true))
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER could not load target map: %s"), TargetMap);
+			return;
+		}
+
+		UWorld* TargetWorld = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		ALandscape* TargetLandscape = nullptr;
+		for (TActorIterator<ALandscape> It(TargetWorld); It; ++It)
+		{
+			TargetLandscape = *It;
+			break;
+		}
+
+		if (!TargetLandscape)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER target Landscape was not found"));
+			return;
+		}
+
+		const FIntRect TargetRect = TargetLandscape->GetBoundingRect() + TargetLandscape->GetSectionBase();
+		const int32 TargetWidth = TargetRect.Width() + 1;
+		const int32 TargetHeight = TargetRect.Height() + 1;
+		const TArray<uint16> TargetData = ResampleHeightData(
+			SourceData,
+			SourceWidth,
+			SourceHeight,
+			TargetWidth,
+			TargetHeight);
+
+		TargetLandscape->Modify();
+		TargetLandscape->SetActorScale3D(FVector(100.0, 100.0, 60.0));
+		TargetLandscape->MaxLODLevel = 2;
+		TargetLandscape->Tags.AddUnique(TEXT("NamhansanseongTerrain"));
+		TargetLandscape->SetActorLabel(TEXT("Landscape_Namhansanseong_Singijeon"));
+
+		UMaterialInterface* LandscapeMaterial = LoadObject<UMaterialInterface>(nullptr, LandscapeMaterialPath);
+		if (!LandscapeMaterial)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER material missing: %s"), LandscapeMaterialPath);
+			return;
+		}
+		TargetLandscape->LandscapeMaterial = LandscapeMaterial;
+
+		ULandscapeEditLayerBase* TargetEditLayer = TargetLandscape->GetEditLayer(0);
+		{
+			FHeightmapAccessor<false> HeightmapAccessor(TargetLandscape->GetLandscapeInfo());
+			if (TargetEditLayer)
+			{
+				HeightmapAccessor.SetEditLayer(TargetEditLayer->GetGuid());
+			}
+			HeightmapAccessor.SetData(
+				TargetRect.Min.X,
+				TargetRect.Min.Y,
+				TargetRect.Max.X,
+				TargetRect.Max.Y,
+				TargetData.GetData());
+		}
+		for (const FLandscapeLayerTransferData& Transfer : LayerTransfers)
+		{
+			const TArray<uint8> TargetWeights = ResampleWeightData(
+				Transfer.Weights,
+				SourceWidth,
+				SourceHeight,
+				TargetWidth,
+				TargetHeight);
+			TAlphamapAccessor<false> WeightmapAccessor(TargetLandscape->GetLandscapeInfo(), Transfer.LayerInfo);
+			if (TargetEditLayer)
+			{
+				WeightmapAccessor.SetEditLayer(TargetEditLayer->GetGuid());
+			}
+			WeightmapAccessor.SetData(
+				TargetRect.Min.X,
+				TargetRect.Min.Y,
+				TargetRect.Max.X,
+				TargetRect.Max.Y,
+				TargetWeights.GetData(),
+				ELandscapeLayerPaintingRestriction::None);
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER layer=%s min=%u max=%u"),
+				*GetNameSafe(Transfer.LayerInfo),
+				*Algo::MinElement(TargetWeights),
+				*Algo::MaxElement(TargetWeights));
+		}
+		TargetLandscape->RequestLayersContentUpdateForceAll(ELandscapeLayerUpdateMode::Update_All, true);
+		TargetLandscape->ForceUpdateLayersContent();
+
+		const uint16 CenterHeight = TargetData[(TargetHeight / 2) * TargetWidth + TargetWidth / 2];
+		FVector Location = TargetLandscape->GetActorLocation();
+		Location.Z = -LandscapeDataAccess::GetLocalHeight(CenterHeight) * TargetLandscape->GetActorScale3D().Z;
+		TargetLandscape->SetActorLocation(Location, false, nullptr, ETeleportType::TeleportPhysics);
+		TargetLandscape->PostEditChange();
+		TargetLandscape->MarkPackageDirty();
+
+		if (!FEditorFileUtils::SaveCurrentLevel())
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER failed to save target map"));
+			return;
+		}
+
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("NAMHANSANSEONG_LANDSCAPE_TRANSFER SUCCESS target=%dx%d edit_layer=%s center_height=%u landscape_z=%.3f"),
+			TargetWidth,
+			TargetHeight,
+			*GetNameSafe(TargetEditLayer),
+			CenterHeight,
+			Location.Z);
+	}
+
+	FAutoConsoleCommand TransferCommand(
+		TEXT("Suwon.TransferNamhansanseongLandscape"),
+		TEXT("Transfers the central Demo_Namhansanseong terrain height data into LV_Singijeon."),
+		FConsoleCommandDelegate::CreateStatic(&TransferNamhansanseongLandscape));
+}
+
+namespace SuwonLandscapeReuse
+{
+	constexpr const TCHAR* SharedLandscapeMap = TEXT("/Game/Maps/Main/L_NamhansanseongLandscape");
+
+	bool HasSharedLandscapeStreamingLevel(const UWorld* World)
+	{
+		if (!World)
+		{
+			return false;
+		}
+
+		for (const ULevelStreaming* StreamingLevel : World->GetStreamingLevels())
+		{
+			if (StreamingLevel && StreamingLevel->GetWorldAssetPackageName() == FName(SharedLandscapeMap))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void AttachSharedLandscapeToCurrentLevel()
+	{
+		UWorld* TargetWorld = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!TargetWorld)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_REUSE no editor world is open"));
+			return;
+		}
+
+		if (TargetWorld->GetOutermost()->GetName() == SharedLandscapeMap)
+		{
+			UE_LOG(LogTemp, Error, TEXT("NAMHANSANSEONG_LANDSCAPE_REUSE cannot stream the Landscape map into itself"));
+			return;
+		}
+
+		if (HasSharedLandscapeStreamingLevel(TargetWorld))
+		{
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("NAMHANSANSEONG_LANDSCAPE_REUSE already attached target=%s"),
+				*TargetWorld->GetOutermost()->GetName());
+			return;
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("AttachNamhansanseongLandscape", "Attach Namhansanseong Landscape"));
+		TargetWorld->Modify();
+		ULevelStreaming* StreamingLevel = UEditorLevelUtils::AddLevelToWorld(
+			TargetWorld,
+			SharedLandscapeMap,
+			ULevelStreamingAlwaysLoaded::StaticClass());
+		if (!StreamingLevel)
+		{
+			UE_LOG(
+				LogTemp,
+				Error,
+				TEXT("NAMHANSANSEONG_LANDSCAPE_REUSE failed to attach target=%s"),
+				*TargetWorld->GetOutermost()->GetName());
+			return;
+		}
+
+		TargetWorld->MarkPackageDirty();
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("NAMHANSANSEONG_LANDSCAPE_REUSE SUCCESS target=%s streaming=%s"),
+			*TargetWorld->GetOutermost()->GetName(),
+			*StreamingLevel->GetPathName());
+	}
+
+	FAutoConsoleCommand AttachSharedLandscapeCommand(
+		TEXT("Suwon.AttachNamhansanseongLandscape"),
+		TEXT("Adds the shared Namhansanseong Landscape as an always-loaded streaming level to the currently open level."),
+		FConsoleCommandDelegate::CreateStatic(&AttachSharedLandscapeToCurrentLevel));
+}
+
+namespace SuwonGmarketSans
+{
+	constexpr const TCHAR* FontFacePath = TEXT("/Game/UI/Fonts/GmarketSansBold.GmarketSansBold");
+	constexpr const TCHAR* FontPackagePath = TEXT("/Game/UI/Fonts/GmarketSansBold_Font");
+	constexpr const TCHAR* FontAssetName = TEXT("GmarketSansBold_Font");
+
+	void CreateRuntimeTitleFont()
+	{
+		UFontFace* FontFace = LoadObject<UFontFace>(nullptr, FontFacePath);
+		if (!FontFace)
+		{
+			UE_LOG(LogTemp, Error, TEXT("GMARKET_SANS_TITLE_FONT missing FontFace: %s"), FontFacePath);
+			return;
+		}
+
+		UFont* Font = LoadObject<UFont>(nullptr, *FString::Printf(TEXT("%s.%s"), FontPackagePath, FontAssetName));
+		if (!Font)
+		{
+			UPackage* Package = CreatePackage(FontPackagePath);
+			Font = NewObject<UFont>(Package, UFont::StaticClass(), FontAssetName, RF_Public | RF_Standalone);
+			Font->FontCacheType = EFontCacheType::Runtime;
+			FTypefaceEntry& TypefaceEntry = Font->GetMutableInternalCompositeFont().DefaultTypeface.Fonts.AddDefaulted_GetRef();
+			TypefaceEntry.Name = TEXT("Default");
+			TypefaceEntry.Font = FFontData(FontFace);
+			FAssetRegistryModule::AssetCreated(Font);
+			Font->MarkPackageDirty();
+		}
+
+		if (GEditor)
+		{
+			if (UEditorAssetSubsystem* AssetSubsystem = GEditor->GetEditorSubsystem<UEditorAssetSubsystem>())
+			{
+				AssetSubsystem->SaveLoadedAsset(Font, true);
+			}
+		}
+		UE_LOG(LogTemp, Display, TEXT("GMARKET_SANS_TITLE_FONT SUCCESS font=%s face=%s"),
+			*GetPathNameSafe(Font), *GetPathNameSafe(FontFace));
+	}
+
+	FAutoConsoleCommand CreateRuntimeTitleFontCommand(
+		TEXT("Suwon.CreateGmarketSansTitleFont"),
+		TEXT("Creates the Runtime UFont used by the Main intro title from its imported Gmarket Sans FontFace."),
+		FConsoleCommandDelegate::CreateStatic(&CreateRuntimeTitleFont));
+}
 
 namespace SuwonNarrationImporter
 {
@@ -241,6 +698,15 @@ namespace SuwonNarrationImporter
 
 void FSuwonSiegeContestVREditorModule::StartupModule()
 {
+	if (GUnrealEd)
+	{
+		ScenarioGuideVisualizer = MakeShared<FScenarioGuideComponentVisualizer>();
+		GUnrealEd->RegisterComponentVisualizer(
+			UScenarioInteractableComponent::StaticClass()->GetFName(),
+			ScenarioGuideVisualizer);
+		ScenarioGuideVisualizer->OnRegister();
+	}
+
 	UToolMenus::RegisterStartupCallback(
 		FSimpleMulticastDelegate::FDelegate::CreateRaw(
 			this, &FSuwonSiegeContestVREditorModule::RegisterMenus));
@@ -248,6 +714,13 @@ void FSuwonSiegeContestVREditorModule::StartupModule()
 
 void FSuwonSiegeContestVREditorModule::ShutdownModule()
 {
+	if (GUnrealEd)
+	{
+		GUnrealEd->UnregisterComponentVisualizer(
+			UScenarioInteractableComponent::StaticClass()->GetFName());
+	}
+	ScenarioGuideVisualizer.Reset();
+
 	UToolMenus::UnRegisterStartupCallback(this);
 	UToolMenus::UnregisterOwner(this);
 }

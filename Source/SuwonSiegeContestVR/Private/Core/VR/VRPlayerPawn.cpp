@@ -118,8 +118,8 @@ AVRPlayerPawn::AVRPlayerPawn()
 	// HMD views. Keep this camera-attached in world space and close enough that
 	// level geometry cannot normally pass between the player and the subtitle.
 	SubtitleHUD->SetWidgetSpace(EWidgetSpace::World);
-	SubtitleHUD->SetDrawSize(FVector2D(900.0f, 180.0f));
-	SubtitleHUD->SetRelativeScale3D(FVector(0.05f));
+	SubtitleHUD->SetDrawSize(SubtitleHUDDrawSize);
+	SubtitleHUD->SetRelativeScale3D(FVector(SubtitleHUDWorldScale));
 	SubtitleHUD->SetPivot(FVector2D(0.5f, 0.5f));
 	SubtitleHUD->SetBlendMode(EWidgetBlendMode::Transparent);
 	SubtitleHUD->SetTwoSided(true);
@@ -290,6 +290,8 @@ void AVRPlayerPawn::BeginPlay()
 	}
 
 	SubtitleHUD->SetRelativeLocation(SubtitleHUDOffset);
+	SubtitleHUD->SetDrawSize(SubtitleHUDDrawSize);
+	SubtitleHUD->SetRelativeScale3D(FVector(SubtitleHUDWorldScale));
 	NarrationEventHUD->SetRelativeLocation(EventHUDOffset);
 	SubtitleHUD->InitWidget();
 	NarrationSequence->SetAudioComponent(NarrationAudio);

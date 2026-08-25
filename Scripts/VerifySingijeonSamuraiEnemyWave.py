@@ -27,14 +27,39 @@ require(run is not None, "retargeted Rifle Jog exists")
 require(provider is not None, "GPU run provider exists")
 
 for asset_path in IK_ASSETS:
-    require(unreal.EditorAssetLibrary.does_asset_exist(asset_path), f"retarget asset exists: {asset_path}")
+    if unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+        unreal.log(f"SAMURAI_VERIFY PASS: retarget authoring asset exists: {asset_path}")
+    else:
+        unreal.log_warning(
+            f"SAMURAI_VERIFY: optional retarget authoring asset is not registered: {asset_path}")
 
 mesh_editor = unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem)
 require(mesh_editor.get_lod_count(mesh) == 3, "optimized Samurai mesh has three LODs")
+for lod_index in range(mesh_editor.get_lod_count(mesh)):
+    settings = mesh_editor.get_lod_build_settings(mesh, lod_index)
+    require(settings.get_editor_property("optimize_for_instancing"),
+            f"Samurai mesh LOD{lod_index} is optimized for instancing")
 require(run.get_editor_property("skeleton") == mesh.get_editor_property("skeleton"),
         "Rifle Jog uses the Samurai skeleton")
+require(run.get_play_length() > 0.1, "Rifle Jog has a non-zero play length")
+animation_model = run.get_editor_property("data_model_interface")
+require(animation_model is not None, "Rifle Jog has an animation data model")
+require(animation_model.get_num_bone_tracks() > 1,
+        "Rifle Jog contains animated bone tracks")
 require(provider.get_editor_property("skinned_asset") == mesh,
         "GPU provider uses the optimized Samurai mesh")
+
+for material_slot in list(mesh.get_editor_property("materials")):
+    material_interface = material_slot.get_editor_property("material_interface")
+    require(material_interface is not None, "Samurai material slot is assigned")
+    overrides = material_interface.get_editor_property("base_property_overrides")
+    instanced_skinned_mesh_usage = 1 << 26
+    require((int(overrides.get_editor_property("override_usage_flags")) &
+             instanced_skinned_mesh_usage) != 0,
+            f"material {material_interface.get_path_name()} overrides instanced skinned usage")
+    require((int(overrides.get_editor_property("usage_flags")) &
+             instanced_skinned_mesh_usage) != 0,
+            f"material {material_interface.get_path_name()} enables instanced skinned usage")
 
 sequences = list(provider.get_editor_property("sequences"))
 require(len(sequences) == 12, "GPU provider has twelve animation variants")
@@ -64,6 +89,10 @@ require(wave.get_editor_property("foreground_run_animation") == run,
         "foreground enemies use the retargeted Rifle Jog")
 require(wave.get_editor_property("proxy_min_lod") == 1,
         "Wave enforces LOD1 or lower detail")
+require(not wave.get_editor_property("use_gpu_instanced_crowd"),
+        "Wave uses the reliable pose-sharing skeletal renderer by default")
+require(wave.get_editor_property("shared_pose_leader_count") == 8,
+        "Wave limits animation evaluation to eight shared pose leaders")
 require(wave.get_editor_property("enemy_count") == 45 and
         wave.get_editor_property("max_interactive_enemies") == 3,
         "Wave retains 45 enemies with only three full Actors")

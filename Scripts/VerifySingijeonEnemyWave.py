@@ -47,8 +47,8 @@ if waves:
     check(provider is not None,
           "Background characters use a GPU animation provider")
     if provider:
-        check(len(provider.get_editor_property("sequences")) == 8,
-              "GPU animation is shared across eight run phases")
+        check(len(provider.get_editor_property("sequences")) == 12,
+              "GPU animation is shared across twelve speed/phase variants")
     check(abs(wave.get_editor_property("lateral_jitter") - 52.0) < 0.001 and
           abs(wave.get_editor_property("longitudinal_jitter") - 68.0) < 0.001 and
           abs(wave.get_editor_property("yaw_jitter_degrees") - 11.0) < 0.001,
@@ -57,6 +57,8 @@ if waves:
           "First Hwacha load starts the charge")
     check(not wave.get_editor_property("start_on_begin_play"),
           "Wave waits for gameplay instead of racing narration")
+    check(wave.get_editor_property("show_enemies_while_ready"),
+          "Staged enemies remain visible while waiting for the first loaded arrow")
     check(wave.get_editor_property("limit_approach_by_hwacha_procedure"),
           "Hwacha procedure limits enemy approach distance")
     limits = (

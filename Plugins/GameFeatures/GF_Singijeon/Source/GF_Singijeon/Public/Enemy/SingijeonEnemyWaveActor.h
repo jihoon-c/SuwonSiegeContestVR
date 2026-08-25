@@ -12,6 +12,7 @@ class UBoxComponent;
 class UHierarchicalInstancedStaticMeshComponent;
 class UInstancedSkinnedMeshComponent;
 class USceneComponent;
+class USkeletalMeshComponent;
 class USkeletalMesh;
 class UStaticMesh;
 
@@ -22,7 +23,8 @@ enum class ESingijeonEnemyWaveState : uint8
     Ready,
     Charging,
     ReachedTarget,
-    Defeated
+    Defeated,
+    Panicking
 };
 
 UENUM(BlueprintType)
@@ -112,8 +114,24 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Singijeon|Enemy Wave")
     void SetProcedureApproachPhase(ESingijeonEnemyApproachPhase NewPhase);
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Enemy Wave")
+    /** Scatters the formation for a short time, then resolves the pending volley. */
+    UFUNCTION(BlueprintCallable, Category = "Singijeon|Enemy Wave")
+    void BeginPanic(FVector VolleyOrigin, FVector VolleyDirection);
+
+    UFUNCTION(BlueprintPure, Category = "Singijeon|Enemy Wave")
+    bool IsPanicking() const { return WaveState == ESingijeonEnemyWaveState::Panicking; }
+
+    UFUNCTION(BlueprintPure, Category = "Singijeon|Destination")
+    FVector GetDestinationLocation() const;
+
+    /** Hwacha used only as an event source. Kept for existing level instances. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Integration",
+        meta = (DisplayName = "Hwacha Actor"))
     TObjectPtr<AActor> TargetActor;
+
+    /** Optional destination Actor. When unset, move DefaultTargetPoint in the viewport. */
+    UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Singijeon|Destination")
+    TObjectPtr<AActor> DestinationActor;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Enemy Wave")
     TSubclassOf<AEnemySoldierActor> ForegroundEnemyClass;
@@ -170,6 +188,11 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual")
     FVector ProxyScale = FVector(0.9f);
 
+    /** Normalizes differently imported character assets to a clearly visible human height. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual",
+        meta = (ClampMin = "100.0", ClampMax = "240.0", Units = "cm"))
+    float DesiredEnemyHeight = 175.0f;
+
     /** Skeletal mesh pivot is at its feet, unlike capsule-centered foreground Actors. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual")
     float ProxyGroundOffset = 0.0f;
@@ -202,6 +225,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance", meta = (ClampMin = "0", ClampMax = "4"))
     int32 ProxyMinLOD = 1;
 
+    /** Experimental renderer. Disabled by default because unsupported VR paths can hide the entire crowd. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance")
+    bool bUseGpuInstancedCrowd = false;
+
+    /** Number of animated pose leaders shared by the reliable skeletal proxy crowd. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance",
+        meta = (EditCondition = "!bUseGpuInstancedCrowd", ClampMin = "1", ClampMax = "16"))
+    int32 SharedPoseLeaderCount = 8;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual", meta = (ClampMin = "0.1", ClampMax = "3.0"))
     float MinRunAnimationRate = 0.86f;
 
@@ -217,6 +249,16 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Integration")
     bool bStartOnBeginPlay = false;
+
+    /** Shows the staged formation while it waits for the first loaded arrow. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Integration")
+    bool bShowEnemiesWhileReady = true;
+
+#if WITH_EDITORONLY_DATA
+    /** Displays the seeded formation before PIE so level placement can be authored visually. */
+    UPROPERTY(EditAnywhere, Category = "Singijeon|Editor Preview")
+    bool bShowEnemyPreviewInEditor = true;
+#endif
 
     /** Prevents the formation from reaching the Hwacha before its current procedure step. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Procedure Gates")
@@ -243,6 +285,23 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Combat", meta = (ClampMin = "100.0"))
     float VolleyMaxDistance = 20000.0f;
+
+    /** Time enemies scatter before the volley casualty result is applied. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Panic",
+        meta = (ClampMin = "0.0", ClampMax = "10.0", Units = "s"))
+    float PanicDuration = 3.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Panic",
+        meta = (ClampMin = "0.0", ClampMax = "1000.0", Units = "cm"))
+    float PanicLateralDistance = 320.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Panic",
+        meta = (ClampMin = "0.0", ClampMax = "1000.0", Units = "cm"))
+    float PanicRetreatDistance = 220.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Panic",
+        meta = (ClampMin = "0.1", ClampMax = "3.0"))
+    float PanicAnimationRateMultiplier = 1.35f;
 
     UPROPERTY(BlueprintAssignable, Category = "Singijeon|Enemy Wave")
     FOnSingijeonEnemyWaveStateChanged OnWaveStateChanged;
@@ -281,7 +340,9 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UBoxComponent> SpawnVolume;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    /** Editor-movable final route point used when DestinationActor is empty. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Singijeon|Destination",
+        meta = (DisplayName = "Destination Point"))
     TObjectPtr<USceneComponent> DefaultTargetPoint;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -299,36 +360,72 @@ private:
         float SpeedScale = 1.0f;
         float YawOffset = 0.0f;
         float UniformScale = 1.0f;
+        float PanicLateralScale = 0.0f;
+        float PanicRetreatScale = 1.0f;
+        float PanicPhase = 0.0f;
         int32 AnimationIndex = 0;
         bool bAlive = true;
         int32 ProxyInstanceIndex = INDEX_NONE;
+        int32 ReliableProxyIndex = INDEX_NONE;
         TWeakObjectPtr<AEnemySoldierActor> InteractiveActor;
     };
 
     void FindAndBindHwacha();
     void UnbindHwacha();
+    void RefreshProcedureStateFromHwacha();
     void BuildFormationSlots();
     bool SpawnVisualRepresentations();
     void DestroyVisualRepresentations();
     void UpdateInteractiveEnemies();
     void UpdateProxyEnemies(bool bMarkRenderStateDirty);
+    USkeletalMeshComponent* CreateReliableProxyMesh(const FEnemySlot& Slot, int32 ProxyOrdinal);
     FTransform GetSlotTransform(const FEnemySlot& Slot) const;
     float GetSlotRouteDistance(const FEnemySlot& Slot) const;
     void SampleRoute(float Distance, FVector& OutLocation, FVector& OutDirection) const;
+    float GetEnemyHeightNormalizationScale() const;
+    UAnimationAsset* GetRunAnimation() const;
+    void SetPanicAnimationRates(bool bPanic);
     bool DefeatSlot(int32 SlotIndex);
     void SetWaveState(ESingijeonEnemyWaveState NewState);
     void SetVisualsActive(bool bActive);
+#if WITH_EDITOR
+    void RefreshEditorEnemyPreview();
+    void DestroyEditorEnemyPreview();
+#endif
 
     UPROPERTY(Transient)
     TObjectPtr<ASingijeonHwachaActor> BoundHwacha;
 
+    /** Manny-compatible fallback survives serialized level instances with Animation=None. */
+    UPROPERTY(Transient)
+    TObjectPtr<UAnimationAsset> RuntimeRunAnimationFallback;
+
     TArray<FEnemySlot> EnemySlots;
+
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<USkeletalMeshComponent>> ReliableProxyMeshes;
+
+    /** Lightweight enemy Actors keep every proxy in the Quest/OpenXR scene proxy lifecycle. */
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<AEnemySoldierActor>> ReliableProxyActors;
+
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<USkeletalMeshComponent>> SharedPoseLeaders;
+
+#if WITH_EDITORONLY_DATA
+    UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
+    TArray<TObjectPtr<USkeletalMeshComponent>> EditorPreviewMeshes;
+#endif
     TArray<FVector> RoutePoints;
     TArray<float> RouteCumulativeDistances;
     float RouteLength = 0.0f;
     float WaveDistance = 0.0f;
     float ProxyUpdateAccumulator = 0.0f;
     float CurrentApproachLimitFraction = 1.0f;
+    float PanicElapsed = 0.0f;
+    FVector PendingVolleyOrigin = FVector::ZeroVector;
+    FVector PendingVolleyDirection = FVector::ForwardVector;
+    bool bVolleyResolutionPending = false;
     int32 AliveEnemyCount = 0;
     ESingijeonEnemyWaveState WaveState = ESingijeonEnemyWaveState::Hidden;
     ESingijeonEnemyApproachPhase ApproachPhase = ESingijeonEnemyApproachPhase::Unrestricted;

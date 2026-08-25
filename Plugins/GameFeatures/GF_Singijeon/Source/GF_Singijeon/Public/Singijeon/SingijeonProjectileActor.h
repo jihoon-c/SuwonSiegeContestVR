@@ -10,6 +10,8 @@ class UPrimitiveComponent;
 class UScenarioInteractableComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
+class UNiagaraComponent;
+class UNiagaraSystem;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSingijeonProjectileImpact, AActor*, HitActor);
 
@@ -21,6 +23,7 @@ class GF_SINGIJEON_API ASingijeonProjectileActor : public AActor, public ISingij
 public:
     ASingijeonProjectileActor();
 
+    virtual void OnConstruction(const FTransform& Transform) override;
     virtual void Tick(float DeltaSeconds) override;
     virtual FVector GetVelocity() const override;
 
@@ -57,11 +60,29 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UProjectileMovementComponent> ProjectileMovement;
 
+    /** Optional smoke/tracer effect. It stays inactive until this arrow is launched. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UNiagaraComponent> FlightTrailEffect;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UScenarioInteractableComponent> GrabScenarioInteractor;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Singijeon|Visual")
     TObjectPtr<UMaterialInterface> ProjectileMaterialOverride;
+
+    /** Niagara System used while the projectile is flying. Leave empty for no trail. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Flight Trail")
+    TObjectPtr<UNiagaraSystem> FlightTrailSystem;
+
+    /** Trail emitter offset in ProjectileMesh local space. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Flight Trail")
+    FVector FlightTrailRelativeLocation = FVector::ZeroVector;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Flight Trail")
+    FRotator FlightTrailRelativeRotation = FRotator::ZeroRotator;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Flight Trail")
+    FVector FlightTrailRelativeScale = FVector::OneVector;
 
     /** Arrowhead direction in mesh-local space. The imported Singijeon mesh points toward -X. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Singijeon|Launch")
@@ -79,6 +100,9 @@ protected:
     bool bWasLaunched = false;
 
 private:
+    void ApplyFlightTrailSettings();
+    void StopFlightTrail();
+
     UFUNCTION()
     void HandleProjectileHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
         UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);

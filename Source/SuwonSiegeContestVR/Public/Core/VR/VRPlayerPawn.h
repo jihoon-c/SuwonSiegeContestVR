@@ -223,6 +223,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
 	FVector SubtitleHUDOffset = FVector(85.0f, 0.0f, -28.0f);
 
+	/** Render-target size for the narration subtitle. The default accommodates several wrapped lines. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD", meta = (ClampMin = "1.0"))
+	FVector2D SubtitleHUDDrawSize = FVector2D(1400.0f, 480.0f);
+
+	/** World scale for the camera-attached subtitle panel. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+	float SubtitleHUDWorldScale = 0.05f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Narration|HUD")
 	FVector EventHUDOffset = FVector(180.0f, 0.0f, -5.0f);
 };

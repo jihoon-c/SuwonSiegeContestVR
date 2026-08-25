@@ -57,7 +57,9 @@ Stage 배열 순서는 편집 가독성과 복귀 시 이전 단계 완료 상�
 
 ## 인터랙션 가이드
 
-`AScenarioManagerActor.InteractionGuide`는 현재 Interaction이 시작되면 동일한 `TargetID`와 `InteractionType`을 지원하는 `ScenarioInteractableComponent`를 찾는다. 찾은 Actor의 Bounds 위에 입력 종류와 안내 문구가 담긴 World Widget을 표시하고 완료·실패·Skip 시 즉시 숨긴다.
+`AScenarioManagerActor.InteractionGuide`는 현재 Interaction이 시작되면 동일한 `TargetID`와 `InteractionType`을 지원하는 `ScenarioInteractableComponent`를 찾는다. 찾은 Interactor의 Guide Anchor에 입력 종류와 안내 문구가 담긴 World Widget을 표시하고 완료·실패·Skip 시 즉시 숨긴다.
+
+각 `ScenarioInteractableComponent`는 실행 전 에디터에서 노란 화살표로 Guide Anchor를 표시한다. 액터를 선택한 뒤 화살표를 클릭하고 이동 기즈모로 끌면 결과가 `Scenario > Guide > Guide Anchor Offset`에 저장된다. 숫자로도 Actor Bounds 상단 기준 위치를 조절할 수 있으며 기본 높이는 10cm다. `Show Guide Anchor In Editor`를 끄면 편집 마커만 숨겨지고 런타임 가이드에는 영향이 없다.
 
 | GuideAction | 기본 표시 |
 |---|---|
@@ -67,7 +69,7 @@ Stage 배열 순서는 편집 가독성과 복귀 시 이전 단계 완료 상�
 | `Observe` | `LOOK / 대상을 바라보기` |
 | `Combat` | `AIM + TRIGGER / 조준하고 트리거로 발사` |
 
-`GuideText`를 입력하면 아래 한국어 안내만 교체된다. 여러 Actor가 같은 Target ID를 사용하면 플레이어와 가장 가까운 Actor를 선택한다. 나레이션, Objective, Wait, Sequence, Spawn은 기본적으로 대상 가이드를 표시하지 않는다.
+`GuideText`를 입력하면 아래 한국어 안내만 교체된다. 여러 Actor가 같은 Target ID를 사용하면 플레이어와 가장 가까운 Actor를 선택한다. 대상 Actor가 Feature/Level 로딩 순서 때문에 늦게 생성되면 활성 Interaction 동안 30Hz로 재탐색하여 생성 직후 표시한다. 표시 중인 가이드는 Player Pawn의 활성 HMD CameraComponent를 우선 기준으로 사용해 Yaw와 Pitch가 플레이어 시점을 향하며 Roll은 고정한다. 따라서 도화선처럼 시선보다 낮고 가까운 대상에서도 패널이 비스듬히 보이지 않는다. 나레이션, Objective, Wait, Sequence, Spawn은 기본적으로 대상 가이드를 표시하지 않는다.
 
 `OnInteractionRequested`는 모든 Interaction에 발생한다. 전용 이벤트인 `OnNarrationRequested`, `OnObjectiveRequested`도 함께 사용할 수 있다.
 
@@ -149,25 +151,20 @@ Data Asset은 Scenario 시작 시 다음 항목을 검증한다.
 
 ## Experience 왕복과 진행 복원
 
-`ExperienceTravelTriggerActor.TriggerExperienceTravel`은 이동 전에 복귀할 `ScenarioID`, `SceneID`, `InteractionID`를 세션 체크포인트로 저장한다. 목적지 Scenario가 완료되면 Experience의 `ReturnLevel`로 이동하고, Main Manager의 Experience Bridge가 체크포인트 이전 Interaction을 완료 상태로 복원한 뒤 지정 Interaction부터 재개한다.
+`ExperienceTravelTriggerActor.TriggerExperienceTravel` 또는 `AMainEducationScenarioManagerActor`는 이동 전에 복귀할 `ScenarioID`, `SceneID`, `InteractionID`를 세션 체크포인트로 저장한다. 목적지 Scenario가 완료되면 Experience의 `ReturnLevel`로 이동하고, Main Manager의 Experience Bridge가 체크포인트 이전 Interaction을 완료 상태로 복원한 뒤 지정 Interaction부터 재개한다.
 
-현재 메인 예시는 공심돈을 먼저 완료한 뒤 신기전으로 이동한다.
+현재 Main 교육 Asset은 첨부 교육 시나리오 순서에 맞춰 신기전 체험 후 주요 시설을 진행한다.
 
 ```text
-L_Main / DA_Scenario_Main.Stages[MAIN_SCENE]
-MAIN_INTRO → MAIN_TRAVEL_GONGSIMDON
-                    ↓ 공심돈 Trigger
-      /GF_Gongsimdon/Maps/LV_Gongsimdon
-                    ↓ Scenario 01 완료
-L_Main / MAIN_AFTER_GONGSIMDON (이전 단계 완료 상태 복원)
-                    ↓ 자동 진행
-         MAIN_TRAVEL_SINGIJEON
-                    ↓ 신기전 Trigger
-               LV_Singijeon
-                    ↓ Scenario 완료
-L_Main / MAIN_AFTER_SINGIJEON (이전 단계 완료 상태 복원)
+L_Main / DA_Scenario_MainEducation
+MAIN_INTRO.TRAVEL_SINGIJEON → 신기전 → AFTER_SINGIJEON
+GONGSIMDON.TRAVEL_GONGSIMDON → 공심돈 → AFTER_GONGSIMDON
+ONGSEONG.TRAVEL_ONGSEONG → 옹성 → AFTER_ONGSEONG
+NOKRO.TRAVEL_NOKRO → 녹로 → AFTER_NOKRO
+GEOJUNGGI.TRAVEL_GEOJUNGGI → 거중기 → AFTER_GEOJUNGGI
+SUMMARY
 ```
 
-각 Trigger의 `RequiredInteractionID`는 현재 Main Interaction이 일치할 때만 이동을 허용한다. 공심돈 Trigger는 `MAIN_TRAVEL_GONGSIMDON`, 신기전 Trigger는 `MAIN_TRAVEL_SINGIJEON`으로 설정되어 순서를 건너뛸 수 없다. 값을 비우면 이전과 같이 조건 없이 동작한다.
+Main 전용 Manager는 `Travel_*` Target의 Route를 찾고 현재 Interaction의 다음 ID를 복귀 지점으로 저장한다. Route Asset이 없으면 이동하지 않고 `OnExperienceUnavailable`을 발생시킨다. 현재 녹로와 거중기는 이 미연결 상태다.
 
-배치 Trigger는 Pawn Overlap과 Player Camera(HMD) 위치 진입을 모두 지원한다. 충돌 Primitive가 없는 VR Pawn은 HMD 위치 판정을 사용한다. 버튼, 퀴즈 완료, 나레이션 Completion Event 등 특정 이벤트에서 Trigger Actor의 `TriggerExperienceTravel(PlayerPawn)`을 호출해도 같은 흐름을 사용한다.
+기존 배치 Trigger 방식도 계속 지원한다. Trigger의 `RequiredInteractionID`는 현재 Main Interaction이 일치할 때만 이동을 허용하고, Pawn Overlap과 Player Camera(HMD) 위치 진입을 모두 지원한다.

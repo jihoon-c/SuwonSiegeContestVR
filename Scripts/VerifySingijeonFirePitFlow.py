@@ -16,11 +16,13 @@ torch_bp = unreal.load_asset("/GF_Singijeon/Gameplay/BP_SingijeonTorch")
 firepit_bp = unreal.load_asset("/GF_Singijeon/Gameplay/BP_SingijeonFirePit")
 firepit_mesh = unreal.load_asset("/GF_Singijeon/Asset/FirePit/Geometric_Fire_Pit")
 fire_system = unreal.load_asset("/Game/NiagaraExamples/FX_Misc/NS_Fire")
+point_fire = unreal.load_asset("/Game/StarterContent/Particles/P_Fire")
 scenario = unreal.load_asset("/Game/Data/DA_Scenario_Singijeon")
 check(torch_bp is not None, "BP_SingijeonTorch loads")
 check(firepit_bp is not None, "BP_SingijeonFirePit loads")
 check(firepit_mesh is not None, "Fire Pit mesh loads")
 check(fire_system is not None, "NS_Fire loads")
+check(point_fire is not None, "Point-source torch fire loads")
 
 for blueprint, label in ((torch_bp, "Torch"), (firepit_bp, "Fire Pit")):
     if not blueprint:
@@ -45,6 +47,21 @@ if torch_bp:
     torch_cdo = unreal.get_default_object(torch_bp.generated_class())
     check(not torch_cdo.get_editor_property("ignition_active"),
           "Torch starts unlit")
+    check(torch_cdo.get_editor_property("use_point_source_flame"),
+          "Torch disables whole-mesh Niagara sampling")
+    point_effects = torch_cdo.get_components_by_class(unreal.ParticleSystemComponent)
+    point_effect = next(
+        (item for item in point_effects if item.get_name() == "TorchFlameEffect"),
+        None,
+    )
+    check(point_effect is not None, "Torch owns TorchFlameEffect")
+    if point_effect:
+        check(point_effect.get_editor_property("template") == point_fire,
+              "TorchFlameEffect uses point-source P_Fire")
+        check(point_effect.get_attach_parent() == torch_cdo.get_editor_property("ignition_area"),
+              "TorchFlameEffect is attached only to IgnitionArea")
+        check(not point_effect.get_editor_property("auto_activate"),
+              "TorchFlameEffect starts inactive")
 
 if firepit_bp:
     firepit_cdo = unreal.get_default_object(firepit_bp.generated_class())

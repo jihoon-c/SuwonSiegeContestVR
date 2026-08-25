@@ -33,6 +33,8 @@ TSharedRef<SWidget> USubtitleWidget::RebuildWidget()
 		SubtitleText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 		SubtitleText->SetJustification(ETextJustify::Center);
 		SubtitleText->SetAutoWrapText(true);
+		// Keep narration readable rather than clipping it at the component edge.
+		SubtitleText->SetWrapTextAt(1320.0f);
 		SubtitleText->SetShadowOffset(FVector2D(2.0f, 2.0f));
 		SubtitleText->SetShadowColorAndOpacity(FLinearColor(0.0f, 0.0f, 0.0f, 0.95f));
 		FSlateFontInfo SubtitleFont = SubtitleText->GetFont();

@@ -6,6 +6,8 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "Shared/Combat/LegacyHealthComponent.h"
 #include "UObject/StructOnScope.h"
 #include "UObject/ConstructorHelpers.h"
@@ -39,9 +41,20 @@ ASingijeonProjectileActor::ASingijeonProjectileActor()
     // points along -X, so the authored tip axis is aligned explicitly in Tick.
     ProjectileMovement->bRotationFollowsVelocity = false;
 
+    FlightTrailEffect = CreateDefaultSubobject<UNiagaraComponent>(TEXT("FlightTrailEffect"));
+    FlightTrailEffect->SetupAttachment(ProjectileMesh);
+    FlightTrailEffect->SetAutoActivate(false);
+    FlightTrailEffect->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
     GrabScenarioInteractor = CreateDefaultSubobject<UScenarioInteractableComponent>(TEXT("GrabScenarioInteractor"));
     GrabScenarioInteractor->TargetID = TEXT("Singijeon_Ammo");
     GrabScenarioInteractor->SupportedInteractionTypes = { EScenarioInteractionType::Grab };
+}
+
+void ASingijeonProjectileActor::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+    ApplyFlightTrailSettings();
 }
 
 void ASingijeonProjectileActor::Tick(const float DeltaSeconds)
@@ -73,6 +86,7 @@ bool ASingijeonProjectileActor::CanBeLoaded_Implementation() const
 
 bool ASingijeonProjectileActor::PrepareForLoading_Implementation()
 {
+	StopFlightTrail();
 	TInlineComponentArray<UActorComponent*> Components(this);
 	for (UActorComponent* Component : Components)
 	{
@@ -109,6 +123,7 @@ void ASingijeonProjectileActor::OnLoaded_Implementation(USceneComponent* Slot)
     ProjectileMovement->Deactivate();
     ProjectileMesh->SetSimulatePhysics(false);
     ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    StopFlightTrail();
     ApplyProjectileMaterial();
 }
 
@@ -117,6 +132,7 @@ void ASingijeonProjectileActor::OnUnloaded_Implementation()
     bIsLoaded = false;
     SetActorTickEnabled(false);
     ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    StopFlightTrail();
     ApplyProjectileMaterial();
 }
 
@@ -133,11 +149,16 @@ void ASingijeonProjectileActor::OnLaunched_Implementation(const FVector Directio
         ProjectileMesh->IgnoreActorWhenMoving(LaunchOwner, true);
     }
     ApplyProjectileMaterial();
+    ApplyFlightTrailSettings();
     const FVector TipDirection = GetArrowTipDirection();
     const FVector LaunchDirection = TipDirection.IsNearlyZero() ? Direction.GetSafeNormal() : TipDirection;
     ProjectileMovement->bRotationFollowsVelocity = false;
     ProjectileMovement->Velocity = LaunchDirection * Speed;
     ProjectileMovement->Activate(true);
+    if (FlightTrailEffect && FlightTrailSystem)
+    {
+        FlightTrailEffect->Activate(true);
+    }
     SetActorTickEnabled(true);
     if (LaunchedLifeSpan > 0.0f)
     {
@@ -166,6 +187,7 @@ void ASingijeonProjectileActor::HandleProjectileHit(
         ProjectileMovement->StopMovementImmediately();
         ProjectileMovement->Deactivate();
     }
+    StopFlightTrail();
     SetActorTickEnabled(false);
     SetLifeSpan(2.0f);
 }
@@ -229,5 +251,26 @@ void ASingijeonProjectileActor::ApplyProjectileMaterial()
     for (int32 MaterialIndex = 0; MaterialIndex < MaterialSlotCount; ++MaterialIndex)
     {
         ProjectileMesh->SetMaterial(MaterialIndex, ProjectileMaterialOverride);
+    }
+}
+
+void ASingijeonProjectileActor::ApplyFlightTrailSettings()
+{
+    if (!FlightTrailEffect)
+    {
+        return;
+    }
+
+    FlightTrailEffect->SetAsset(FlightTrailSystem);
+    FlightTrailEffect->SetRelativeLocation(FlightTrailRelativeLocation);
+    FlightTrailEffect->SetRelativeRotation(FlightTrailRelativeRotation);
+    FlightTrailEffect->SetRelativeScale3D(FlightTrailRelativeScale);
+}
+
+void ASingijeonProjectileActor::StopFlightTrail()
+{
+    if (FlightTrailEffect)
+    {
+        FlightTrailEffect->Deactivate();
     }
 }

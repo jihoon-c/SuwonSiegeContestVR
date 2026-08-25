@@ -248,7 +248,8 @@ PlayerPhone 본체는 Core에 두고, 체험별 기능은 각 Game Feature가 �
 - `UExperienceSubsystem`: `StartExperience`, `CompleteCurrentExperience`, `ReturnToMain`, 세션 완료 목록
 - `UScenarioExperienceBridgeComponent`: Scenario 종료 시 Experience 완료 및 설정된 복귀 Level 이동
 - `DA_Experience_Singijeon`: `/Game/Maps/LV_Singijeon` 연결
-- `DA_Experience_Main`, `DA_Scenario_Main`: Main Level과 인라인 Stage 흐름 정의
+- `DA_Experience_Main`, `DA_Scenario_MainEducation`: Main Level과 전체 교육 Stage 흐름 정의
+- `AMainEducationScenarioManagerActor`: Main 표시/퀴즈/체험 Route를 Core Scenario/Experience에 연결
 - `AExperienceTravelTriggerActor`: 이벤트 기반 체험 진입과 Main 복귀 체크포인트 저장
 - Main 재진입 시 Scenario/Scene/Interaction 체크포인트와 이전 단계 완료 상태 복원
 - 상태: `Inactive → Traveling → Active → Completed` 또는 `Failed`
@@ -273,11 +274,22 @@ graph LR
 * Level 전환 방식은 `OpenLevelBySoftObjectPtr`로 확정했다.
 * 진행도는 Level Travel 동안 유지되는 메모리 방식이다. 앱 재시작 후 영속화가 필요하면 `SaveGame`을 추가한다.
 * Scenario 기반 체험은 `OnScenarioFinished`가 완료 판정이다. 별도 체험은 `CompleteCurrentExperience`를 직접 호출할 수 있다.
-* `L_Main`과 신기전 Definition의 `ReturnLevel` 연결은 완료됐다.
+* `L_Main`과 신기전·공심돈·옹성 Definition의 `ReturnLevel` 연결은 완료됐다.
+* 녹로와 거중기 Experience/Level 연결은 남아 있다.
+
+Main 교육 Asset은 `Editor Flow(Stage → Steps)`를 편집 원본으로 사용한다. Stage/Step 배열 순서에서
+Core `FScenarioStageDefinition`의 Start/Next ID와 `EducationContent` lookup을 자동 생성한다. 각 Step은
+플레이어 행동, 완료 조건, UI 가이드, 선택적 World Guide, 나레이션 Row 또는 Experience Route를 함께 보관한다.
+생성된 Runtime 배열은 직접 편집하지 않는다.
 
 ### 3.6 초성 퀴즈 / 음성 인식
 
-`Status: Planned` — **존재하지 않는다.**
+`Status: Partial` — 네 개 초성 퀴즈의 데이터, 정답 정규화/판정, UI 이벤트가 구현됐다.
+음성 캡처와 STT는 별도 담당자가 연결하도록 Blueprint Native Event만 비워 두었다.
+
+Main 질문 나레이션은 `/Game/Audio/Narration/DT_Narration_Main`의 화면별 Row 구간을 먼저 재생한다.
+구간 종료 후 Quiz Interaction이 시작되므로 STT 요청은 질문 음성과 겹치지 않는다. 현재 음원 연결은
+01~33번(녹로 원리 설명)까지이며 거중기·최종 정리 음원은 미등록이다.
 
 목표 흐름:
 
@@ -536,13 +548,14 @@ Feature에는 **그 체험에서만 쓰이는 것**(쇠뇌, 충차, 거중기, �
 
 ## 6. Experience Flow / Level Flow
 
-`Status: Partial` — `L_Main → 공심돈 → L_Main → 신기전 → L_Main` 전환과 세션
-체크포인트 복원은 구현됐다. 거중기·웅성의 Main 순서 연결과 SaveGame 영속화는 미구현이다.
+`Status: Partial` — Main의 신기전→공심돈→옹성→녹로→거중기→정리 순서와 세션
+체크포인트 복원은 구현됐다. 녹로·거중기 Level/Experience와 SaveGame 영속화는 미구현이다.
 
-**현재 실제 Level Flow**: `DA_Scenario_Main`의 Trigger가
-`UExperienceSubsystem.StartExperience`를 호출해 공심돈과 신기전 Level에 진입한다.
+**현재 실제 Level Flow**: `DA_Scenario_MainEducation`과 `AMainEducationScenarioManagerActor`가
+`UExperienceSubsystem.StartExperience`를 호출해 연결된 체험 Level에 진입한다.
 Scenario 완료는 세션 진행도에 기록되며 `ReturnLevel=L_Main`으로 복귀한 뒤
-`MAIN_AFTER_GONGSIMDON` 등 저장된 체크포인트 다음부터 이어진다.
+`AFTER_GONGSIMDON` 등 저장된 체크포인트 다음부터 이어진다. 신기전·공심돈은 기존 Scenario 완료로,
+옹성은 Feature의 완료 보고 연결 후 왕복할 수 있다. 녹로·거중기는 현재 미연결 이벤트에서 멈춘다.
 
 목표 Flow:
 
