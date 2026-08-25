@@ -16,14 +16,16 @@
 
 AChongtongProjectileActor::AChongtongProjectileActor()
 {
-	ProjectileMovement->ProjectileGravityScale = 0.15f;
-	ProjectileMovement->MaxSpeed = 8000.0f;
+	// A cannonball, not a bullet: heavy enough to arc visibly over the corridor.
+	ProjectileMovement->ProjectileGravityScale = 0.7f;
+	ProjectileMovement->MaxSpeed = 5000.0f;
 	ProjectileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
 	ProjectileMesh->SetupAttachment(CollisionComponent);
 	ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ProjectileMesh->SetRelativeScale3D(FVector(0.12f));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> TempExplosion(TEXT("/Niagara/DefaultAssets/Templates/Systems/SimpleExplosion.SimpleExplosion"));
+	// Ground-burst shell: dirt and smoke read better against the corridor than a fireball.
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> TempExplosion(TEXT("/Game/NiagaraExamples/FX_Explosions/NS_Dirt_Explosion_Medium.NS_Dirt_Explosion_Medium"));
 	static ConstructorHelpers::FObjectFinder<USoundBase> TempSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
 	ProjectileMesh->SetStaticMesh(Sphere.Object);
 	ExplosionEffect = TempExplosion.Object;

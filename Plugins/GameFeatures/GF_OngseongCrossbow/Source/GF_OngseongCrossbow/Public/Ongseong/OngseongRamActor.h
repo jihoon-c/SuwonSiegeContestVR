@@ -56,9 +56,13 @@ protected:
 	TObjectPtr<UCombatFactionComponent> FactionComponent;
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Ongseong|Ram")
 	TObjectPtr<AActor> GateTarget;
-	/** Deliberately slow first approach: the ram is the objective target and must be killable in time. */
+	/**
+	 * Deliberately slow first approach: the ram is the objective target and must be killable in time.
+	 * 42 cm/s covers the 7,450 cm from the spawn point to the staging point in about three minutes,
+	 * which is the intended length of the defense.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Ram", meta=(ClampMin="0.0"))
-	float MoveSpeed = 35.0f;
+	float MoveSpeed = 42.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Ram", meta=(ClampMin="0.0"))
 	float StagingDistance = 800.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Ram", meta=(ClampMin="0.0"))
@@ -69,6 +73,13 @@ protected:
 	float ReturnSpeed = 180.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Ram", meta=(ClampMin="1.0"))
 	float ArrivalTolerance = 15.0f;
+	/**
+	 * The ram mesh is authored facing its own +Y, but movement rotation faces +X, so the ram drove
+	 * sideways. Yaw correction applied on top of the travel direction; flip the sign if the final
+	 * art is authored the other way round.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Ram", meta=(ClampMin="-180.0", ClampMax="180.0"))
+	float MeshYawOffset = -90.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Ram", meta=(ClampMin="0.0"))
 	float AttackDamage = 75.0f;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Ram")

@@ -67,6 +67,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
 	void SetEnemyPool(AActorPool* NewEnemyPool) { EnemyPool = NewEnemyPool; }
 
+	/** Where surplus archers gather once every cannon is fully engaged. Normally the active ram. */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning|Archer")
+	void SetArcherEscortTarget(AActor* NewEscortTarget);
+
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
 	void SetObjectiveTarget(AActor* NewObjectiveTarget) { ObjectiveTarget = NewObjectiveTarget; }
 
@@ -136,6 +140,12 @@ protected:
 	int32 GetSlotsForType(EOngseongEnemyType EnemyType) const;
 	bool ChooseNextEnemyType(EOngseongEnemyType& OutEnemyType) const;
 	AActorPool* GetPoolForEnemyType(EOngseongEnemyType EnemyType) const;
+	/** Reserves an attack slot on the nearest allied cannon that still has one. */
+	class AChongtongCannonActor* ReserveCannonForArcher(AEnemyCombatCharacter* Archer);
+	void ReleaseCannonSlots(AActor* Archer);
+	void ApplyArcherEngagement(AEnemyCombatCharacter* Archer);
+	UFUNCTION()
+	void RetryArcherSlotAssignments();
 	void DetachEnemy(AEnemyCombatCharacter* Enemy);
 	FTransform BuildSpawnTransform();
 
@@ -152,6 +162,17 @@ protected:
 	/** Allied cannon preferred by archers. Falls back to ObjectiveTarget when unavailable. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer")
 	TObjectPtr<AActor> ArcherPrimaryTarget;
+
+	/**
+	 * Where archers gather when every allied cannon already has its attack slots filled.
+	 * The scenario points this at the active ram, so the surplus escorts the siege engine.
+	 */
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer")
+	TObjectPtr<AActor> ArcherEscortTarget;
+
+	/** How often archers without a cannon slot retry, so a defender's death frees a place. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="0.5"))
+	float ArcherSlotRetryInterval = 3.0f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer")
 	TObjectPtr<AActorPool> ArcherProjectilePool;
@@ -217,5 +238,6 @@ protected:
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<AEnemyCombatCharacter>, EOngseongEnemyType> EnemyTypesByActor;
 	FTimerHandle SpawnTimerHandle;
+	FTimerHandle ArcherSlotRetryHandle;
 	TArray<FTimerHandle> RespawnTimerHandles;
 };

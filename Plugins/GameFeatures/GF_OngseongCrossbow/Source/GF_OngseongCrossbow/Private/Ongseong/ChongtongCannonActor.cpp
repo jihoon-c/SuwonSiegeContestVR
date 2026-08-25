@@ -4,6 +4,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Core/VR/InteractionHighlightComponent.h"
 #include "Core/VR/VRPlayerPawn.h"
 #include "Gameplay/Characters/AllyCombatCharacter.h"
 #include "Gameplay/Combat/CombatFactionComponent.h"
@@ -17,6 +18,7 @@
 #include "Ongseong/ChongtongAimGripComponent.h"
 #include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
+#include "Ongseong/OngseongArcherCombatComponent.h"
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
@@ -57,6 +59,10 @@ AChongtongCannonActor::AChongtongCannonActor()
 	AimGrip->SetupAttachment(HwachaBaseMesh);
 	AimGrip->SetRelativeLocation(FVector(-40.0f, 0.0f, 120.0f));
 	AimGrip->SetAimTarget(BarrelPivot);
+	AimPrompt = CreateDefaultSubobject<UInteractionHighlightComponent>(TEXT("AimPrompt"));
+	AimPrompt->SetupAttachment(AimGrip);
+	// Amber, and only on the grip marker: glowing the whole carriage would hide the barrel.
+	AimPrompt->ConfigureHighlight(false, FLinearColor(1.0f, 0.55f, 0.05f));
 	AutomaticFire = CreateDefaultSubobject<UChongtongAutomaticFireComponent>(TEXT("AutomaticFire"));
 	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
 	StatusText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("StatusText"));
@@ -95,7 +101,8 @@ AChongtongCannonActor::AChongtongCannonActor()
 	bSpawnOperatorOnBeginPlay = false;
 
 	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> LoadFX(TEXT("/Game/NiagaraExamples/FX_PickUp/NS_Pickup_Success.NS_Pickup_Success"));
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> FireFX(TEXT("/Niagara/DefaultAssets/Templates/Systems/SimpleExplosion.SimpleExplosion"));
+	// A muzzle flash, not a generic explosion: the shell is what explodes, at the far end.
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> FireFX(TEXT("/Game/NiagaraExamples/FX_Weapons/MuzzleFlashes/NS_MuzzleFlash.NS_MuzzleFlash"));
 	static ConstructorHelpers::FObjectFinder<USoundBase> TempFireSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
 	LoadSuccessEffect = LoadFX.Object;
 	MuzzleEffect = FireFX.Object;
@@ -169,23 +176,127 @@ bool AChongtongCannonActor::TryFire()
 	UE_LOG(LogOngseong, Verbose, TEXT("%s firing at %s (%.0f cm)."),
 		*GetName(), *Target->GetName(), FVector::Dist(GetActorLocation(), Target->GetActorLocation()));
 
-	const FVector MuzzleLocation = Muzzle->GetComponentLocation();
-	const FVector Direction = (Target->GetActorLocation() - MuzzleLocation).GetSafeNormal();
-	if (Direction.IsNearlyZero())
+	FVector TargetLocation;
+	FVector TargetExtent;
+	Target->GetActorBounds(true, TargetLocation, TargetExtent);
+
+	FVector LaunchVelocity;
+	const bool bSolved = SolveFiringArc(TargetLocation, LaunchVelocity);
+	if (!bSolved)
 	{
+		// Out of ballistic reach: keep the barrel honest by aiming straight at it and holding fire.
+		AimBarrelAtDirection((TargetLocation - Muzzle->GetComponentLocation()).GetSafeNormal());
+		UE_LOG(LogOngseong, Verbose, TEXT("%s cannot reach %s with an arc."), *GetName(), *Target->GetName());
 		return false;
 	}
 
-	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction);
+	// Aim first, then fire along the barrel, so the shot always leaves where the cannon points.
+	const FVector FireDirection = AimBarrelAtDirection(LaunchVelocity.GetSafeNormal());
+	AGameplayProjectileActor* Projectile = SpawnProjectile(FireDirection, LaunchVelocity.Size());
 	if (!Projectile)
 	{
 		return false;
 	}
+	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation());
 	OnFired.Broadcast(Target, Projectile);
 	return true;
 }
 
-AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& Direction)
+FVector AChongtongCannonActor::AimBarrelAtDirection(const FVector& WorldDirection)
+{
+	const FVector Direction = WorldDirection.GetSafeNormal();
+	if (!BarrelPivot || Direction.IsNearlyZero())
+	{
+		return Muzzle ? Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y) : FVector::ForwardVector;
+	}
+	// The barrel fires along its local +Y (the muzzle sits at +Y on the pivot), so map +Y onto the
+	// direction instead of the usual +X. A plain pitch would not elevate a +Y axis at all.
+	const FQuat AlignForwardToDirection = Direction.ToOrientationQuat();
+	const FQuat MapYAxisOntoForward(FVector::UpVector, FMath::DegreesToRadians(-90.0f));
+	BarrelPivot->SetWorldRotation(AlignForwardToDirection * MapYAxisOntoForward);
+	return Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y);
+}
+
+bool AChongtongCannonActor::SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const
+{
+	if (!GetWorld() || !Muzzle)
+	{
+		return false;
+	}
+	float GravityScale = 1.0f;
+	if (ProjectileClass)
+	{
+		if (const AGameplayProjectileActor* ProjectileDefaults = ProjectileClass->GetDefaultObject<AGameplayProjectileActor>())
+		{
+			GravityScale = ProjectileDefaults->GetProjectileGravityScale();
+		}
+	}
+	// The solve has to use the gravity the shell will actually fall under, not world gravity.
+	const float GravityZ = GetWorld()->GetGravityZ() * GravityScale;
+	return UGameplayStatics::SuggestProjectileVelocity_CustomArc(
+		this, OutLaunchVelocity, Muzzle->GetComponentLocation(), TargetLocation, GravityZ, FiringArc);
+}
+
+bool AChongtongCannonActor::TryReserveAttackerSlot(AActor* Attacker)
+{
+	if (!IsValid(Attacker))
+	{
+		return false;
+	}
+	PruneAttackerSlots();
+	if (AttackerSlots.Contains(Attacker))
+	{
+		return true;
+	}
+	if (AttackerSlots.Num() >= MaxAttackerSlots)
+	{
+		return false;
+	}
+	AttackerSlots.Add(Attacker);
+	UE_LOG(LogOngseong, Verbose, TEXT("%s attack slot taken by %s (%d/%d)."),
+		*GetName(), *Attacker->GetName(), AttackerSlots.Num(), MaxAttackerSlots);
+	return true;
+}
+
+void AChongtongCannonActor::ReleaseAttackerSlot(AActor* Attacker)
+{
+	if (AttackerSlots.Remove(Attacker) > 0)
+	{
+		UE_LOG(LogOngseong, Verbose, TEXT("%s attack slot freed by %s (%d/%d)."),
+			*GetName(), *GetNameSafe(Attacker), AttackerSlots.Num(), MaxAttackerSlots);
+	}
+	PruneAttackerSlots();
+}
+
+bool AChongtongCannonActor::HasFreeAttackerSlot() const
+{
+	PruneAttackerSlots();
+	return AttackerSlots.Num() < MaxAttackerSlots;
+}
+
+int32 AChongtongCannonActor::GetReservedAttackerCount() const
+{
+	PruneAttackerSlots();
+	return AttackerSlots.Num();
+}
+
+void AChongtongCannonActor::PruneAttackerSlots() const
+{
+	// Pooled attackers are recycled rather than destroyed, so a dead or hidden holder must not
+	// keep its slot: the population manager releases it, and this is the safety net.
+	AttackerSlots.RemoveAll([](const TWeakObjectPtr<AActor>& Slot)
+	{
+		const AActor* Attacker = Slot.Get();
+		if (!IsValid(Attacker) || Attacker->IsHidden())
+		{
+			return true;
+		}
+		const UHealthComponent* Health = Attacker->FindComponentByClass<UHealthComponent>();
+		return Health && Health->IsDead();
+	});
+}
+
+AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& Direction, const float Speed)
 {
 	if (!ProjectileClass || Direction.IsNearlyZero()) return nullptr;
 	const FVector MuzzleLocation = Muzzle->GetComponentLocation() + Direction.GetSafeNormal() * ProjectileSpawnClearance;
@@ -208,7 +319,7 @@ AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& 
 	Spec.Amount = ProjectileDamage;
 	Spec.InstigatorActor = this;
 	Spec.DamageCauser = Projectile;
-	Projectile->LaunchProjectile(Direction, ProjectileSpeed, Spec);
+	Projectile->LaunchProjectile(Direction, Speed, Spec);
 	return Projectile;
 }
 
@@ -216,7 +327,7 @@ bool AChongtongCannonActor::TryFirePlayer()
 {
 	if (LoadingState != EChongtongLoadingState::ReadyToAim || !AimGrip->IsTwoHandAiming()) return false;
 	const FVector Direction = Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
-	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction);
+	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction, ProjectileSpeed);
 	if (!Projectile) return false;
 
 	++CompletedShots;
@@ -277,6 +388,7 @@ bool AChongtongCannonActor::RegisterRammerStroke()
 
 void AChongtongCannonActor::UpdateLoadingInteractions()
 {
+	UpdateInteractionPrompts();
 	if (!LoadingSocket || LoadingState == EChongtongLoadingState::ReadyToAim || LoadingState == EChongtongLoadingState::Completed) return;
 	for (AChongtongLoadingItemActor* Item : LoadingItems)
 	{
@@ -294,6 +406,33 @@ void AChongtongCannonActor::UpdateLoadingInteractions()
 		{
 			Item->ConsumeAndRespawn();
 		}
+	}
+}
+
+bool AChongtongCannonActor::IsItemRequiredNow(const EChongtongLoadingItemType ItemType) const
+{
+	switch (LoadingState)
+	{
+	case EChongtongLoadingState::NeedsPowder: return ItemType == EChongtongLoadingItemType::Powder;
+	case EChongtongLoadingState::NeedsRamming: return ItemType == EChongtongLoadingItemType::Rammer;
+	case EChongtongLoadingState::NeedsCannonball: return ItemType == EChongtongLoadingItemType::Cannonball;
+	default: return false;
+	}
+}
+
+void AChongtongCannonActor::UpdateInteractionPrompts()
+{
+	// Exactly one thing is worth touching at a time, so exactly one thing glows.
+	for (AChongtongLoadingItemActor* Item : LoadingItems)
+	{
+		if (IsValid(Item))
+		{
+			Item->SetLoadingPromptActive(IsItemRequiredNow(Item->GetItemType()));
+		}
+	}
+	if (AimPrompt)
+	{
+		AimPrompt->SetHighlightActive(LoadingState == EChongtongLoadingState::ReadyToAim);
 	}
 }
 
@@ -365,7 +504,20 @@ void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sou
 
 AActor* AChongtongCannonActor::SelectTarget() const
 {
-	const TArray<AActor*> Visible = TargetingComponent->FindVisibleHostileTargets(FireRange);
+	TArray<AActor*> Visible = TargetingComponent->FindVisibleHostileTargets(FireRange);
+	if (bEngageEnemyArchersOnly)
+	{
+		const int32 BeforeFilter = Visible.Num();
+		Visible.RemoveAll([](const AActor* Candidate)
+		{
+			return !IsValid(Candidate) || !Candidate->FindComponentByClass<UOngseongArcherCombatComponent>();
+		});
+		if (BeforeFilter != Visible.Num())
+		{
+			UE_LOG(LogOngseong, VeryVerbose, TEXT("%s ignored %d non-archer target(s)."),
+				*GetName(), BeforeFilter - Visible.Num());
+		}
+	}
 	if (Visible.IsEmpty())
 	{
 		const TArray<AActor*> InRange = TargetingComponent->FindHostileTargets(FireRange);

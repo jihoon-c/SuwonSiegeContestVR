@@ -9,13 +9,19 @@
 **상태**: `Implemented (final content/HMD verification pending)`
 **2026-08-24 개정 반영**: 비VR 전투 테스트 GameMode, 적 상시 유지 스폰(Wave 폐지), 파티클 포함 전면 풀링, **클리어 조건을 충차 파괴로 변경**. 구현·자동화 테스트 완료. §9 참조.
 
+> **2026-08-24 쇠뇌 폐지**: 쇠뇌는 총통으로 대체되어 **레거시**가 되었다.
+> `AOngseongCrossbowActor`, `UOngseongCrossbowGripComponent`, `BP_OngseongCrossbow`와
+> 레벨 배치 인스턴스를 모두 제거했다. 플러그인 이름 `GF_OngseongCrossbow`와 문서 제목은
+> 참조 파손을 피하기 위해 그대로 둔다. 플레이어 무기는 **총통 하나뿐이다.**
+> 물리 화살 `AOngseongBoltProjectileActor`는 **적 궁병 전용**으로 남는다.
+
 ---
 
 ## 1. 범위와 책임 경계
 
 | 요소 | 소유 계층 | 이 브랜치에서의 규칙 |
 |---|---|---|
-| 옹성 구조물, 쇠뇌, 충차 | `GF_OngseongCrossbow` | Feature 내부에 구현 |
+| 옹성 구조물, 충차 | `GF_OngseongCrossbow` | Feature 내부에 구현 |
 | 적 Wave 구성·연출, 체험 완료 조건 | `GF_OngseongCrossbow` | Feature 내부에 구현 |
 | 총통 Ally AI, 총통 투사체 | `GF_OngseongCrossbow` | Feature 내부에 구현 |
 | Phone 확장 기능 | `GF_OngseongCrossbow/Content/Phone/` | Core Phone이 준비된 뒤 확장 Component로 제공 |
@@ -27,8 +33,8 @@
 ```mermaid
 graph TD
     subgraph FEATURE[GF_OngseongCrossbow]
-      CROSSBOW[쇠뇌]
       RAM[충차]
+      PLAYER[총통 플레이어 조작]
       WAVE[Wave Manager]
       CHONGTONG[총통 Ally AI]
     end
@@ -64,7 +70,7 @@ graph TD
 | 총통 Ally AI | `Implemented` | `BP_AllyChongtong`은 `UChongtongAutomaticFireComponent`를 통해 5초 간격으로 자동 사격; `BP_PlayableChongtong`은 자동 사격을 끄고 VR 장전·양손 조작 사용 |
 | 총통 투사체 | `Implemented (runtime)` | 곡사, 직접 명중 + 350cm 범위 피해, 교체 가능한 임시 Niagara/사운드 |
 | 교관 나레이션 | `Implemented (event-driven)` | 총통 기본 컴포넌트가 공용 Pawn 나레이션 플레이어를 재사용하며 진행/상황 이벤트를 큐 재생 |
-| 쇠뇌 Actor | `Implemented (runtime + placed)` | `AOngseongCrossbowActor`/`BP_OngseongCrossbow`, 거치형 양손 조준·물리 볼트·12발 탄약·1.25초 자동 재장전·24발 고정 Pool |
+| 쇠뇌 Actor | `Removed (2026-08-24)` | 총통으로 대체된 레거시. 클래스·Blueprint·배치 인스턴스 모두 삭제 |
 | 충차 Actor | `Implemented (runtime)` | `AOngseongRamActor`, 접근·주기 공격·피해/파괴 정지; 임시 메시 사용 |
 | 체험 완료 조건 | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`, 180초 성공/성문 파괴 실패/퇴각 후 Experience 완료/재시도 |
 | Android VR 검증 | `Excluded from this pass` | 실제 HMD 성능·조작 검증은 별도 수행 |
@@ -100,7 +106,7 @@ graph TD
 
 - 체험 진입/완료는 `UExperienceSubsystem` 계약을 사용한다.
 - 완료 시 `CompleteCurrentExperience` 또는 Scenario-Experience Bridge를 통해 Main 복귀를 요청한다.
-- 쇠뇌 조작 중 이동을 제한해야 하면 Feature에서 전역 입력을 직접 변경하지 말고, Core 입력 관리 계약 확장 여부를 먼저 협의한다.
+- 이동 제한은 Core 계약으로 처리한다. `AVRPlayerPawn::SetLocomotionEnabled(bMove, bTeleport)`를 사용하며 Feature가 전역 입력을 직접 변경하지 않는다. 옹성은 성벽 위 고정이므로 둘 다 잠근다.
 
 ---
 
@@ -182,13 +188,13 @@ flowchart LR
 2. `[구현]` `AOngseongRamActor`: 병력과 동시 출발, 대기 지점 접근, 성문 돌진·충돌·복귀 반복. 최종 아트 연결은 남음.
 3. `[구현]` 검병/궁병 구성과 유형별 행동 상태, 궁병 물리 화살·총통 우선 표적·명중률/빗나감·피해를 연결하고 전멸 후 3초 간격 반복 Wave를 추가했다.
 4. `[구현]` 성공 시 전체 적 퇴각→Pool 반환, 실패 시 전투 중지, 성공 시 `ExperienceSubsystem` 완료→Main 복귀.
-5. `[완료]` 쇠뇌/볼트 BP와 24발 Pool, 궁병 표적/화살 Pool을 레벨에 연결하고 자산 검증 및 옹성 Automation 4종을 통과했다. Android HMD 성능 측정은 별도 범위다.
+5. `[완료]` 궁병 표적/화살 Pool을 레벨에 연결하고 자산 검증 및 옹성 Automation을 통과했다. (당시 함께 연결했던 쇠뇌/볼트 Pool은 2026-08-24 쇠뇌 폐지로 제거됐다.) Android HMD 성능 측정은 별도 범위다.
 
 ---
 
 ## 5. 확정된 구현 정책과 별도 범위
 
-1. 쇠뇌는 거치형 양손 조준, 실제 물리 볼트, 12발 탄약, 발사 후 1.25초 자동 재장전을 사용한다.
+1. ~~쇠뇌는 거치형 양손 조준, 실제 물리 볼트, 12발 탄약, 발사 후 1.25초 자동 재장전을 사용한다.~~ **폐지(2026-08-24)**. 플레이어 무기는 총통뿐이며, 조작은 화약 → 쑤시개 3회 → 대포알 → 양손 조준 → 양손 트리거다.
 2. 적 병사는 동시 15명(검병 8·궁병 7)을 상시 유지하며 처치 시 5초 ± 1.5초 후 같은 유형으로 리스폰한다. 궁병은 총통 우선/보조 목표 순서와 65% 명중률을 사용한다.
 3. 충차는 1대이며 파괴 가능하다. 지정 성문에 반복 충돌 피해를 주고, 성문 Health 0이 실패의 단일 기준이다.
 4. 성공은 충차 파괴 후 적 퇴각과 Main 복귀, 실패는 명확한 HUD 안내 후 6초 자동 재시도다.

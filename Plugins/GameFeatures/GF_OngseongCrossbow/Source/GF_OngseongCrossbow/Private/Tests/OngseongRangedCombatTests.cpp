@@ -7,7 +7,6 @@
 #include "Gameplay/Combat/CombatTypes.h"
 #include "Ongseong/OngseongArcherCombatComponent.h"
 #include "Ongseong/OngseongBoltProjectileActor.h"
-#include "Ongseong/OngseongCrossbowActor.h"
 #include "Ongseong/OngseongGateActor.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -22,18 +21,8 @@ bool FOngseongRangedCombatContractsTest::RunTest(const FString& Parameters)
 	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
 	Context.SetCurrentWorld(World);
 
-	AOngseongCrossbowActor* Crossbow = World->SpawnActor<AOngseongCrossbowActor>();
-	AOngseongBoltProjectileActor* Bolt = World->SpawnActor<AOngseongBoltProjectileActor>();
-	TestNotNull(TEXT("Mounted crossbow can be spawned without content assets"), Crossbow);
-	TestNotNull(TEXT("Physical bolt can be spawned without content assets"), Bolt);
-	if (Crossbow)
-	{
-		TestEqual(TEXT("Crossbow starts loaded"), Crossbow->GetCrossbowState(), EOngseongCrossbowState::Loaded);
-		TestTrue(TEXT("Crossbow supports timed reload"), Crossbow->BeginReload());
-		TestEqual(TEXT("Reloading state is observable"), Crossbow->GetCrossbowState(), EOngseongCrossbowState::Reloading);
-		Crossbow->CompleteReload();
-		TestEqual(TEXT("Reload completes back to loaded"), Crossbow->GetCrossbowState(), EOngseongCrossbowState::Loaded);
-	}
+	AOngseongBoltProjectileActor* Arrow = World->SpawnActor<AOngseongBoltProjectileActor>();
+	TestNotNull(TEXT("Physical enemy arrow can be spawned without content assets"), Arrow);
 
 	AOngseongGateActor* Primary = World->SpawnActor<AOngseongGateActor>();
 	AOngseongGateActor* Fallback = World->SpawnActor<AOngseongGateActor>();

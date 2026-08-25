@@ -68,6 +68,11 @@ void AGameplayProjectileActor::LaunchProjectile(const FVector Direction, const f
 	ProjectileMovement->Activate(true);
 }
 
+float AGameplayProjectileActor::GetProjectileGravityScale() const
+{
+	return ProjectileMovement ? ProjectileMovement->ProjectileGravityScale : 1.0f;
+}
+
 void AGameplayProjectileActor::SetDamageSpec(const FCombatDamageSpec& InDamageSpec)
 {
 	DamageSpec = InDamageSpec;

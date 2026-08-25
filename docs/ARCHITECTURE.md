@@ -200,12 +200,20 @@ Input Action 목록: `IA_Move`, `IA_Turn`, `IA_Grab_{Left,Right}_{Pressed,Releas
 
 ### 3.3 VR Interaction
 
-`Status: Partial` — 잡기(Grab)만 존재한다.
+`Status: Partial` — 잡기(Grab)와 Highlight가 있고, 공통 Interaction Interface는 아직 없다.
 
 * `BP_GrabComponent` — `SceneComponent` 파생. `E_GrabType` Enum으로 방식 구분, `AttachParentToMotionController`, `GrabHapticEffect` 사용
 * `WidgetInteractionComponent` 2개로 3D UI 포인팅 지원
+* `UInteractionHighlightComponent` (2026-08-24 추가) — "지금 이걸 만지세요"를 표시한다.
+  Overlay Material로 대상 메시를 그 형태 그대로 발광시키고, 같은 위치에 루프 Niagara를 켠다.
+  색은 MID 파라미터라 잡기=파랑(`MI_InteractionHighlight_Blue`),
+  양손 파지=호박색(`MI_InteractionHighlight_Amber`)으로 구분한다.
+  Material은 `/Game/Core/VR/Interaction/M_InteractionHighlight` (Unlit·Additive·Fresnel 림).
+  Feature는 `SetHighlightActive()`만 호출하며, Core는 어떤 Feature도 참조하지 않는다.
+* `AVRPlayerPawn::SetLocomotionEnabled(bMove, bTeleport)` (2026-08-24 추가) —
+  한 자리에 고정되는 체험이 이동과 텔레포트를 함께 잠근다. 스냅 턴과 그랩은 유지된다.
 
-**없는 것**: 공통 Interaction Interface, Interaction Prompt UI, Focus/Highlight 시스템, 사용(Use)·조작(Manipulate) 개념.
+**없는 것**: 공통 Interaction Interface, Interaction Prompt UI, 사용(Use)·조작(Manipulate) 개념.
 
 ```text
 현재 위치: Content/XRFramework/Blueprints/BP_GrabComponent

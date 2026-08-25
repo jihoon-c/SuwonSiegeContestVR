@@ -7,8 +7,8 @@
 #include "Gameplay/Characters/EnemyCombatCharacter.h"
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
-#include "Ongseong/OngseongArcherCombatComponent.h"
 #include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/OngseongArcherCombatComponent.h"
 #include "EngineUtils.h"
 #include "NavigationSystem.h"
 #include "Kismet/GameplayStatics.h"
@@ -95,6 +95,15 @@ void AOngseongEnemyWaveManager::StartSpawning()
 		FMath::Max(0.05f, InitialSpawnInterval),
 		true,
 		FMath::Max(0.0f, InitialDelay));
+
+	// Archers that found every emplacement full keep watching for a place to open up.
+	GetWorldTimerManager().ClearTimer(ArcherSlotRetryHandle);
+	GetWorldTimerManager().SetTimer(
+		ArcherSlotRetryHandle,
+		this,
+		&AOngseongEnemyWaveManager::RetryArcherSlotAssignments,
+		FMath::Max(0.5f, ArcherSlotRetryInterval),
+		true);
 }
 
 void AOngseongEnemyWaveManager::StopSpawning()
@@ -103,6 +112,7 @@ void AOngseongEnemyWaveManager::StopSpawning()
 	if (GetWorld())
 	{
 		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+		GetWorldTimerManager().ClearTimer(ArcherSlotRetryHandle);
 	}
 	ClearPendingRespawns();
 }
@@ -122,6 +132,7 @@ void AOngseongEnemyWaveManager::RetreatAllEnemies(const FVector RetreatLocation)
 	for (AEnemyCombatCharacter* Enemy : ActiveEnemies)
 	{
 		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
+		ReleaseCannonSlots(Enemy);
 		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 		{
 			Controller->OnMoveTargetReached.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
@@ -201,15 +212,9 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 			ArcherCombat = NewObject<UOngseongArcherCombatComponent>(Enemy, TEXT("OngseongArcherCombat"));
 			ArcherCombat->RegisterComponent();
 		}
-		ArcherCombat->ConfigureCombat(ArcherPrimaryTarget, ObjectiveTarget, ArcherProjectilePool);
 		ArcherCombat->ApplyTuning(ArcherHitChance, ArcherRange, ArcherFireInterval, ArcherMissRadius, ArcherDamage, ArcherProjectileSpeed);
 		ArcherCombat->ActivateCombat();
-		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
-		{
-			AActor* ArcherTarget = ArcherCombat->GetCurrentTarget();
-			Controller->SetCombatTarget(ArcherTarget);
-			Controller->MoveToCombatActor(ArcherTarget, ArcherRange * 0.9f);
-		}
+		ApplyArcherEngagement(Enemy);
 	}
 	ActiveEnemies.AddUnique(Enemy);
 	EnemyPoolsByActor.Add(Enemy, SpawnPool);
@@ -442,9 +447,104 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 	{
 		ArcherCombat->DeactivateCombat();
 	}
+	ReleaseCannonSlots(Enemy);
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 	{
 		Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
+	}
+}
+
+void AOngseongEnemyWaveManager::SetArcherEscortTarget(AActor* NewEscortTarget)
+{
+	ArcherEscortTarget = NewEscortTarget;
+}
+
+AChongtongCannonActor* AOngseongEnemyWaveManager::ReserveCannonForArcher(AEnemyCombatCharacter* Archer)
+{
+	if (!IsValid(Archer) || !GetWorld())
+	{
+		return nullptr;
+	}
+
+	// Nearest first, so archers spread over the emplacements they are actually walking past.
+	TArray<AChongtongCannonActor*> Candidates;
+	for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
+	{
+		AChongtongCannonActor* Cannon = *It;
+		const UHealthComponent* Health = Cannon ? Cannon->FindComponentByClass<UHealthComponent>() : nullptr;
+		if (IsValid(Cannon) && (!Health || !Health->IsDead()))
+		{
+			Candidates.Add(Cannon);
+		}
+	}
+	const FVector ArcherLocation = Archer->GetActorLocation();
+	Candidates.Sort([&ArcherLocation](const AChongtongCannonActor& A, const AChongtongCannonActor& B)
+	{
+		return FVector::DistSquared(A.GetActorLocation(), ArcherLocation)
+			< FVector::DistSquared(B.GetActorLocation(), ArcherLocation);
+	});
+
+	for (AChongtongCannonActor* Cannon : Candidates)
+	{
+		if (Cannon->TryReserveAttackerSlot(Archer))
+		{
+			return Cannon;
+		}
+	}
+	return nullptr;
+}
+
+void AOngseongEnemyWaveManager::ReleaseCannonSlots(AActor* Archer)
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+	for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
+	{
+		It->ReleaseAttackerSlot(Archer);
+	}
+}
+
+void AOngseongEnemyWaveManager::ApplyArcherEngagement(AEnemyCombatCharacter* Archer)
+{
+	UOngseongArcherCombatComponent* ArcherCombat = IsValid(Archer)
+		? Archer->FindComponentByClass<UOngseongArcherCombatComponent>() : nullptr;
+	if (!ArcherCombat)
+	{
+		return;
+	}
+
+	AChongtongCannonActor* Cannon = ReserveCannonForArcher(Archer);
+	// A full emplacement is simply ignored: the surplus walks on to the ram instead of queueing.
+	AActor* MoveTarget = Cannon ? static_cast<AActor*>(Cannon)
+		: (IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get());
+	ArcherCombat->ConfigureCombat(Cannon, ObjectiveTarget, ArcherProjectilePool);
+
+	if (ACombatAIController* Controller = Cast<ACombatAIController>(Archer->GetController()))
+	{
+		// The Behavior Tree walks to TargetActor, so this is the move destination, not the aim point.
+		Controller->SetCombatTarget(MoveTarget);
+		Controller->MoveToCombatActor(MoveTarget, ArcherRange * 0.9f);
+	}
+	UE_LOG(LogOngseong, Verbose, TEXT("%s engages %s (escorting=%d)."),
+		*Archer->GetName(), *GetNameSafe(MoveTarget), Cannon ? 0 : 1);
+}
+
+void AOngseongEnemyWaveManager::RetryArcherSlotAssignments()
+{
+	for (AEnemyCombatCharacter* Enemy : ActiveEnemies)
+	{
+		if (!IsValid(Enemy))
+		{
+			continue;
+		}
+		UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>();
+		// Only the archers still without an emplacement retry; the engaged ones keep their slot.
+		if (ArcherCombat && !IsValid(ArcherCombat->GetReservedCannon()))
+		{
+			ApplyArcherEngagement(Enemy);
+		}
 	}
 }
 

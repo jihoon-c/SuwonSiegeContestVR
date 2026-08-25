@@ -15,6 +15,10 @@ AOngseongRamActor::AOngseongRamActor()
 	SetRootComponent(RamMesh);
 	RamMesh->SetMobility(EComponentMobility::Movable);
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+	// The ram is the objective, not a mook. At the default 100 a single chongtong shell
+	// (40 direct + 80 area) destroyed it seconds after the defense began, which ended the
+	// experience before the three-minute approach could play out. Matches the gate's 1000.
+	HealthComponent->SetMaxHealth(1000.0f);
 	FactionComponent = CreateDefaultSubobject<UCombatFactionComponent>(TEXT("FactionComponent"));
 	FactionComponent->SetFaction(ECombatFaction::Enemy);
 }
@@ -112,7 +116,9 @@ bool AOngseongRamActor::MoveTowards(const FVector& TargetLocation, const float S
 		return true;
 	}
 	const FVector Direction = Delta / Distance;
-	SetActorRotation(Direction.Rotation());
+	FRotator TravelRotation = Direction.Rotation();
+	TravelRotation.Yaw += MeshYawOffset;
+	SetActorRotation(TravelRotation);
 	const float Step = FMath::Min(Distance, FMath::Max(0.0f, Speed) * DeltaSeconds);
 	SetActorLocation(GetActorLocation() + Direction * Step, false);
 	return Distance - Step <= ArrivalTolerance;

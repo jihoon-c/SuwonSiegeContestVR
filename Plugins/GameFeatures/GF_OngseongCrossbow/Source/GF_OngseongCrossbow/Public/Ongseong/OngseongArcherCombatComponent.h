@@ -31,6 +31,9 @@ public:
 	bool TryFireArrow();
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
 	AActor* GetCurrentTarget() const;
+	/** The allied emplacement whose attack slot this archer holds, or null while escorting. */
+	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
+	AActor* GetReservedCannon() const { return PrimaryTarget; }
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
 	bool IsInFiringPosition() const;
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")

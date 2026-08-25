@@ -80,6 +80,7 @@ protected:
 	void SetDefenseState(EOngseongDefenseState NewState);
 	void UpdateHUDTime();
 	void HandleAutoRetry();
+	void ApplyPlayerLocomotionPolicy();
 
 	UFUNCTION()
 	void HandleGateDestroyed();
@@ -108,6 +109,12 @@ protected:
 	float DefenseDuration = 180.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bAutoStart = true;
+	/**
+	 * The player defends from a fixed post on the battlement, so locomotion stays off for this
+	 * experience. Core keeps the flags; the Feature only states the policy.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario|Player")
+	bool bLockPlayerToBattlement = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bReturnToMainOnSuccess = true;
 	/** Educational fallback: restart cleanly after showing the failure reason. */

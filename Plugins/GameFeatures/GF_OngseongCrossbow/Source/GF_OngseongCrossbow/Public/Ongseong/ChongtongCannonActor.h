@@ -16,6 +16,7 @@ class UCombatThreatComponent;
 class USceneComponent;
 class UStaticMeshComponent;
 class UChongtongAimGripComponent;
+class UInteractionHighlightComponent;
 class UChongtongAutomaticFireComponent;
 class AChongtongLoadingItemActor;
 class UTextRenderComponent;
@@ -26,7 +27,7 @@ class UOngseongNarrationComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChongtongFired, AActor*, Target, AGameplayProjectileActor*, Projectile);
 
-/** Defensive fixed cannon. Allied automatic fire picks a random visible hostile in range. */
+/** Defensive fixed cannon. Allied automatic fire answers enemy archers only; see bEngageEnemyArchersOnly. */
 UCLASS(Blueprintable)
 class GF_ONGSEONGCROSSBOW_API AChongtongCannonActor : public AActor, public IDamageReceiverInterface
 {
@@ -75,6 +76,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong")
 	AActor* SelectTarget() const;
 
+	/**
+	 * Attack slots: how many enemies may close in on this emplacement at once.
+	 * A full cannon is ignored by the next archer, which walks on to another one or to the ram.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Slots")
+	bool TryReserveAttackerSlot(AActor* Attacker);
+
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Slots")
+	void ReleaseAttackerSlot(AActor* Attacker);
+
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Slots")
+	bool HasFreeAttackerSlot() const;
+
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Slots")
+	int32 GetReservedAttackerCount() const;
+
 	/** Spawns the configured allied operator and locks it to the cannon's seat. */
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Operator")
 	bool SpawnMountedOperator();
@@ -96,12 +113,19 @@ public:
 
 protected:
 	void UpdateLoadingInteractions();
+	void UpdateInteractionPrompts();
+	bool IsItemRequiredNow(EChongtongLoadingItemType ItemType) const;
 	void SetLoadingState(EChongtongLoadingState NewState);
 	void UpdateStatusSignal();
 	void EnterReadyStation();
 	void ExitReadyStation();
 	void SpawnPlaceholderLoadingItems();
-	AGameplayProjectileActor* SpawnProjectile(const FVector& Direction);
+	AGameplayProjectileActor* SpawnProjectile(const FVector& Direction, float Speed);
+	/** Points the barrel so its muzzle axis follows WorldDirection, then returns that axis. */
+	FVector AimBarrelAtDirection(const FVector& WorldDirection);
+	/** Solves the launch velocity that drops a shell on TargetLocation under the shell's own gravity. */
+	bool SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const;
+	void PruneAttackerSlots() const;
 	void PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, float Pitch = 1.0f);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -131,6 +155,9 @@ protected:
 	TObjectPtr<USceneComponent> PlayerCameraAnchor;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UChongtongAimGripComponent> AimGrip;
+	/** Shows the player where to put both hands once the cannon is loaded. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UInteractionHighlightComponent> AimPrompt;
 	/** Optional ally AI firing behavior; configured per Blueprint variant. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UChongtongAutomaticFireComponent> AutomaticFire;
@@ -187,8 +214,29 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
 	float FireRange = 12000.0f;
 
+	/**
+	 * Automatic fire answers enemy archers and nothing else: the ram is the player's objective and
+	 * ally emplacements must not clear it, and the melee line is left to the defenders on the wall.
+	 * Targets are identified by their ranged-combat component, never by their Actor class.
+	 * Player-aimed shots are unaffected - they hit whatever the barrel points at.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong")
+	bool bEngageEnemyArchersOnly = true;
+
+	/** Muzzle velocity for a player shot. Allied shots solve their own arc speed instead. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
-	float ProjectileSpeed = 5000.0f;
+	float ProjectileSpeed = 2800.0f;
+
+	/** 0 = flattest arc that still reaches, 1 = highest lob. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float FiringArc = 0.45f;
+
+	/** Enemies allowed to engage this emplacement at once. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong|Slots", meta = (ClampMin = "0"))
+	int32 MaxAttackerSlots = 2;
+
+	/** Weak by design and deliberately not a UPROPERTY: a slot must never keep an attacker alive. */
+	mutable TArray<TWeakObjectPtr<AActor>> AttackerSlots;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
 	float ProjectileDamage = 40.0f;

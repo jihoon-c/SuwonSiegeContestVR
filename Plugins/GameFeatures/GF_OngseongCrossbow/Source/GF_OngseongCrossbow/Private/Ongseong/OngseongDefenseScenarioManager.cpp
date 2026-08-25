@@ -4,6 +4,7 @@
 
 #include "Components/SceneComponent.h"
 #include "Core/Experience/ExperienceSubsystem.h"
+#include "Core/VR/VRPlayerPawn.h"
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Gameplay/UI/VRHUDComponent.h"
@@ -40,6 +41,7 @@ void AOngseongDefenseScenarioManager::BeginPlay()
 	{
 		if (APawn* Pawn = PC->GetPawn()) VRHUD = Pawn->FindComponentByClass<UVRHUDComponent>();
 	}
+	ApplyPlayerLocomotionPolicy();
 	if (bAutoStart) StartDefense();
 }
 
@@ -53,6 +55,18 @@ void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlay
 	}
 	if (GateActor) GateActor->OnGateDestroyed.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
 	Super::EndPlay(EndPlayReason);
+}
+
+void AOngseongDefenseScenarioManager::ApplyPlayerLocomotionPolicy()
+{
+	if (!bLockPlayerToBattlement || !GetWorld()) return;
+	const APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	// The non-VR combat test pawn is not a VR pawn, so this simply does nothing there.
+	if (AVRPlayerPawn* VRPawn = PC ? Cast<AVRPlayerPawn>(PC->GetPawn()) : nullptr)
+	{
+		VRPawn->SetLocomotionEnabled(false, false);
+		UE_LOG(LogOngseong, Display, TEXT("Player locomotion locked to the battlement post."));
+	}
 }
 
 bool AOngseongDefenseScenarioManager::StartDefense()
@@ -120,6 +134,8 @@ bool AOngseongDefenseScenarioManager::SpawnAndActivateRam()
 		RamHealth->OnDeath.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleRamDefeated);
 	}
 	ActiveRam->ActivateRam(GateActor);
+	// Archers that cannot get an attack slot on a cannon rally on their own siege engine.
+	WaveManager->SetArcherEscortTarget(ActiveRam);
 	return true;
 }
 
@@ -128,6 +144,7 @@ void AOngseongDefenseScenarioManager::ReleaseActiveRam()
 	if (!ActiveRam) return;
 	AOngseongRamActor* RamToRelease = ActiveRam;
 	ActiveRam = nullptr;
+	if (IsValid(WaveManager)) WaveManager->SetArcherEscortTarget(nullptr);
 	RamToRelease->StopRam();
 	if (UHealthComponent* RamHealth = RamToRelease->FindComponentByClass<UHealthComponent>())
 	{

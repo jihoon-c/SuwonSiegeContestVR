@@ -267,6 +267,18 @@ void AVRPlayerPawn::ExitMountedInteraction(USceneComponent* CameraAnchor)
 	SetActorTickEnabled(false);
 }
 
+void AVRPlayerPawn::SetLocomotionEnabled(const bool bMoveEnabled, const bool bTeleportEnabled)
+{
+	bEnableMove = bMoveEnabled;
+	bEnableTeleport = bTeleportEnabled;
+	// Mounted interactions restore this value on exit, so it has to follow the new policy too.
+	bMoveEnabledBeforeMountedInteraction = bMoveEnabled;
+	if (!bEnableTeleport && bTeleportTraceActive)
+	{
+		EndTeleportTrace(false);
+	}
+}
+
 void AVRPlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
@@ -315,12 +327,22 @@ void AVRPlayerPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AVRPlayerPawn::HandleTeleportStarted(const FInputActionValue& Value)
 {
+	if (!bEnableTeleport)
+	{
+		return;
+	}
+
 	StartTeleportTrace();
 	HandleTeleportTriggered(Value);
 }
 
 void AVRPlayerPawn::HandleTeleportTriggered(const FInputActionValue& Value)
 {
+	if (!bEnableTeleport)
+	{
+		return;
+	}
+
 	if (!bTeleportTraceActive)
 	{
 		StartTeleportTrace();
@@ -340,7 +362,7 @@ void AVRPlayerPawn::HandleTeleportTriggered(const FInputActionValue& Value)
 
 void AVRPlayerPawn::HandleTeleportCompleted(const FInputActionValue& Value)
 {
-	EndTeleportTrace(true);
+	EndTeleportTrace(bEnableTeleport);
 }
 
 void AVRPlayerPawn::HandleTeleportCanceled(const FInputActionValue& Value)
