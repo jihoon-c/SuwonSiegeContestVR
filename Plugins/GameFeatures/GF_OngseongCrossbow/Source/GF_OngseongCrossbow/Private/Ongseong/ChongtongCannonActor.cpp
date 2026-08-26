@@ -2,8 +2,6 @@
 
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
-#include "Components/PointLightComponent.h"
 #include "Core/VR/InteractionHighlightComponent.h"
 #include "Core/VR/VRPlayerPawn.h"
 #include "Gameplay/Characters/AllyCombatCharacter.h"
@@ -28,6 +26,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -65,15 +64,6 @@ AChongtongCannonActor::AChongtongCannonActor()
 	AimPrompt->ConfigureHighlight(false, FLinearColor(1.0f, 0.55f, 0.05f));
 	AutomaticFire = CreateDefaultSubobject<UChongtongAutomaticFireComponent>(TEXT("AutomaticFire"));
 	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
-	StatusText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("StatusText"));
-	StatusText->SetupAttachment(HwachaBaseMesh);
-	StatusText->SetRelativeLocation(FVector(-25.0f, -10.0f, 205.0f));
-	StatusText->SetWorldSize(18.0f);
-	StatusText->SetHorizontalAlignment(EHTA_Center);
-	StatusLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("StatusLight"));
-	StatusLight->SetupAttachment(StatusText);
-	StatusLight->SetIntensity(1500.0f);
-	StatusLight->SetAttenuationRadius(120.0f);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> HwachaBaseAsset(TEXT("/GF_OngseongCrossbow/Art/Namhansanseong/Chongtong/Hwacha/SM_Chongtong_Hwacha.SM_Chongtong_Hwacha"));
 	if (HwachaBaseAsset.Succeeded())
@@ -97,6 +87,11 @@ AChongtongCannonActor::AChongtongCannonActor()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	ThreatComponent = CreateDefaultSubobject<UCombatThreatComponent>(TEXT("ThreatComponent"));
 	TargetingComponent = CreateDefaultSubobject<UCombatTargetingComponent>(TEXT("TargetingComponent"));
+	CombatSoundAttenuation = CreateDefaultSubobject<USoundAttenuation>(TEXT("CombatSoundAttenuation"));
+	CombatSoundAttenuation->Attenuation.bAttenuate = true;
+	CombatSoundAttenuation->Attenuation.AttenuationShape = EAttenuationShape::Sphere;
+	CombatSoundAttenuation->Attenuation.AttenuationShapeExtents = FVector(400.0f);
+	CombatSoundAttenuation->Attenuation.FalloffDistance = 12000.0f;
 	ProjectileClass = AChongtongProjectileActor::StaticClass();
 	bSpawnOperatorOnBeginPlay = false;
 
@@ -126,7 +121,6 @@ void AChongtongCannonActor::BeginPlay()
 	{
 		SpawnPlaceholderLoadingItems();
 	}
-	UpdateStatusSignal();
 }
 
 void AChongtongCannonActor::Tick(const float DeltaSeconds)
@@ -198,7 +192,7 @@ bool AChongtongCannonActor::TryFire()
 	{
 		return false;
 	}
-	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation());
+	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation(), 1.0f, FVector(MuzzleEffectScale));
 	OnFired.Broadcast(Target, Projectile);
 	return true;
 }
@@ -221,7 +215,7 @@ void AChongtongCannonActor::AimAssemblyYawAtDirection(const FVector& WorldDirect
 
 	const float DeltaYaw = FMath::FindDeltaAngleDegrees(
 		CurrentHorizontal.Rotation().Yaw,
-		DesiredHorizontal.Rotation().Yaw);
+		DesiredHorizontal.Rotation().Yaw - 90.0f);
 	FRotator AssemblyRotation = HwachaBaseMesh->GetComponentRotation();
 	AssemblyRotation.Yaw += DeltaYaw;
 	HwachaBaseMesh->SetWorldRotation(AssemblyRotation);
@@ -282,7 +276,7 @@ bool AChongtongCannonActor::TryFirePlayer()
 	if (!Projectile) return false;
 
 	++CompletedShots;
-	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation());
+	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation(), 1.0f, FVector(MuzzleEffectScale));
 	OnFired.Broadcast(nullptr, Projectile);
 	ExitReadyStation();
 	if (CompletedShots >= RequiredShotsToComplete)
@@ -333,7 +327,6 @@ bool AChongtongCannonActor::RegisterRammerStroke()
 	OnRammingProgress.Broadcast(CompletedRammerStrokes, RequiredRammerStrokes);
 	PlayFeedback(LoadSuccessEffect, InteractionSound, LoadingSocket->GetComponentLocation(), 0.8f + CompletedRammerStrokes * 0.1f);
 	if (CompletedRammerStrokes >= RequiredRammerStrokes) SetLoadingState(EChongtongLoadingState::NeedsCannonball);
-	else UpdateStatusSignal();
 	return true;
 }
 
@@ -390,26 +383,7 @@ void AChongtongCannonActor::UpdateInteractionPrompts()
 void AChongtongCannonActor::SetLoadingState(const EChongtongLoadingState NewState)
 {
 	LoadingState = NewState;
-	UpdateStatusSignal();
 	OnLoadingStateChanged.Broadcast(LoadingState, CompletedShots);
-}
-
-void AChongtongCannonActor::UpdateStatusSignal()
-{
-	if (!StatusText || !StatusLight) return;
-	FText Text;
-	FLinearColor Color = FLinearColor::Yellow;
-	switch (LoadingState)
-	{
-	case EChongtongLoadingState::NeedsPowder: Text = FText::FromString(TEXT("1. LOAD POWDER")); Color = FLinearColor::Red; break;
-	case EChongtongLoadingState::NeedsRamming: Text = FText::FromString(FString::Printf(TEXT("2. RAM %d / %d"), CompletedRammerStrokes, RequiredRammerStrokes)); Color = FLinearColor::Yellow; break;
-	case EChongtongLoadingState::NeedsCannonball: Text = FText::FromString(TEXT("3. LOAD CANNONBALL")); Color = FLinearColor(1.0f, 0.45f, 0.0f); break;
-	case EChongtongLoadingState::ReadyToAim: Text = FText::FromString(TEXT("READY - GRIP BOTH HANDS")); Color = FLinearColor::Green; break;
-	default: Text = FText::FromString(TEXT("ALL ENEMIES DEFEATED")); Color = FLinearColor::Blue; break;
-	}
-	StatusText->SetText(Text);
-	StatusText->SetTextRenderColor(Color.ToFColor(true));
-	StatusLight->SetLightColor(Color);
 }
 
 void AChongtongCannonActor::EnterReadyStation()
@@ -447,10 +421,10 @@ void AChongtongCannonActor::SpawnPlaceholderLoadingItems()
 	}
 }
 
-void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch)
+void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch, const FVector EffectScale)
 {
-	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, Effect, Location);
-	UCombatFXLibrary::PlayPooledSoundAtLocation(this, Sound, Location, 0.7f, Pitch, CombatSoundConcurrency);
+	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, Effect, Location, FRotator::ZeroRotator, EffectScale);
+	UCombatFXLibrary::PlayPooledSoundAtLocation(this, Sound, Location, 0.7f, Pitch, CombatSoundConcurrency, CombatSoundAttenuation);
 }
 
 AActor* AChongtongCannonActor::SelectTarget() const

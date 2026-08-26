@@ -19,10 +19,9 @@ class UChongtongAimGripComponent;
 class UInteractionHighlightComponent;
 class UChongtongAutomaticFireComponent;
 class AChongtongLoadingItemActor;
-class UTextRenderComponent;
-class UPointLightComponent;
 class UNiagaraSystem;
 class USoundBase;
+class USoundAttenuation;
 class UOngseongNarrationComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChongtongFired, AActor*, Target, AGameplayProjectileActor*, Projectile);
@@ -107,7 +106,6 @@ protected:
 	void UpdateInteractionPrompts();
 	bool IsItemRequiredNow(EChongtongLoadingItemType ItemType) const;
 	void SetLoadingState(EChongtongLoadingState NewState);
-	void UpdateStatusSignal();
 	void EnterReadyStation();
 	void ExitReadyStation();
 	void SpawnPlaceholderLoadingItems();
@@ -120,7 +118,7 @@ protected:
 	void AimAssemblyYawAtDirection(const FVector& WorldDirection);
 	/** Solves the launch velocity that drops a shell on TargetLocation under the shell's own gravity. */
 	bool SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const;
-	void PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, float Pitch = 1.0f);
+	void PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, float Pitch = 1.0f, FVector EffectScale = FVector::OneVector);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> Root;
@@ -158,10 +156,6 @@ protected:
 	/** Event-driven instructor narration for this experience. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UOngseongNarrationComponent> Narration;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UTextRenderComponent> StatusText;
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UPointLightComponent> StatusLight;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
 	TObjectPtr<UCombatFactionComponent> FactionComponent;
@@ -201,6 +195,10 @@ protected:
 	/** Caps how many cannon effects can be audible at once on standalone hardware. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Chongtong|Feedback")
 	TObjectPtr<class USoundConcurrency> CombatSoundConcurrency;
+
+	/** Default 3D attenuation for the cannon firing and loading sounds. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Chongtong|Feedback")
+	TObjectPtr<USoundAttenuation> CombatSoundAttenuation;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.1"))
 	float FireInterval = 5.0f;
@@ -256,6 +254,9 @@ protected:
 	/** Muzzle flash used by both allied and player cannon Blueprint variants. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<UNiagaraSystem> MuzzleEffect;
+	/** Uniform scale applied to the cannon muzzle flash. Defaults to the requested 2x size. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback", meta=(ClampMin="0.01"))
+	float MuzzleEffectScale = 2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<USoundBase> InteractionSound;
 	/** Firing sound/cue used by both allied and player cannon Blueprint variants. */

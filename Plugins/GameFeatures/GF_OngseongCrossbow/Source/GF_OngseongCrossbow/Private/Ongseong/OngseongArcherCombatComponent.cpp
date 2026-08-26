@@ -8,12 +8,20 @@
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Ongseong/OngseongBoltProjectileActor.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimSequenceBase.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 UOngseongArcherCombatComponent::UOngseongArcherCombatComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 	ArrowClass = AOngseongBoltProjectileActor::StaticClass();
+	static ConstructorHelpers::FObjectFinder<UAnimSequenceBase> DefaultAttackAnimation(
+		TEXT("/GF_OngseongCrossbow/Asset/Character/Enemy/AS_Shooting.AS_Shooting"));
+	AttackAnimation = DefaultAttackAnimation.Object;
 }
 
 void UOngseongArcherCombatComponent::BeginPlay()
@@ -28,10 +36,10 @@ void UOngseongArcherCombatComponent::EndPlay(const EEndPlayReason::Type EndPlayR
 	Super::EndPlay(EndPlayReason);
 }
 
-void UOngseongArcherCombatComponent::ConfigureCombat(AActor* NewPrimaryTarget, AActor* NewFallbackTarget, AActorPool* NewProjectilePool)
+void UOngseongArcherCombatComponent::ConfigureCombat(AActor* NewCannonTarget, AActor* NewPlayerTarget, AActorPool* NewProjectilePool)
 {
-	PrimaryTarget = NewPrimaryTarget;
-	FallbackTarget = NewFallbackTarget;
+	PrimaryTarget = NewCannonTarget;
+	FallbackTarget = NewPlayerTarget;
 	ProjectilePool = NewProjectilePool;
 }
 
@@ -54,14 +62,24 @@ void UOngseongArcherCombatComponent::ActivateCombat()
 void UOngseongArcherCombatComponent::DeactivateCombat()
 {
 	bCombatActive = false;
-	if (GetWorld()) GetWorld()->GetTimerManager().ClearTimer(AttackAnimationTimerHandle);
+	if (GetWorld())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(AttackAnimationTimerHandle);
+		GetWorld()->GetTimerManager().ClearTimer(FireTimerHandle);
+	}
 	FinishAttackAnimation();
 }
 
 AActor* UOngseongArcherCombatComponent::GetCurrentTarget() const
 {
-	if (IsUsableTarget(PrimaryTarget)) return PrimaryTarget;
-	return IsUsableTarget(FallbackTarget) ? FallbackTarget.Get() : nullptr;
+	const AActor* Owner = GetOwner();
+	const bool bHasCannon = IsUsableTarget(PrimaryTarget);
+	const bool bHasPlayer = IsUsableTarget(FallbackTarget);
+	if (!Owner || !bHasCannon) return bHasPlayer ? FallbackTarget.Get() : nullptr;
+	if (!bHasPlayer) return PrimaryTarget;
+	return FVector::DistSquared(Owner->GetActorLocation(), PrimaryTarget->GetActorLocation())
+		<= FVector::DistSquared(Owner->GetActorLocation(), FallbackTarget->GetActorLocation())
+		? PrimaryTarget.Get() : FallbackTarget.Get();
 }
 
 bool UOngseongArcherCombatComponent::IsUsableTarget(const AActor* Target) const
@@ -81,36 +99,76 @@ bool UOngseongArcherCombatComponent::IsInFiringPosition() const
 bool UOngseongArcherCombatComponent::TryFireArrow()
 {
 	AActor* Target = GetCurrentTarget();
-	if (!IsInFiringPosition() || !Target || !GetOwner()) return false;
+	if (bAttackInProgress || !IsInFiringPosition() || !Target || !GetOwner()) return false;
+	bPendingIntendedHit = RandomStream.FRand() <= HitChance;
+	BeginAttackAnimation();
+	return true;
+}
+
+void UOngseongArcherCombatComponent::BeginAttackAnimation()
+{
+	AActor* Target = GetCurrentTarget();
+	if (!Target || !GetOwner() || !GetWorld()) return;
+	bAttackInProgress = true;
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (ACombatAIController* Controller = OwnerPawn ? Cast<ACombatAIController>(OwnerPawn->GetController()) : nullptr)
 	{
 		Controller->StopCombatMovement();
 		Controller->SetCombatTarget(Target);
 		Controller->SetFocus(Target);
-		Controller->SetAttacking(true);
 	}
-	const bool bIntendedHit = RandomStream.FRand() <= HitChance;
-	const FVector SpawnLocation = GetOwner()->GetActorLocation() + FVector::UpVector * SpawnHeight + GetOwner()->GetActorForwardVector() * 40.0f;
-	const FVector Direction = (BuildAimPoint(Target, bIntendedHit) - SpawnLocation).GetSafeNormal();
-	AGameplayProjectileActor* Projectile = SpawnArrow(SpawnLocation, Direction);
-	if (!Projectile)
+
+	float AttackDuration = FallbackAttackAnimationDuration;
+	if (USkeletalMeshComponent* Mesh = OwnerPawn ? OwnerPawn->FindComponentByClass<USkeletalMeshComponent>() : nullptr)
 	{
-		FinishAttackAnimation();
-		return false;
+		if (UAnimInstance* AnimInstance = Mesh->GetAnimInstance(); AnimInstance && AttackAnimation)
+		{
+			if (UAnimMontage* Montage = AnimInstance->PlaySlotAnimationAsDynamicMontage(
+				AttackAnimation, AttackAnimationSlot, AttackBlendInTime, AttackBlendOutTime))
+			{
+				AttackDuration = Montage->GetPlayLength();
+			}
+		}
 	}
-	OnArrowFired.Broadcast(Target, Projectile, bIntendedHit);
-	if (GetWorld()) GetWorld()->GetTimerManager().SetTimer(AttackAnimationTimerHandle, this, &UOngseongArcherCombatComponent::FinishAttackAnimation, AttackAnimationDuration, false);
-	return true;
+	GetWorld()->GetTimerManager().SetTimer(AttackAnimationTimerHandle, this,
+		&UOngseongArcherCombatComponent::FirePendingArrow, FMath::Max(0.01f, AttackDuration), false);
+	// The Behavior Tree gets us into position and kicks off the first shot. Own the recurring
+	// fire loop here so a BT branch that completes after one task cannot silence the archer.
+	if (!GetWorld()->GetTimerManager().IsTimerActive(FireTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(FireTimerHandle, this,
+			&UOngseongArcherCombatComponent::PerformScheduledShot, FireInterval, true, FireInterval);
+	}
+}
+
+void UOngseongArcherCombatComponent::FirePendingArrow()
+{
+	AActor* Target = GetCurrentTarget();
+	if (bCombatActive && Target && GetOwner())
+	{
+		const FVector SpawnLocation = GetOwner()->GetActorLocation() + FVector::UpVector * SpawnHeight + GetOwner()->GetActorForwardVector() * 40.0f;
+		const FVector Direction = (BuildAimPoint(Target, bPendingIntendedHit) - SpawnLocation).GetSafeNormal();
+		if (AGameplayProjectileActor* Projectile = SpawnArrow(SpawnLocation, Direction))
+		{
+			OnArrowFired.Broadcast(Target, Projectile, bPendingIntendedHit);
+		}
+	}
+	FinishAttackAnimation();
+}
+
+
+void UOngseongArcherCombatComponent::PerformScheduledShot()
+{
+	TryFireArrow();
 }
 
 void UOngseongArcherCombatComponent::FinishAttackAnimation()
 {
+	bAttackInProgress = false;
 	if (const APawn* OwnerPawn = Cast<APawn>(GetOwner()))
 	{
 		if (ACombatAIController* Controller = Cast<ACombatAIController>(OwnerPawn->GetController()))
 		{
-			Controller->SetAttacking(false);
 			Controller->ClearFocus(EAIFocusPriority::Gameplay);
 		}
 	}

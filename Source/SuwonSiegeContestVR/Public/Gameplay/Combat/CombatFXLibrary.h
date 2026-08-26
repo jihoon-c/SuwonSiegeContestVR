@@ -8,6 +8,7 @@ class UNiagaraComponent;
 class UNiagaraSystem;
 class USoundBase;
 class USoundConcurrency;
+class USoundAttenuation;
 
 /**
  * Shared spawn helpers for one-shot combat feedback.
@@ -30,12 +31,13 @@ public:
 		FVector Scale = FVector(1.0f));
 
 	/** Fire-and-forget sound with an optional concurrency asset that caps simultaneous combat noise. */
-	UFUNCTION(BlueprintCallable, Category = "Combat|FX", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "VolumeMultiplier,PitchMultiplier,Concurrency"))
+	UFUNCTION(BlueprintCallable, Category = "Combat|FX", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "VolumeMultiplier,PitchMultiplier,Concurrency,Attenuation"))
 	static void PlayPooledSoundAtLocation(
 		const UObject* WorldContextObject,
 		USoundBase* Sound,
 		FVector Location,
 		float VolumeMultiplier = 1.0f,
 		float PitchMultiplier = 1.0f,
-		USoundConcurrency* Concurrency = nullptr);
+		USoundConcurrency* Concurrency = nullptr,
+		USoundAttenuation* Attenuation = nullptr);
 };

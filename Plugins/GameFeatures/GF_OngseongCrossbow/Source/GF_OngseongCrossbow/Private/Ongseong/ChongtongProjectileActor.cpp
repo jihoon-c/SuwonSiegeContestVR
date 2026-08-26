@@ -12,6 +12,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
 #include "UObject/ConstructorHelpers.h"
 
 AChongtongProjectileActor::AChongtongProjectileActor()
@@ -24,12 +25,18 @@ AChongtongProjectileActor::AChongtongProjectileActor()
 	ProjectileMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ProjectileMesh->SetRelativeScale3D(FVector(0.12f));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	// Ground-burst shell: dirt and smoke read better against the corridor than a fireball.
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> TempExplosion(TEXT("/Game/NiagaraExamples/FX_Explosions/NS_Dirt_Explosion_Medium.NS_Dirt_Explosion_Medium"));
+	// Do not use NS_Dirt_Explosion_Medium here: its sample post-process emitter can tint the whole
+	// scene lime green, including terrain and skeletal enemies. This impact system is local-only.
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> TempExplosion(TEXT("/Game/NiagaraExamples/FX_Weapons/Impacts/NS_Impact_Concrete.NS_Impact_Concrete"));
 	static ConstructorHelpers::FObjectFinder<USoundBase> TempSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
 	ProjectileMesh->SetStaticMesh(Sphere.Object);
 	ExplosionEffect = TempExplosion.Object;
 	ExplosionSound = TempSound.Object;
+	ExplosionSoundAttenuation = CreateDefaultSubobject<USoundAttenuation>(TEXT("ExplosionSoundAttenuation"));
+	ExplosionSoundAttenuation->Attenuation.bAttenuate = true;
+	ExplosionSoundAttenuation->Attenuation.AttenuationShape = EAttenuationShape::Sphere;
+	ExplosionSoundAttenuation->Attenuation.AttenuationShapeExtents = FVector(500.0f);
+	ExplosionSoundAttenuation->Attenuation.FalloffDistance = 16000.0f;
 }
 
 void AChongtongProjectileActor::BeginPlay()
@@ -46,8 +53,9 @@ void AChongtongProjectileActor::HandleExplosion(AGameplayProjectileActor* Projec
 		*GetNameSafe(HitActor), *Location.ToCompactString(),
 		HitHealth ? *FString::Printf(TEXT(" Health now %.0f/%.0f (dead=%d)."),
 			HitHealth->GetCurrentHealth(), HitHealth->GetMaxHealth(), HitHealth->IsDead() ? 1 : 0) : TEXT(""));
-	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, ExplosionEffect, Location);
-	UCombatFXLibrary::PlayPooledSoundAtLocation(this, ExplosionSound, Location, 1.0f, 0.7f, ExplosionSoundConcurrency);
+	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, ExplosionEffect, Location, FRotator::ZeroRotator, ExplosionEffectScale);
+	// A concurrency asset may steal an existing explosion before its cue tail finishes.
+	UCombatFXLibrary::PlayPooledSoundAtLocation(this, ExplosionSound, Location, 1.0f, 0.7f, nullptr, ExplosionSoundAttenuation);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionObjectQueryParams Objects;

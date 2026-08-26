@@ -2,7 +2,9 @@
 
 #include "GF_OngseongCrossbow.h"
 
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Core/VR/InteractionHighlightComponent.h"
 #include "Gameplay/Combat/CombatDamageLibrary.h"
 #include "Gameplay/Combat/CombatFactionComponent.h"
 #include "Gameplay/Combat/DamageReceiverInterface.h"
@@ -11,9 +13,15 @@
 AOngseongRamActor::AOngseongRamActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
+	SetRootComponent(VisualRoot);
+	VisualRoot->SetMobility(EComponentMobility::Movable);
 	RamMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RamMesh"));
-	SetRootComponent(RamMesh);
+	RamMesh->SetupAttachment(VisualRoot);
 	RamMesh->SetMobility(EComponentMobility::Movable);
+	VisibilityHighlight = CreateDefaultSubobject<UInteractionHighlightComponent>(TEXT("VisibilityHighlight"));
+	VisibilityHighlight->SetupAttachment(VisualRoot);
+	VisibilityHighlight->ConfigureHighlight(true, VisibilityHighlightColor);
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	// The ram is the objective, not a mook. At the default 100 a single chongtong shell
 	// (40 direct + 80 area) destroyed it seconds after the defense began, which ended the
@@ -26,6 +34,11 @@ AOngseongRamActor::AOngseongRamActor()
 void AOngseongRamActor::BeginPlay()
 {
 	Super::BeginPlay();
+	if (VisibilityHighlight)
+	{
+		VisibilityHighlight->SetHighlightColor(VisibilityHighlightColor);
+		VisibilityHighlight->SetHighlightActive(bShowVisibilityHighlight);
+	}
 	HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongRamActor::HandleDeath);
 	if (GateTarget) ActivateRam(GateTarget);
 }
@@ -80,6 +93,10 @@ void AOngseongRamActor::OnReleasedToPool_Implementation()
 {
 	StopRam();
 	GateTarget = nullptr;
+	if (VisibilityHighlight)
+	{
+		VisibilityHighlight->SetHighlightActive(false);
+	}
 }
 
 void AOngseongRamActor::ActivateRam(AActor* NewGateTarget)
@@ -89,6 +106,11 @@ void AOngseongRamActor::ActivateRam(AActor* NewGateTarget)
 	{
 		StopRam();
 		return;
+	}
+	if (VisibilityHighlight)
+	{
+		VisibilityHighlight->SetHighlightColor(VisibilityHighlightColor);
+		VisibilityHighlight->SetHighlightActive(bShowVisibilityHighlight);
 	}
 	FVector ApproachDirection = GateTarget->GetActorLocation() - GetActorLocation();
 	ApproachDirection.Z = 0.0f;
@@ -166,6 +188,10 @@ void AOngseongRamActor::ImpactGate()
 void AOngseongRamActor::HandleDeath(UHealthComponent* DeadHealth, const FCombatDamageSpec& KillingDamage)
 {
 	StopRam();
+	if (VisibilityHighlight)
+	{
+		VisibilityHighlight->SetHighlightActive(false);
+	}
 	SetActorEnableCollision(false);
 	SetActorHiddenInGame(true);
 }

@@ -51,6 +51,10 @@ void AOngseongEnemyWaveManager::BeginPlay()
 			for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It) { ArcherPrimaryTarget = *It; break; }
 		}
 	}
+	if (!IsValid(ArcherPlayerTarget))
+	{
+		ArcherPlayerTarget = UGameplayStatics::GetPlayerPawn(this, 0);
+	}
 	if (bAutoStart)
 	{
 		StartSpawning();
@@ -221,10 +225,7 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 		return false;
 	}
 
-	if (UHealthComponent* HealthComponent = Enemy->GetHealthComponent())
-	{
-		HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleEnemyDeath);
-	}
+	Enemy->OnDeathPresentationFinished.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleEnemyDeathPresentationFinished);
 	Enemy->SetObjectiveTarget(ObjectiveTarget);
 	ActiveEnemies.AddUnique(Enemy);
 	EnemyPoolsByActor.Add(Enemy, SpawnPool);
@@ -443,6 +444,15 @@ void AOngseongEnemyWaveManager::HandleEnemyDeath(UHealthComponent* HealthCompone
 	ScheduleRespawn(DefeatedType);
 }
 
+void AOngseongEnemyWaveManager::HandleEnemyDeathPresentationFinished(AEnemyCombatCharacter* Enemy)
+{
+	if (!IsValid(Enemy) || !Enemy->GetHealthComponent() || !Enemy->GetHealthComponent()->IsDead())
+	{
+		return;
+	}
+	HandleEnemyDeath(Enemy->GetHealthComponent(), FCombatDamageSpec());
+}
+
 void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 {
 	if (!bRetreating || !IsValid(EnemyPawn)) return;
@@ -487,6 +497,7 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 	{
 		Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
 	}
+	Enemy->OnDeathPresentationFinished.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleEnemyDeathPresentationFinished);
 }
 
 void AOngseongEnemyWaveManager::SetArcherEscortTarget(AActor* NewEscortTarget)
@@ -532,7 +543,7 @@ ATargetPoint* AOngseongEnemyWaveManager::ReserveAttackPositionForArcher(
 			< FVector::DistSquared(B.GetActorLocation(), ArcherLocation);
 	});
 
-	for (ATargetPoint* Position : Candidates)
+	auto FindNearestLivingCannon = [this](const ATargetPoint* Position)
 	{
 		AChongtongCannonActor* NearestCannon = nullptr;
 		float NearestDistanceSquared = TNumericLimits<float>::Max();
@@ -553,7 +564,25 @@ ATargetPoint* AOngseongEnemyWaveManager::ReserveAttackPositionForArcher(
 				NearestDistanceSquared = DistanceSquared;
 			}
 		}
+		return NearestCannon;
+	};
+
+	for (ATargetPoint* Position : Candidates)
+	{
+		AChongtongCannonActor* NearestCannon = FindNearestLivingCannon(Position);
 		if (!IsValid(NearestCannon))
+		{
+			continue;
+		}
+		int32 ReservedSlotsForCannon = 0;
+		for (const TPair<TObjectPtr<AEnemyCombatCharacter>, TObjectPtr<ATargetPoint>>& Pair : ArcherAttackPositionsByEnemy)
+		{
+			if (IsValid(Pair.Key) && IsValid(Pair.Value) && FindNearestLivingCannon(Pair.Value) == NearestCannon)
+			{
+				++ReservedSlotsForCannon;
+			}
+		}
+		if (ReservedSlotsForCannon >= FMath::Max(1, ArcherAttackSlotsPerCannon))
 		{
 			continue;
 		}
@@ -595,10 +624,14 @@ void AOngseongEnemyWaveManager::ApplyArcherEngagement(AEnemyCombatCharacter* Arc
 
 	AChongtongCannonActor* Cannon = nullptr;
 	ATargetPoint* AttackPosition = ReserveAttackPositionForArcher(Archer, Cannon);
+	if (!IsValid(ArcherPlayerTarget))
+	{
+		ArcherPlayerTarget = UGameplayStatics::GetPlayerPawn(this, 0);
+	}
 	// When every authored position is occupied, surplus archers continue toward the ram.
 	AActor* MoveTarget = AttackPosition ? static_cast<AActor*>(AttackPosition)
 		: (IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get());
-	ArcherCombat->ConfigureCombat(Cannon, ObjectiveTarget, ArcherProjectilePool);
+	ArcherCombat->ConfigureCombat(Cannon, ArcherPlayerTarget, ArcherProjectilePool);
 
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Archer->GetController()))
 	{

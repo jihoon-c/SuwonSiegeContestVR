@@ -36,7 +36,8 @@ void UCombatFXLibrary::PlayPooledSoundAtLocation(
 	const FVector Location,
 	const float VolumeMultiplier,
 	const float PitchMultiplier,
-	USoundConcurrency* Concurrency)
+	USoundConcurrency* Concurrency,
+	USoundAttenuation* Attenuation)
 {
 	if (!WorldContextObject || !Sound)
 	{
@@ -51,6 +52,6 @@ void UCombatFXLibrary::PlayPooledSoundAtLocation(
 		VolumeMultiplier,
 		PitchMultiplier,
 		/*StartTime=*/0.0f,
-		/*AttenuationSettings=*/nullptr,
+		/*AttenuationSettings=*/Attenuation,
 		Concurrency);
 }

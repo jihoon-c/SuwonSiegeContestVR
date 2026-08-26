@@ -27,9 +27,15 @@ protected:
 	/** Impact Niagara system; replace it in BP_ChongtongProjectile Class Defaults. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<class UNiagaraSystem> ExplosionEffect;
+	/** Per-effect scale exposed for projectile Blueprint tuning. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
+	FVector ExplosionEffectScale = FVector(1.0f);
 	/** Impact sound/cue; replace it in BP_ChongtongProjectile Class Defaults. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<class USoundBase> ExplosionSound;
+	/** Default 3D attenuation for the explosion cue. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	TObjectPtr<class USoundAttenuation> ExplosionSoundAttenuation;
 
 	/** Caps how many explosions can be audible at once on standalone hardware. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Chongtong|Projectile")

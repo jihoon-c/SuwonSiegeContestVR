@@ -7,6 +7,8 @@
 class AActorPool;
 class AEnemyCombatCharacter;
 class AGameplayProjectileActor;
+class UAnimMontage;
+class UAnimSequenceBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnOngseongArcherShot, AActor*, Target, AGameplayProjectileActor*, Projectile, bool, bIntendedHit);
 
@@ -22,7 +24,8 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Archer")
-	void ConfigureCombat(AActor* NewPrimaryTarget, AActor* NewFallbackTarget, AActorPool* NewProjectilePool);
+	/** The archer chooses the closest viable target from the allied cannon and player. */
+	void ConfigureCombat(AActor* NewCannonTarget, AActor* NewPlayerTarget, AActorPool* NewProjectilePool);
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Archer")
 	void ActivateCombat();
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Archer")
@@ -49,6 +52,9 @@ protected:
 	FVector BuildAimPoint(AActor* Target, bool bIntendedHit);
 	AGameplayProjectileActor* SpawnArrow(const FVector& SpawnLocation, const FVector& Direction);
 	void FinishAttackAnimation();
+	void PerformScheduledShot();
+	void BeginAttackAnimation();
+	void FirePendingArrow();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer")
 	TSubclassOf<AGameplayProjectileActor> ArrowClass;
@@ -58,6 +64,16 @@ protected:
 	TObjectPtr<AActor> PrimaryTarget;
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Ongseong|Archer")
 	TObjectPtr<AActor> FallbackTarget;
+	/** Sequence played by code through the AnimBP's named slot before the arrow is launched. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Archer|Animation")
+	TObjectPtr<UAnimSequenceBase> AttackAnimation;
+	/** Add a Slot node with this name to ABP_EnemyArcher's AnimGraph. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Archer|Animation")
+	FName AttackAnimationSlot = TEXT("DefaultSlot");
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Archer|Animation", meta=(ClampMin="0.0"))
+	float AttackBlendInTime = 0.1f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Archer|Animation", meta=(ClampMin="0.0"))
+	float AttackBlendOutTime = 0.1f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float HitChance = 0.65f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="100.0"))
@@ -73,9 +89,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
 	float SpawnHeight = 140.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
-	float AttackAnimationDuration = 0.8f;
+	float FallbackAttackAnimationDuration = 0.8f;
 
 	bool bCombatActive = false;
+	bool bAttackInProgress = false;
+	bool bPendingIntendedHit = false;
 	FRandomStream RandomStream;
 	FTimerHandle AttackAnimationTimerHandle;
+	FTimerHandle FireTimerHandle;
 };

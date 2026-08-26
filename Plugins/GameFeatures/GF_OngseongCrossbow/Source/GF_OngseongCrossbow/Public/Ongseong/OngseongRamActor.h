@@ -9,6 +9,8 @@
 
 class UCombatFactionComponent;
 class UHealthComponent;
+class UInteractionHighlightComponent;
+class USceneComponent;
 class UStaticMeshComponent;
 
 UENUM(BlueprintType)
@@ -48,8 +50,24 @@ protected:
 	UFUNCTION()
 	void HandleDeath(UHealthComponent* DeadHealth, const FCombatDamageSpec& KillingDamage);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram")
+	/**
+	 * Neutral transform parent for all authored ram visuals.  Keeping the moving Actor root separate
+	 * means Blueprint authors can offset, rotate, and scale the ram art without changing its pathing.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram|Components")
+	TObjectPtr<USceneComponent> VisualRoot;
+
+	/** Main body mesh. Edit its Transform and add further children in BP_OngseongRam's Components panel. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram|Components")
 	TObjectPtr<UStaticMeshComponent> RamMesh;
+	/** Always-on red rim overlay so the objective reads clearly at range. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram|Components")
+	TObjectPtr<UInteractionHighlightComponent> VisibilityHighlight;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Ram|Visual")
+	bool bShowVisibilityHighlight = true;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Ram|Visual")
+	FLinearColor VisibilityHighlightColor = FLinearColor(1.0f, 0.035f, 0.015f, 1.0f);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram")
 	TObjectPtr<UHealthComponent> HealthComponent;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram")

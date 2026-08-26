@@ -75,6 +75,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
 	void SetObjectiveTarget(AActor* NewObjectiveTarget) { ObjectiveTarget = NewObjectiveTarget; }
+	/** Optional player target for archers. When unset, player 0 is discovered at runtime. */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning|Archer")
+	void SetArcherPlayerTarget(AActor* NewArcherPlayerTarget) { ArcherPlayerTarget = NewArcherPlayerTarget; }
 
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
 	void SetInitialSpawnPoint(AOngseongSpawnPointActor* NewSpawnPoint) { InitialSpawnPoint = NewSpawnPoint; }
@@ -136,6 +139,8 @@ protected:
 	UFUNCTION()
 	void HandleEnemyDeath(UHealthComponent* HealthComponent, const FCombatDamageSpec& KillingDamage);
 	UFUNCTION()
+	void HandleEnemyDeathPresentationFinished(AEnemyCombatCharacter* Enemy);
+	UFUNCTION()
 	void HandleRetreatTargetReached(APawn* EnemyPawn);
 
 	void TickPopulationFill();
@@ -188,6 +193,10 @@ protected:
 	/** Allied cannon preferred by archers. Falls back to ObjectiveTarget when unavailable. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer")
 	TObjectPtr<AActor> ArcherPrimaryTarget;
+
+	/** The player may be assigned explicitly; otherwise the first player pawn is used. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer")
+	TObjectPtr<AActor> ArcherPlayerTarget;
 
 	/**
 	 * Where archers gather when every allied cannon already has its attack slots filled.
@@ -267,14 +276,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0.05"))
 	float InitialSpawnInterval = 0.4f;
 
-	/** Hard cap on living enemies. Slot counts above this cap are ignored. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "1"))
+	/** Editor-adjustable maximum number of living enemy soldiers. Set the two type slot values to totals that can fill this cap. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ongseong|Spawning", meta = (ClampMin = "1", DisplayName = "Maximum Spawned Enemy Soldiers"))
 	int32 MaxConcurrentEnemies = 15;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ongseong|Spawning", meta = (ClampMin = "0"))
 	int32 SwordsmanSlots = 8;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ongseong|Spawning", meta = (ClampMin = "0"))
 	int32 ArcherSlots = 7;
+
+	/** Each living allied cannon can have this many reserved archer attack positions. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ongseong|Spawning|Archer", meta = (ClampMin = "1"))
+	int32 ArcherAttackSlotsPerCannon = 3;
 
 	/** Seconds between a defeat and the replacement enemy leaving the spawn point. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0.0"))
