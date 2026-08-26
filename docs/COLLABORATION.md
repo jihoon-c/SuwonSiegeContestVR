@@ -421,6 +421,6 @@ docs/<Feature>/specs/<기능명>.md
 | 2 | `L_Main` 및 체험 Level 4종 생성 | **사용자가 직접 생성 예정.** 생성 전까지 템플릿 맵 공동 편집으로 인한 `.umap` 충돌 위험이 남는다 |
 | 3 | Core / Shared 시스템별 담당자 지정 | 공통 클래스 동시 수정 방지. 특히 **Shared 전투 시스템은 담당자 1명 지정 필수** |
 | 4 | PR 규칙 및 `develop` → `main` 승격 기준 확정 | 통합 브랜치가 `develop`이라는 점은 확정됨. 나머지 세부 규칙은 §2 참조 |
-| 5 | 음성 인식 서드파티 모듈 선정 | arm64-v8a 지원 · 한국어 정확도 · 라이선스 · 오프라인 모델 크기 기준 평가 |
+| 5 | 음성 인식 서드파티 모듈 선정 | 후보 조사 완료(2026-08-27, `docs/Core/specs/VOICE_RECOGNITION_BACKEND_SURVEY.md`). 1순위 sherpa-onnx 한국어 Zipformer + hotwords, 2순위 Vosk small ko. **실기 검증 후 확정 필요.** 퀴즈 런타임은 이미 백엔드 교체가 가능한 형태로 구현됨 |
 | 6 | Android 성능 예산 정의 | 동시 적 수 / 동시 투사체 수 / 드로우콜 상한 |
 | 7 | `r.RayTracing` / `r.Substrate` 정리 | Android 타깃에 부적절한 설정 |

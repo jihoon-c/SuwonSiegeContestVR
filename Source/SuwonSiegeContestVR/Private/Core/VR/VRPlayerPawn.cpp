@@ -255,6 +255,11 @@ void AVRPlayerPawn::EnterMountedInteraction(USceneComponent* CameraAnchor)
 	Tick(0.0f);
 }
 
+FVector AVRPlayerPawn::GetPhoneAnchorLocation() const
+{
+	return MotionControllerLeftGrip ? MotionControllerLeftGrip->GetComponentLocation() : GetActorLocation();
+}
+
 void AVRPlayerPawn::ExitMountedInteraction(USceneComponent* CameraAnchor)
 {
 	if (CameraAnchor && MountedCameraAnchor.Get() != CameraAnchor)

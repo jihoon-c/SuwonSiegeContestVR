@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/Quiz/InitialConsonantQuizTypes.h"
 #include "GameFramework/Actor.h"
 #include "Gameplay/Combat/CombatTypes.h"
 #include "Ongseong/ChongtongInteractionTypes.h"
@@ -8,6 +9,7 @@
 
 class AActorPool;
 class AChongtongCannonActor;
+class UInitialConsonantQuizComponent;
 class UAudioComponent;
 class USoundBase;
 class AOngseongEnemyWaveManager;
@@ -54,6 +56,19 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
 	void BeginAssault();
+
+	/**
+	 * Puts the reusable Core initial-consonant quiz in front of the player. The briefing calls this
+	 * before the horn; the assault waits until the quiz reports a result.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Quiz")
+	bool StartIntroQuiz();
+
+	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Quiz")
+	bool IsIntroQuizComplete() const { return bIntroQuizComplete; }
+
+	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Quiz")
+	UInitialConsonantQuizComponent* GetIntroQuiz() const { return IntroQuiz; }
 
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Audio")
 	void StopBattleMusic();
@@ -109,7 +124,11 @@ protected:
 
 	void ResolveTrainingCannon();
 	void ScheduleAssaultAfterBriefing();
+	void ScheduleAssault();
 	void PlayAssaultAudio();
+
+	UFUNCTION()
+	void HandleIntroQuizFinished(FName QuizID, bool bCorrect, EInitialConsonantQuizOutcome Outcome);
 
 	UFUNCTION()
 	void HandleTrainingLoadingStateChanged(EChongtongLoadingState NewState, int32 CompletedShots);
@@ -162,6 +181,19 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Start")
 	FName BriefingNarrationEvent = FName(TEXT("TrainingCompleted"));
 
+	/**
+	 * Runs the initial-consonant quiz between the briefing line and the horn.
+	 * Turning this off restores the previous briefing-to-assault flow exactly.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Quiz")
+	bool bRunIntroQuiz = true;
+	/** Entry to run from the quiz component. The default 옹성 quiz is authored in the constructor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Quiz")
+	FName IntroQuizID = FName(TEXT("QUIZ_ONGSEONG"));
+	/** Core quiz runtime. Feature code only supplies the data and the moment it runs. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario|Quiz")
+	TObjectPtr<UInitialConsonantQuizComponent> IntroQuiz;
+
 	/** War horn that opens the assault. Assign a Sound Cue in the Blueprint. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio")
 	TObjectPtr<USoundBase> AssaultHornSound;
@@ -210,6 +242,9 @@ protected:
 	bool bRamDestroyed = false;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario|Start")
 	bool bTrainingComplete = false;
+	/** Stays true across a retry so the player is not quizzed again after a failed defense. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario|Quiz")
+	bool bIntroQuizComplete = false;
 	bool bWaitingForBriefing = false;
 	bool bCompletionRequested = false;
 	float RemainingDefenseTime = 0.0f;

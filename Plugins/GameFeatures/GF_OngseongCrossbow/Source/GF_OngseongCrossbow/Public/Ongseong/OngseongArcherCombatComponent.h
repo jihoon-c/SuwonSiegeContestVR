@@ -34,9 +34,11 @@ public:
 	bool TryFireArrow();
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
 	AActor* GetCurrentTarget() const;
-	/** The allied emplacement whose attack slot this archer holds, or null while escorting. */
+	/** The allied emplacement whose attack slot this archer holds, or null while escorting. Positioning only -- the archer aims at PrimaryTarget/FallbackTarget (the player), not this. */
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
-	AActor* GetReservedCannon() const { return PrimaryTarget; }
+	AActor* GetReservedCannon() const { return ReservedCannon; }
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Archer")
+	void SetReservedCannon(AActor* NewReservedCannon) { ReservedCannon = NewReservedCannon; }
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
 	bool IsInFiringPosition() const;
 	UFUNCTION(BlueprintPure, Category="Ongseong|Archer")
@@ -64,6 +66,9 @@ protected:
 	TObjectPtr<AActor> PrimaryTarget;
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Ongseong|Archer")
 	TObjectPtr<AActor> FallbackTarget;
+	/** Allied cannon slot reserved for positioning only; not an aim target (see GetReservedCannon). */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category="Ongseong|Archer")
+	TObjectPtr<AActor> ReservedCannon;
 	/** Sequence played by code through the AnimBP's named slot before the arrow is launched. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Archer|Animation")
 	TObjectPtr<UAnimSequenceBase> AttackAnimation;
@@ -82,6 +87,9 @@ protected:
 	float FireInterval = 2.75f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
 	float MissRadius = 275.0f;
+	/** Random jitter radius applied even to "intended hit" shots, so hits aren't perfectly centered on the target. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
+	float AimJitterRadius = 60.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="0.0"))
 	float ArrowDamage = 12.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Archer", meta=(ClampMin="1.0"))

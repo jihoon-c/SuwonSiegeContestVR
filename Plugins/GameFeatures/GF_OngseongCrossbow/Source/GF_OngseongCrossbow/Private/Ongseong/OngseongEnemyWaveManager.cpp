@@ -656,7 +656,10 @@ void AOngseongEnemyWaveManager::ApplyArcherEngagement(AEnemyCombatCharacter* Arc
 	// When every authored position is occupied, surplus archers continue toward the ram.
 	AActor* MoveTarget = AttackPosition ? static_cast<AActor*>(AttackPosition)
 		: (IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get());
-	ArcherCombat->ConfigureCombat(Cannon, ArcherPlayerTarget, ArcherProjectilePool);
+	// Cannon is still reserved for positioning (see ReserveAttackPositionForArcher above), but archers
+	// no longer aim at it -- they always shoot at the player (PlayerPhone anchor once that lands).
+	ArcherCombat->ConfigureCombat(ArcherPlayerTarget, ArcherPlayerTarget, ArcherProjectilePool);
+	ArcherCombat->SetReservedCannon(Cannon);
 
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Archer->GetController()))
 	{

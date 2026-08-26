@@ -29,6 +29,13 @@ Class Defaults `Ongseong|Scenario|Audio`에서 Sound Cue로 교체한다.
 본편의 VR GameMode와 디버그 전용 PlayerStart는 가져오지 않았다.
 `docs/OngseongCrossbow/completed/2026-08-26_MAIN_LEVEL_PARITY_AND_GATED_ASSAULT.md` 참조.
 
+**2026-08-27 초성 퀴즈 개정**: 본편 진행에 **초성 퀴즈 단계**를 추가했다.
+총통 장전 완료 → 교관 체험 시작 나레이션 → **초성 퀴즈 "ㅇ ㅅ"(정답 옹성)** → 나팔·BGM·적 웨이브 순이다.
+퀴즈 런타임은 Core(`UInitialConsonantQuizComponent`)이고 옹성은 질문 데이터와 시작 시점만 갖는다.
+음성 인식은 아직 Mock이며 PC에서는 콘솔 `ssv.voice.submit 옹성`으로 테스트한다.
+`BP_OngseongDefenseScenarioManager`의 `Ongseong|Scenario|Quiz`에서 끄거나 다른 퀴즈로 교체할 수 있다.
+`docs/OngseongCrossbow/completed/2026-08-27_ONGSEONG_INTRO_QUIZ.md` 참조.
+
 **2026-08-26 개정**: `BP_OngseongSpawnPoint`를 추가해 적 초기 스폰, 병사 리스폰, 충차 스폰을
 역할별 레벨 인스턴스로 분리했다. 총통의 포구 화염·포격음과 공통 포탄의 폭발 이펙트·폭발음을
 Blueprint Class Defaults 및 그래프에서 교체할 수 있게 했다.

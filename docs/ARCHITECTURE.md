@@ -292,8 +292,27 @@ Core `FScenarioStageDefinition`의 Start/Next ID와 `EducationContent` lookup을
 
 ### 3.6 초성 퀴즈 / 음성 인식
 
-`Status: Partial` — 네 개 초성 퀴즈의 데이터, 정답 정규화/판정, UI 이벤트가 구현됐다.
-음성 캡처와 STT는 별도 담당자가 연결하도록 Blueprint Native Event만 비워 두었다.
+`Status: Implemented (음성 백엔드는 Mock)` — 2026-08-27에 재사용 가능한 Core 런타임을 구현했다.
+
+| 요소 | 위치 | 설명 |
+|---|---|---|
+| `UInitialConsonantQuizComponent` | `Core/Quiz` | 퀴즈 구동. 위젯 표시, 시도 관리, 마이크 수명 |
+| `UInitialConsonantQuizWidget` | `Core/Quiz` | 시야 앞 World Space 패널. "초성 퀴즈" 문구 + 큰 초성 |
+| `UInitialConsonantQuizSet` | `Core/Quiz` | 공용 퀴즈 라이브러리 Data Asset |
+| `UScenarioQuizBridgeComponent` | `Core/Quiz` | `EScenarioInteractionType::Quiz` 자동 연결 |
+| `UVoiceRecognitionComponent` | `Core/Voice` | 백엔드 무관 음성 인식 계약 |
+| `UMockVoiceRecognitionComponent` | `Core/Voice` | 현재 백엔드. 콘솔 `ssv.voice.submit`로 수동 입력 가능 |
+| `UHangulTextLibrary` | `Core/Text` | 초성 자동 추출 · 정답 정규화 |
+
+마이크는 퀴즈 시작 시에만 켜지고 정답·포기·취소·EndPlay 어느 경로로 끝나든 반드시 꺼진다.
+첫 사용처는 옹성 체험(총통 장전 → 교관 나레이션 → "ㅇ ㅅ" 퀴즈 → 돌격)이다.
+
+실제 온디바이스 백엔드는 아직 임포트하지 않았다. 후보 조사는
+`docs/Core/specs/VOICE_RECOGNITION_BACKEND_SURVEY.md`, 시스템 사양은
+`docs/Core/specs/INITIAL_CONSONANT_QUIZ.md`를 참조한다.
+
+Main 교육 흐름(`UMainEducationScenarioDefinition`)은 아직 자체 퀴즈 데이터와 빈
+`RequestVoiceRecognition()` Native Event를 사용한다. Core 런타임으로의 이관은 별도 범위다.
 
 Main 질문 나레이션은 `/Game/Audio/Narration/DT_Narration_Main`의 화면별 Row 구간을 먼저 재생한다.
 구간 종료 후 Quiz Interaction이 시작되므로 STT 요청은 질문 음성과 겹치지 않는다. 현재 음원 연결은
@@ -648,8 +667,8 @@ graph TD
 | ExperienceSubsystem | Core | `Implemented` | `Source/SuwonSiegeContestVR/*/Core/Experience/` |
 | Scenario System | Core | `Implemented` | `Source/SuwonSiegeContestVR/*/Core/Scenario/` + `Content/Core/Scenario/Managers/BP_ScenarioManager` |
 | 진행도 관리 | Core | `Partial` | Level Travel 간 세션 메모리 완료 목록 구현, SaveGame 미구현 |
-| 초성 퀴즈 | Core | `Planned` | — |
-| 음성 인식 | Core | `Planned` | — (수단 미정) |
+| 초성 퀴즈 | Core | `Implemented` | `Source/SuwonSiegeContestVR/*/Core/Quiz/` |
+| 음성 인식 | Core | `Implemented (Mock)` | `Source/SuwonSiegeContestVR/*/Core/Voice/` — 온디바이스 백엔드 미임포트 |
 | 공통 Interface | Core | `Planned` | — |
 | CombatCharacter | Shared | `Implemented (C++ base)` | `Source/SuwonSiegeContestVR/*/Gameplay/Characters/` |
 | EnemySoldier / AllySoldier | Shared | `Partial` | 신규 C++ 기반 구현, Blueprint 메시·애니메이션 미작성 |
@@ -691,7 +710,7 @@ graph TD
 | 2 | 프로젝트 전용 Level이 하나도 없고 기본 맵이 `L_XRTemplate` | 여러 개발자가 같은 템플릿 맵을 수정하면 `.umap` 바이너리 충돌 | **사용자가 직접 생성 예정.** 생성 후 `GameDefaultMap` / `EditorStartupMap` 교체 필요 |
 | 3 | `BP_XRPawn`이 `Pawn` 파생 (`Character` 아님) | CharacterMovement / Capsule 기반 이동·충돌·NavMesh 상호작용이 없음. 이동 방식이 텔레포트로 고정 | 체험별 이동 요구(고정 위치, 레일, 자유 이동)를 먼저 정리한 뒤 Pawn 설계 확정 |
 | 4 | 5개 IMC가 Priority 0으로 전역 상시 활성 | 체험 중 입력 격리 불가 (예: 쇠뇌 조준 중 텔레포트 발동) | Experience 전환에 맞춰 IMC를 Add/Remove 하는 Input 관리 계층 도입 |
-| 5 | 음성 인식 **서드파티 모듈 미선정** | Quiz가 전체 콘텐츠의 핵심. 방식(온디바이스 + 서드파티)은 확정됐으나 실제 모듈이 정해지지 않음 | **최우선 기술 검증(Spike) 대상.** arm64-v8a 지원 · 한국어 정확도 · 라이선스 기준으로 평가 |
+| 5 | 음성 인식 **서드파티 모듈 미선정** | Quiz 런타임은 구현됐으나 실제 인식 백엔드가 Mock이다 | **최우선 기술 검증(Spike) 대상.** 후보 조사 완료(`docs/Core/specs/VOICE_RECOGNITION_BACKEND_SURVEY.md`) — 1순위 sherpa-onnx 한국어 Zipformer + hotwords, 2순위 Vosk small ko(49.7MB) + grammar |
 | 6 | ~~Git LFS 미설정~~ | — | **해결됨 (2026-08-12).** 과거 이력까지 `git lfs migrate import`로 전환 완료 — `docs/DIRECTORY_STRUCTURE.md` §4.2 참조 |
 | 7 | **`r.RayTracing=True`, `r.Substrate=True`** + Forward/MobileMultiView + Android 패키징 | **타깃이 Android로 확정된 이상 명확한 오설정.** RayTracing은 모바일에서 동작하지 않고, Substrate는 모바일 지원이 제한적이다. 셰이더 컴파일 시간과 패키지 용량만 증가 | `Config/DefaultEngine.ini` 정리 필요. 렌더링 결과 영향이 크므로 **별도 작업으로 분리** |
 | 8 | `PICOController` 활성 + Android는 Quest 계열(quest2/questpro/quest3/quest3s) 명시 | 두 기기군을 모두 노리는 것인지, 한쪽이 잔재인지 불명확 | 실제 타깃 HMD 확정 필요 |

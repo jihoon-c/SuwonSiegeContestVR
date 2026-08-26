@@ -2,6 +2,7 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Core/Quiz/InitialConsonantQuizComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Gameplay/Combat/HealthComponent.h"
@@ -144,6 +145,16 @@ bool FOngseongGatedAssaultStartTest::RunTest(const FString& Parameters)
 	Scenario->SetWaveManager(Wave);
 	Scenario->SetTrainingCannon(Cannon);
 	Scenario->SetStartAfterChongtongLoaded(true);
+
+	// The intro quiz holds the result on a world timer this bare world never advances, so the test
+	// reads the answer straight through.
+	UInitialConsonantQuizComponent* IntroQuiz = Scenario->GetIntroQuiz();
+	if (TestNotNull(TEXT("The manager owns the Core quiz runtime"), IntroQuiz))
+	{
+		IntroQuiz->bShowQuizPanel = false;
+		IntroQuiz->Quizzes[0].ResultDisplayDuration = 0.0f;
+	}
+
 	Scenario->ArmTrainingGate();
 
 	TestEqual(TEXT("The level opens with the drill, not the assault"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
@@ -163,6 +174,26 @@ bool FOngseongGatedAssaultStartTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Seating the cannonball finishes the load"), Cannon->GetLoadingState(), EChongtongLoadingState::ReadyToAim);
 	TestTrue(TEXT("Finishing the load completes the drill"), Scenario->IsTrainingComplete());
 	TestEqual(TEXT("The briefing plays before the assault"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+
+	// The briefing line stays queued in this bare world because there is no narration player to
+	// finish it, so the quiz is opened through the entry point the idle callback uses.
+	if (IntroQuiz)
+	{
+		TestFalse(TEXT("The quiz has not been answered yet"), Scenario->IsIntroQuizComplete());
+
+		TestTrue(TEXT("The briefing opens the initial-consonant quiz"), Scenario->StartIntroQuiz());
+		TestTrue(TEXT("The quiz is up"), IntroQuiz->IsQuizActive());
+		TestEqual(TEXT("The quiz asks for the ongseong"),
+			IntroQuiz->GetActiveQuiz().GetDisplayConsonants().ToString(), FString(TEXT("ㅇ ㅅ")));
+		TestEqual(TEXT("No assault runs while the quiz is up"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+
+		TestTrue(TEXT("The spoken answer is accepted"), IntroQuiz->SubmitAnswer(TEXT("옹성")));
+		TestTrue(TEXT("Answering completes the intro quiz"), Scenario->IsIntroQuizComplete());
+		TestFalse(TEXT("The quiz releases the microphone when it ends"), IntroQuiz->IsQuizActive());
+
+		// A retry must not quiz the player again.
+		TestFalse(TEXT("The quiz is only asked once"), Scenario->StartIntroQuiz());
+	}
 
 	// The pause between the briefing and the horn runs on a world timer, which a bare test world
 	// does not advance. Call the entry point the timer uses and check what it produces.

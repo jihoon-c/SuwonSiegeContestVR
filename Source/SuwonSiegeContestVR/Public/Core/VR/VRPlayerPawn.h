@@ -48,6 +48,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Narration")
 	UNarrationSequenceComponent* GetNarrationSequence() const { return NarrationSequence; }
 
+	/**
+	 * World location where PlayerPhone is expected to be held (left hand grip).
+	 * PlayerPhone itself is not implemented yet (docs/ARCHITECTURE.md 3.4, Status: Planned) —
+	 * this is a stand-in anchor point for systems (e.g. enemy archer aim) that need to target
+	 * "the phone" ahead of that Core feature landing. Update this once PlayerPhone exists.
+	 */
+	UFUNCTION(BlueprintPure, Category = "VR|Phone")
+	FVector GetPhoneAnchorLocation() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

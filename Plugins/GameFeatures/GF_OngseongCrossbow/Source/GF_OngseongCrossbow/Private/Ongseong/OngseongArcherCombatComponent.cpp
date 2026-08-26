@@ -8,6 +8,7 @@
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Ongseong/OngseongBoltProjectileActor.h"
+#include "Core/VR/VRPlayerPawn.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequenceBase.h"
@@ -188,7 +189,20 @@ FVector UOngseongArcherCombatComponent::BuildAimPoint(AActor* Target, const bool
 	FVector Origin;
 	FVector Extent;
 	Target->GetActorBounds(true, Origin, Extent);
-	if (bIntendedHit) return Origin;
+	// PlayerPhone is not implemented yet (docs/ARCHITECTURE.md 3.4). Until it lands, archers aim
+	// at the VR pawn's phone-hand anchor instead of the pawn's capsule center.
+	if (const AVRPlayerPawn* PlayerPawn = Cast<AVRPlayerPawn>(Target))
+	{
+		Origin = PlayerPawn->GetPhoneAnchorLocation();
+	}
+	if (bIntendedHit)
+	{
+		// Even an "intended" hit isn't a laser-perfect shot; add a small random jitter so hits aren't robotically centered.
+		FVector Jitter = RandomStream.VRand();
+		Jitter.Z = FMath::Clamp(Jitter.Z, -0.35f, 0.65f);
+		Jitter = Jitter.GetSafeNormal() * RandomStream.FRandRange(0.0f, AimJitterRadius);
+		return Origin + Jitter;
+	}
 	FVector Offset = RandomStream.VRand();
 	Offset.Z = FMath::Clamp(Offset.Z, -0.35f, 0.65f);
 	Offset = Offset.GetSafeNormal() * FMath::Max(MissRadius, Extent.Size() + 25.0f);

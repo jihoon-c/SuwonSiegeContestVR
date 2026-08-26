@@ -4,7 +4,10 @@
 
 #include "Components/SceneComponent.h"
 #include "Core/Experience/ExperienceSubsystem.h"
+#include "Core/Quiz/InitialConsonantQuizComponent.h"
 #include "Core/VR/VRPlayerPawn.h"
+// Explicit: this file is compiled outside the unity blob whenever it is being edited.
+#include "Engine/GameInstance.h"
 #include "Gameplay/Combat/HealthComponent.h"
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Gameplay/UI/VRHUDComponent.h"
@@ -30,6 +33,17 @@ AOngseongDefenseScenarioManager::AOngseongDefenseScenarioManager()
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
 	RamClass = AOngseongRamActor::StaticClass();
+
+	// The quiz runtime is Core; only the question belongs to this experience. Designers can edit or
+	// replace this entry, point the component at a shared quiz set, or turn the step off entirely.
+	IntroQuiz = CreateDefaultSubobject<UInitialConsonantQuizComponent>(TEXT("IntroQuiz"));
+	FInitialConsonantQuizDefinition OngseongQuiz;
+	OngseongQuiz.QuizID = IntroQuizID;
+	OngseongQuiz.QuestionText = LOCTEXT("IntroQuizQuestion", "성문 바깥을 둘러싸 지키는 이 방어시설의 이름은?");
+	// InitialConsonants is left empty on purpose: "옹성" derives "ㅇ ㅅ".
+	OngseongQuiz.Answer = LOCTEXT("IntroQuizAnswer", "옹성");
+	OngseongQuiz.HintText = LOCTEXT("IntroQuizHint", "지금 서 있는 이 성벽을 떠올려 보세요");
+	IntroQuiz->Quizzes.Add(OngseongQuiz);
 }
 
 void AOngseongDefenseScenarioManager::BeginPlay()
@@ -80,6 +94,12 @@ void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlay
 	if (Narration)
 	{
 		Narration->OnNarrationIdle.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle);
+	}
+	if (IntroQuiz)
+	{
+		IntroQuiz->OnQuizFinished.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleIntroQuizFinished);
+		// Releases the microphone with the level; a quiz never outlives the experience that ran it.
+		IntroQuiz->CancelQuiz();
 	}
 	if (ActiveRam) ActiveRam->StopRam();
 	if (WaveManager)
@@ -166,12 +186,54 @@ void AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle()
 	bWaitingForBriefing = false;
 	GetWorldTimerManager().ClearTimer(BriefingTimeoutHandle);
 	Narration->OnNarrationIdle.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle);
+	// The quiz sits between the briefing and the horn, so the enemy never arrives mid-question.
+	if (StartIntroQuiz()) return;
+	ScheduleAssault();
+}
+
+void AOngseongDefenseScenarioManager::ScheduleAssault()
+{
 	if (AssaultStartDelay <= 0.0f)
 	{
 		BeginAssault();
 		return;
 	}
 	GetWorldTimerManager().SetTimer(AssaultDelayHandle, this, &AOngseongDefenseScenarioManager::BeginAssault, AssaultStartDelay, false);
+}
+
+bool AOngseongDefenseScenarioManager::StartIntroQuiz()
+{
+	if (!bRunIntroQuiz || bIntroQuizComplete || !IsValid(IntroQuiz) || IntroQuizID.IsNone()) return false;
+
+	IntroQuiz->OnQuizFinished.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleIntroQuizFinished);
+	if (!IntroQuiz->StartQuiz(IntroQuizID))
+	{
+		// A missing or malformed quiz must never strand the experience before the assault.
+		IntroQuiz->OnQuizFinished.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleIntroQuizFinished);
+		UE_LOG(LogOngseong, Warning, TEXT("Intro quiz %s could not start; continuing to the assault."),
+			*IntroQuizID.ToString());
+		return false;
+	}
+
+	UE_LOG(LogOngseong, Display, TEXT("Intro quiz %s is running before the assault."), *IntroQuizID.ToString());
+	return true;
+}
+
+void AOngseongDefenseScenarioManager::HandleIntroQuizFinished(
+	const FName QuizID, const bool bCorrect, const EInitialConsonantQuizOutcome Outcome)
+{
+	if (QuizID != IntroQuizID) return;
+	if (IntroQuiz)
+	{
+		IntroQuiz->OnQuizFinished.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleIntroQuizFinished);
+	}
+	// A cancel comes from a teardown or a restart, so it must not open the assault by itself.
+	if (Outcome == EInitialConsonantQuizOutcome::Canceled) return;
+
+	bIntroQuizComplete = true;
+	UE_LOG(LogOngseong, Display, TEXT("Intro quiz finished (correct=%s). Starting the assault countdown."),
+		bCorrect ? TEXT("true") : TEXT("false"));
+	ScheduleAssault();
 }
 
 void AOngseongDefenseScenarioManager::BeginAssault()
