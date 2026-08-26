@@ -13,6 +13,8 @@
 #include "Ongseong/OngseongGateActor.h"
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "Ongseong/OngseongRamActor.h"
+#include "Ongseong/OngseongSpawnPointActor.h"
+#include "EngineUtils.h"
 #include "TimerManager.h"
 
 #define LOCTEXT_NAMESPACE "OngseongDefense"
@@ -29,6 +31,17 @@ AOngseongDefenseScenarioManager::AOngseongDefenseScenarioManager()
 void AOngseongDefenseScenarioManager::BeginPlay()
 {
 	Super::BeginPlay();
+	if (!IsValid(RamSpawnPoint))
+	{
+		for (TActorIterator<AOngseongSpawnPointActor> It(GetWorld()); It; ++It)
+		{
+			if (It->MatchesRole(EOngseongSpawnPointRole::Ram))
+			{
+				RamSpawnPoint = *It;
+				break;
+			}
+		}
+	}
 	if (GateActor) GateActor->OnGateDestroyed.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
 	if (WaveManager)
 	{

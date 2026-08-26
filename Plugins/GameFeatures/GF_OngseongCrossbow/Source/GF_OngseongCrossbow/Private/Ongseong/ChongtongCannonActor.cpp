@@ -22,6 +22,7 @@
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GF_OngseongCrossbow.h"
 #include "Gameplay/Combat/CombatFXLibrary.h"
@@ -515,16 +516,16 @@ void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sou
 AActor* AChongtongCannonActor::SelectTarget() const
 {
 	TArray<AActor*> Visible = TargetingComponent->FindVisibleHostileTargets(FireRange);
-	if (bEngageEnemyArchersOnly)
+	if (bEngageEnemyInfantryOnly)
 	{
 		const int32 BeforeFilter = Visible.Num();
 		Visible.RemoveAll([](const AActor* Candidate)
 		{
-			return !IsValid(Candidate) || !Candidate->FindComponentByClass<UOngseongArcherCombatComponent>();
+			return !IsValid(Candidate) || !Candidate->FindComponentByClass<UCharacterMovementComponent>();
 		});
 		if (BeforeFilter != Visible.Num())
 		{
-			UE_LOG(LogOngseong, VeryVerbose, TEXT("%s ignored %d non-archer target(s)."),
+			UE_LOG(LogOngseong, VeryVerbose, TEXT("%s ignored %d non-infantry target(s)."),
 				*GetName(), BeforeFilter - Visible.Num());
 		}
 	}

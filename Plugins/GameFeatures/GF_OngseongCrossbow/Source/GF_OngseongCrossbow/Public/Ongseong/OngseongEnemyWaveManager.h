@@ -10,6 +10,7 @@ class APawn;
 class AEnemyCombatCharacter;
 class UHealthComponent;
 class UOngseongArcherCombatComponent;
+class AOngseongSpawnPointActor;
 
 UENUM(BlueprintType)
 enum class EOngseongEnemyType : uint8
@@ -75,6 +76,12 @@ public:
 	void SetObjectiveTarget(AActor* NewObjectiveTarget) { ObjectiveTarget = NewObjectiveTarget; }
 
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
+	void SetInitialSpawnPoint(AOngseongSpawnPointActor* NewSpawnPoint) { InitialSpawnPoint = NewSpawnPoint; }
+
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
+	void SetSoldierRespawnPoint(AOngseongSpawnPointActor* NewSpawnPoint) { SoldierRespawnPoint = NewSpawnPoint; }
+
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Spawning")
 	void SetArcherPrimaryTarget(AActor* NewArcherPrimaryTarget) { ArcherPrimaryTarget = NewArcherPrimaryTarget; }
 
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Spawning")
@@ -131,7 +138,7 @@ protected:
 	void HandleRetreatTargetReached(APawn* EnemyPawn);
 
 	void TickPopulationFill();
-	bool SpawnEnemyOfType(EOngseongEnemyType EnemyType);
+	bool SpawnEnemyOfType(EOngseongEnemyType EnemyType, bool bUseRespawnPoint = false);
 	void ScheduleRespawn(EOngseongEnemyType EnemyType);
 	void HandleRespawnTimer(EOngseongEnemyType EnemyType);
 	void ClearPendingRespawns();
@@ -144,10 +151,16 @@ protected:
 	class AChongtongCannonActor* ReserveCannonForArcher(AEnemyCombatCharacter* Archer);
 	void ReleaseCannonSlots(AActor* Archer);
 	void ApplyArcherEngagement(AEnemyCombatCharacter* Archer);
+	void ApplySwordsmanMarch(AEnemyCombatCharacter* Swordsman);
+	int32 AssignSwordsmanFormationSlot(AEnemyCombatCharacter* Swordsman);
+	FVector GetSwordsmanFormationLocation(int32 SlotIndex) const;
+	UFUNCTION()
+	void UpdateSwordsmanFormation();
 	UFUNCTION()
 	void RetryArcherSlotAssignments();
 	void DetachEnemy(AEnemyCombatCharacter* Enemy);
-	FTransform BuildSpawnTransform();
+	void ResolveSpawnPoints();
+	FTransform BuildSpawnTransform(bool bUseRespawnPoint);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning")
 	TObjectPtr<AActorPool> EnemyPool;
@@ -158,6 +171,14 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning")
 	TObjectPtr<AActor> ObjectiveTarget;
+
+	/** Optional explicit marker for the first population fill. Falls back to this manager's transform. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Points")
+	TObjectPtr<AOngseongSpawnPointActor> InitialSpawnPoint;
+
+	/** Optional explicit marker used only for replacements after a soldier is defeated. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Points")
+	TObjectPtr<AOngseongSpawnPointActor> SoldierRespawnPoint;
 
 	/** Allied cannon preferred by archers. Falls back to ObjectiveTarget when unavailable. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer")
@@ -190,6 +211,33 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="1.0"))
 	float ArcherProjectileSpeed = 6500.0f;
 
+	/** Archers move inside their firing range instead of accepting a spawn point as their final position. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="100.0"))
+	float ArcherApproachRadius = 900.0f;
+
+	/** Speed shared with the ram once swordsmen have joined its marching formation. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanMarchSpeed = 42.0f;
+
+	/** Modest catch-up speed used only while a swordsman is far outside its assigned slot. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanCatchUpSpeed = 120.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.1"))
+	float SwordsmanFormationUpdateInterval = 0.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanFormationSpacing = 220.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanTrailingDistance = 300.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanCatchUpDistance = 350.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanFormationAcceptanceRadius = 80.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0.0"))
 	float InitialDelay = 1.0f;
 
@@ -221,6 +269,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0.0"))
 	float SpawnSpacing = 250.0f;
 
+	/** Search volume used to place authored spawn markers onto reachable navigation. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Points")
+	FVector SpawnNavProjectionExtent = FVector(500.0f, 500.0f, 2000.0f);
+
+	/** Character actor height above the projected navmesh floor. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Points", meta = (ClampMin = "0.0"))
+	float SpawnHeightAboveNavmesh = 100.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning")
 	bool bAutoStart = true;
 
@@ -237,7 +293,10 @@ protected:
 	TMap<TObjectPtr<AEnemyCombatCharacter>, TObjectPtr<AActorPool>> EnemyPoolsByActor;
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<AEnemyCombatCharacter>, EOngseongEnemyType> EnemyTypesByActor;
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<AEnemyCombatCharacter>, int32> SwordsmanFormationSlots;
 	FTimerHandle SpawnTimerHandle;
 	FTimerHandle ArcherSlotRetryHandle;
+	FTimerHandle SwordsmanFormationTimerHandle;
 	TArray<FTimerHandle> RespawnTimerHandles;
 };

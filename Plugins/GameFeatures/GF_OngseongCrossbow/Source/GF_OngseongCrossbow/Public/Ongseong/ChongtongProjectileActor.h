@@ -24,9 +24,11 @@ protected:
 	float ExplosionRadius = 350.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Explosion", meta=(ClampMin="0.0"))
 	float AreaDamage = 80.0f;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	/** Impact Niagara system; replace it in BP_ChongtongProjectile Class Defaults. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<class UNiagaraSystem> ExplosionEffect;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	/** Impact sound/cue; replace it in BP_ChongtongProjectile Class Defaults. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<class USoundBase> ExplosionSound;
 
 	/** Caps how many explosions can be audible at once on standalone hardware. */

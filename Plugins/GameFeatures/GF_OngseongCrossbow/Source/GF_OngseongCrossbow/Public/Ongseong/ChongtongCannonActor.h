@@ -27,7 +27,7 @@ class UOngseongNarrationComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChongtongFired, AActor*, Target, AGameplayProjectileActor*, Projectile);
 
-/** Defensive fixed cannon. Allied automatic fire answers enemy archers only; see bEngageEnemyArchersOnly. */
+/** Defensive fixed cannon. Allied automatic fire answers enemy infantry and leaves the ram to the player. */
 UCLASS(Blueprintable)
 class GF_ONGSEONGCROSSBOW_API AChongtongCannonActor : public AActor, public IDamageReceiverInterface
 {
@@ -219,13 +219,13 @@ protected:
 	float FireRange = 12000.0f;
 
 	/**
-	 * Automatic fire answers enemy archers and nothing else: the ram is the player's objective and
-	 * ally emplacements must not clear it, and the melee line is left to the defenders on the wall.
-	 * Targets are identified by their ranged-combat component, never by their Actor class.
+	 * Automatic fire answers enemy infantry (swordsmen and archers), while the ram remains the
+	 * player's objective. Infantry is identified by its character-movement component rather than
+	 * by a feature-specific Actor class.
 	 * Player-aimed shots are unaffected - they hit whatever the barrel points at.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong")
-	bool bEngageEnemyArchersOnly = true;
+	bool bEngageEnemyInfantryOnly = true;
 
 	/** Muzzle velocity for a player shot. Allied shots solve their own arc speed instead. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
@@ -270,11 +270,13 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<UNiagaraSystem> LoadSuccessEffect;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	/** Muzzle flash used by both allied and player cannon Blueprint variants. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<UNiagaraSystem> MuzzleEffect;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<USoundBase> InteractionSound;
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
+	/** Firing sound/cue used by both allied and player cannon Blueprint variants. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<USoundBase> FireSound;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")

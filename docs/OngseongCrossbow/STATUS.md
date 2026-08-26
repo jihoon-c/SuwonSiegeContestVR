@@ -16,6 +16,10 @@
 컴파일된 Sequence Player가 모두 루프임을 검증했다. 아군 총통 조준은 포신 단독 3축 회전에서
 **포신+화차 전체 어셈블리의 Yaw 전용 회전**으로 교체했다.
 
+**2026-08-26 개정**: `BP_OngseongSpawnPoint`를 추가해 적 초기 스폰, 병사 리스폰, 충차 스폰을
+역할별 레벨 인스턴스로 분리했다. 총통의 포구 화염·포격음과 공통 포탄의 폭발 이펙트·폭발음을
+Blueprint Class Defaults 및 그래프에서 교체할 수 있게 했다.
+
 ---
 
 ## 1. 담당 범위
@@ -49,12 +53,12 @@
 | 웅성 구조물 | `Implemented (runtime + placed)` | `BP_OngseongGate`/`AOngseongGateActor`; 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health 비율·파괴 이벤트, 재시도 Reset. `LV_Ongseong`의 임시 성문 Actor 교체 완료 |
 | 쇠뇌 Actor | `Removed (2026-08-24)` | 총통으로 대체된 레거시. `AOngseongCrossbowActor`·`UOngseongCrossbowGripComponent`·`BP_OngseongCrossbow`·배치 인스턴스·볼트 Pool 삭제. 물리 화살 클래스는 적 궁병용으로 유지 |
 | 충차 Actor | `Implemented (runtime; placeholder art)` | `AOngseongRamActor`; 완성 상태로 병력과 동시 전진, 성문 앞 대기 지점 도착 후 돌진·충돌 피해·복귀 반복, 파괴 시 정지. 임시 Cube 표현 |
-| 적 스폰 시스템 | `Implemented (상시 유지 — 7절)` | 동시 15명(검병 8·궁병 7) 상시 유지, 처치 시 5초 ± 1.5초 후 같은 유형 리스폰, 궁병 총통 우선 표적/보조 목표, 65% 명중·시각적 빗나감, 물리 화살 Pool, 사망/퇴각 시 반환 |
+| 적 스폰 시스템 | `Implemented (상시 유지 — 7절)` | 동시 15명(검병 8·궁병 7) 상시 유지, 처치 시 5초 ± 1.5초 후 같은 유형 리스폰, `BP_OngseongSpawnPoint`로 초기/리스폰 지점 분리, 궁병 총통 우선 표적/보조 목표, 65% 명중·시각적 빗나감, 물리 화살 Pool, 사망/퇴각 시 반환 |
 | 방어 Scenario Manager | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`; 충차 파괴 = 성공, 성문 파괴 = 실패, 선택적 시간 제한, 충차 Pool 획득/반환, 실패 6초 자동 재시도, 적 퇴각 후 Experience 완료 |
 | 검병·궁병 | `Implemented (placeholder art)` | `BP_OngseongSwordsman`/`BP_OngseongArcher`; 공용 병사 부모, 유형별 Pool/상태, 궁병 `ArcherAdvance/ArcherFiring` 원거리 전투 구현 |
 | Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
 | AI (BT / Blackboard / AIController) | `Implemented (base)` | 원거리 단순 이동 + 근거리 선택형 BT Controller. Feature BT/Spawner는 없음 |
-| Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, 임시 폭발 FX/사운드 |
+| Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, Blueprint 교체 가능한 폭발 FX/사운드 |
 | 총통 플레이어 조작 | `Implemented (runtime + BP)` | `BP_PlayableChongtong`; 자동 사격 비활성, 기본 메시 장전물, 화약 → 쑤시개 3회 → 대포알 상태 머신, 준비 신호, 조종 시점 고정, 양손 조준/트리거 발사, 5발 완료 이벤트 |
 | 총통 Ally AI | `Implemented (runtime + BP)` | `BP_AllyChongtong`; `UChongtongAutomaticFireComponent` 조립, 우선순위 표적 자동 사격, 쿨타임 5초, 아군 조작병 자동 배치 |
 | 교관 나레이션 | `Implemented (recording pending)` | 이미지 대본 23행 DataTable, 진행/상황 이벤트 큐, 총통·Wave·아군/성문 Health 델리게이트 연결. 실제 녹음 SoundWave 연결은 대기 |

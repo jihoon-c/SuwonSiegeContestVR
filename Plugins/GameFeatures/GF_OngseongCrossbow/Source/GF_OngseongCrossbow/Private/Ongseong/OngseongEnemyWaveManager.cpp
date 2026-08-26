@@ -9,7 +9,9 @@
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Ongseong/ChongtongCannonActor.h"
 #include "Ongseong/OngseongArcherCombatComponent.h"
+#include "Ongseong/OngseongSpawnPointActor.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
@@ -25,6 +27,7 @@ AOngseongEnemyWaveManager::AOngseongEnemyWaveManager()
 void AOngseongEnemyWaveManager::BeginPlay()
 {
 	Super::BeginPlay();
+	ResolveSpawnPoints();
 	if (!IsValid(ArcherEnemyPool))
 	{
 		TArray<AActor*> TaggedPools;
@@ -61,6 +64,7 @@ void AOngseongEnemyWaveManager::EndPlay(const EEndPlayReason::Type EndPlayReason
 
 void AOngseongEnemyWaveManager::StartSpawning()
 {
+	ResolveSpawnPoints();
 	if (!IsSpawnConfigured() || !GetWorld())
 	{
 		return;
@@ -104,6 +108,17 @@ void AOngseongEnemyWaveManager::StartSpawning()
 		&AOngseongEnemyWaveManager::RetryArcherSlotAssignments,
 		FMath::Max(0.5f, ArcherSlotRetryInterval),
 		true);
+
+	// Swordsmen continuously refresh their individual slots around the moving ram. A location
+	// command is used rather than MoveToActor so every soldier keeps a distinct destination.
+	GetWorldTimerManager().ClearTimer(SwordsmanFormationTimerHandle);
+	GetWorldTimerManager().SetTimer(
+		SwordsmanFormationTimerHandle,
+		this,
+		&AOngseongEnemyWaveManager::UpdateSwordsmanFormation,
+		FMath::Max(0.1f, SwordsmanFormationUpdateInterval),
+		true,
+		0.0f);
 }
 
 void AOngseongEnemyWaveManager::StopSpawning()
@@ -113,6 +128,7 @@ void AOngseongEnemyWaveManager::StopSpawning()
 	{
 		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 		GetWorldTimerManager().ClearTimer(ArcherSlotRetryHandle);
+		GetWorldTimerManager().ClearTimer(SwordsmanFormationTimerHandle);
 	}
 	ClearPendingRespawns();
 }
@@ -158,6 +174,7 @@ void AOngseongEnemyWaveManager::ReleaseAllEnemies()
 	}
 	EnemyPoolsByActor.Reset();
 	EnemyTypesByActor.Reset();
+	SwordsmanFormationSlots.Reset();
 	OnPopulationChanged.Broadcast(0, GetMaxConcurrentEnemies());
 }
 
@@ -180,7 +197,7 @@ bool AOngseongEnemyWaveManager::SpawnEnemy()
 	return SpawnEnemyOfType(EnemyType);
 }
 
-bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyType)
+bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyType, const bool bUseRespawnPoint)
 {
 	AActorPool* SpawnPool = GetPoolForEnemyType(EnemyType);
 	if (!IsSpawnConfigured() || !IsValid(SpawnPool) || ActiveEnemies.Num() >= GetMaxConcurrentEnemies())
@@ -188,7 +205,7 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 		return false;
 	}
 
-	AActor* AcquiredActor = SpawnPool->AcquireActor(BuildSpawnTransform());
+	AActor* AcquiredActor = SpawnPool->AcquireActor(BuildSpawnTransform(bUseRespawnPoint));
 	AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(AcquiredActor);
 	if (!Enemy)
 	{
@@ -204,6 +221,9 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 		HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleEnemyDeath);
 	}
 	Enemy->SetObjectiveTarget(ObjectiveTarget);
+	ActiveEnemies.AddUnique(Enemy);
+	EnemyPoolsByActor.Add(Enemy, SpawnPool);
+	EnemyTypesByActor.Add(Enemy, EnemyType);
 	if (EnemyType == EOngseongEnemyType::Archer)
 	{
 		UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>();
@@ -216,9 +236,11 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 		ArcherCombat->ActivateCombat();
 		ApplyArcherEngagement(Enemy);
 	}
-	ActiveEnemies.AddUnique(Enemy);
-	EnemyPoolsByActor.Add(Enemy, SpawnPool);
-	EnemyTypesByActor.Add(Enemy, EnemyType);
+	else
+	{
+		AssignSwordsmanFormationSlot(Enemy);
+		ApplySwordsmanMarch(Enemy);
+	}
 	++TotalSpawnedEnemies;
 	OnEnemySpawned.Broadcast(Enemy, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 	OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
@@ -281,7 +303,7 @@ void AOngseongEnemyWaveManager::HandleRespawnTimer(const EOngseongEnemyType Enem
 		return;
 	}
 
-	if (!SpawnEnemyOfType(EnemyType))
+	if (!SpawnEnemyOfType(EnemyType, true))
 	{
 		// The pool was exhausted or misconfigured. Try again on the next respawn cycle instead of
 		// silently shrinking the population.
@@ -427,6 +449,7 @@ void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 		ActiveEnemies.Remove(Enemy);
 		EnemyPoolsByActor.Remove(Enemy);
 		EnemyTypesByActor.Remove(Enemy);
+		SwordsmanFormationSlots.Remove(Enemy);
 		if (IsValid(ReleasePool)) ReleasePool->ReleaseActor(Enemy);
 		OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 	}
@@ -448,6 +471,7 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 		ArcherCombat->DeactivateCombat();
 	}
 	ReleaseCannonSlots(Enemy);
+	SwordsmanFormationSlots.Remove(Enemy);
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 	{
 		Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
@@ -457,6 +481,7 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 void AOngseongEnemyWaveManager::SetArcherEscortTarget(AActor* NewEscortTarget)
 {
 	ArcherEscortTarget = NewEscortTarget;
+	UpdateSwordsmanFormation();
 }
 
 AChongtongCannonActor* AOngseongEnemyWaveManager::ReserveCannonForArcher(AEnemyCombatCharacter* Archer)
@@ -525,7 +550,7 @@ void AOngseongEnemyWaveManager::ApplyArcherEngagement(AEnemyCombatCharacter* Arc
 	{
 		// The Behavior Tree walks to TargetActor, so this is the move destination, not the aim point.
 		Controller->SetCombatTarget(MoveTarget);
-		Controller->MoveToCombatActor(MoveTarget, ArcherRange * 0.9f);
+		Controller->MoveToCombatActor(MoveTarget, FMath::Min(ArcherRange * 0.9f, ArcherApproachRadius));
 	}
 	UE_LOG(LogOngseong, Verbose, TEXT("%s engages %s (escorting=%d)."),
 		*Archer->GetName(), *GetNameSafe(MoveTarget), Cannon ? 0 : 1);
@@ -553,11 +578,141 @@ AActorPool* AOngseongEnemyWaveManager::GetPoolForEnemyType(const EOngseongEnemyT
 	return EnemyType == EOngseongEnemyType::Archer && IsValid(ArcherEnemyPool) ? ArcherEnemyPool : EnemyPool;
 }
 
-FTransform AOngseongEnemyWaveManager::BuildSpawnTransform()
+void AOngseongEnemyWaveManager::ResolveSpawnPoints()
+{
+	if (!GetWorld() || (IsValid(InitialSpawnPoint) && IsValid(SoldierRespawnPoint)))
+	{
+		return;
+	}
+	for (TActorIterator<AOngseongSpawnPointActor> It(GetWorld()); It; ++It)
+	{
+		AOngseongSpawnPointActor* Point = *It;
+		if (!IsValid(InitialSpawnPoint) && Point->MatchesRole(EOngseongSpawnPointRole::EnemyInitial))
+		{
+			InitialSpawnPoint = Point;
+		}
+		else if (!IsValid(SoldierRespawnPoint) && Point->MatchesRole(EOngseongSpawnPointRole::SoldierRespawn))
+		{
+			SoldierRespawnPoint = Point;
+		}
+	}
+}
+
+int32 AOngseongEnemyWaveManager::AssignSwordsmanFormationSlot(AEnemyCombatCharacter* Swordsman)
+{
+	if (!IsValid(Swordsman))
+	{
+		return INDEX_NONE;
+	}
+	if (const int32* ExistingSlot = SwordsmanFormationSlots.Find(Swordsman))
+	{
+		return *ExistingSlot;
+	}
+
+	TSet<int32> OccupiedSlots;
+	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanFormationSlots)
+	{
+		if (IsValid(Pair.Key))
+		{
+			OccupiedSlots.Add(Pair.Value);
+		}
+	}
+	int32 SlotIndex = 0;
+	while (OccupiedSlots.Contains(SlotIndex))
+	{
+		++SlotIndex;
+	}
+	SwordsmanFormationSlots.Add(Swordsman, SlotIndex);
+	return SlotIndex;
+}
+
+FVector AOngseongEnemyWaveManager::GetSwordsmanFormationLocation(const int32 SlotIndex) const
+{
+	const AActor* MarchTarget = IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get();
+	if (!IsValid(MarchTarget))
+	{
+		return GetActorLocation();
+	}
+
+	FVector Forward = IsValid(ObjectiveTarget)
+		? ObjectiveTarget->GetActorLocation() - MarchTarget->GetActorLocation()
+		: MarchTarget->GetActorForwardVector();
+	Forward.Z = 0.0f;
+	if (!Forward.Normalize())
+	{
+		Forward = FVector::ForwardVector;
+	}
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
+	constexpr int32 FormationColumns = 4;
+	const int32 Column = FMath::Max(0, SlotIndex) % FormationColumns;
+	const int32 Row = FMath::Max(0, SlotIndex) / FormationColumns;
+	const float LateralOffset = (static_cast<float>(Column) - 1.5f) * SwordsmanFormationSpacing;
+	const float TrailingOffset = SwordsmanTrailingDistance + static_cast<float>(Row) * SwordsmanFormationSpacing;
+	FVector FormationLocation = MarchTarget->GetActorLocation() - Forward * TrailingOffset + Right * LateralOffset;
+	FormationLocation.Z = MarchTarget->GetActorLocation().Z;
+	return FormationLocation;
+}
+
+void AOngseongEnemyWaveManager::ApplySwordsmanMarch(AEnemyCombatCharacter* Swordsman)
+{
+	if (!IsValid(Swordsman))
+	{
+		return;
+	}
+	const int32 SlotIndex = AssignSwordsmanFormationSlot(Swordsman);
+	if (SlotIndex == INDEX_NONE)
+	{
+		return;
+	}
+	const FVector FormationLocation = GetSwordsmanFormationLocation(SlotIndex);
+	const float DistanceToSlot = FVector::Dist2D(Swordsman->GetActorLocation(), FormationLocation);
+	if (UCharacterMovementComponent* Movement = Swordsman->GetCharacterMovement())
+	{
+		Movement->MaxWalkSpeed = DistanceToSlot > SwordsmanCatchUpDistance
+			? SwordsmanCatchUpSpeed : SwordsmanMarchSpeed;
+	}
+	if (ACombatAIController* Controller = Cast<ACombatAIController>(Swordsman->GetController()))
+	{
+		Controller->MoveToCombatLocation(FormationLocation, SwordsmanFormationAcceptanceRadius);
+	}
+}
+
+void AOngseongEnemyWaveManager::UpdateSwordsmanFormation()
+{
+	SwordsmanFormationSlots.RemoveAll([](const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair)
+	{
+		return !IsValid(Pair.Key);
+	});
+	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanFormationSlots)
+	{
+		ApplySwordsmanMarch(Pair.Key);
+	}
+}
+
+FTransform AOngseongEnemyWaveManager::BuildSpawnTransform(const bool bUseRespawnPoint)
 {
 	constexpr int32 FormationWidth = 3;
 	const int32 FormationIndex = SpawnSequence++ % FormationWidth;
 	const float CenteredIndex = static_cast<float>(FormationIndex - FormationWidth / 2);
-	const FVector SpawnLocation = GetActorLocation() + GetActorRightVector() * CenteredIndex * SpawnSpacing;
-	return FTransform(GetActorRotation(), SpawnLocation);
+	const AActor* SpawnOrigin = bUseRespawnPoint && IsValid(SoldierRespawnPoint)
+		? static_cast<const AActor*>(SoldierRespawnPoint)
+		: (IsValid(InitialSpawnPoint) ? static_cast<const AActor*>(InitialSpawnPoint) : static_cast<const AActor*>(this));
+	FVector SpawnLocation = SpawnOrigin->GetActorLocation() + SpawnOrigin->GetActorRightVector() * CenteredIndex * SpawnSpacing;
+	if (UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+	{
+		FNavLocation ProjectedLocation;
+		if (NavigationSystem->ProjectPointToNavigation(SpawnLocation, ProjectedLocation, SpawnNavProjectionExtent))
+		{
+			const FVector AuthoredLocation = SpawnLocation;
+			SpawnLocation = ProjectedLocation.Location + FVector::UpVector * SpawnHeightAboveNavmesh;
+			UE_LOG(LogOngseong, VeryVerbose, TEXT("Projected authored spawn %s onto navigation at %s."),
+				*AuthoredLocation.ToCompactString(), *SpawnLocation.ToCompactString());
+		}
+		else
+		{
+			UE_LOG(LogOngseong, Warning, TEXT("Could not project authored spawn %s onto navigation; spawned enemies may not move."),
+				*SpawnLocation.ToCompactString());
+		}
+	}
+	return FTransform(SpawnOrigin->GetActorRotation(), SpawnLocation);
 }
