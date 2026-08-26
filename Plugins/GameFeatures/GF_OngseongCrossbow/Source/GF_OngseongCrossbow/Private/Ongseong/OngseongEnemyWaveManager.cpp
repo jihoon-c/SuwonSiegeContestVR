@@ -11,6 +11,7 @@
 #include "Ongseong/OngseongArcherCombatComponent.h"
 #include "Ongseong/OngseongSpawnPointActor.h"
 #include "EngineUtils.h"
+#include "Engine/TargetPoint.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 #include "Kismet/GameplayStatics.h"
@@ -109,14 +110,14 @@ void AOngseongEnemyWaveManager::StartSpawning()
 		FMath::Max(0.5f, ArcherSlotRetryInterval),
 		true);
 
-	// Swordsmen continuously refresh their individual slots around the moving ram. A location
-	// command is used rather than MoveToActor so every soldier keeps a distinct destination.
-	GetWorldTimerManager().ClearTimer(SwordsmanFormationTimerHandle);
+	// Swordsmen use a loose escort leash: run back when far away, then idle and occasionally
+	// wander near the ram. Movement commands are only refreshed when behavior actually changes.
+	GetWorldTimerManager().ClearTimer(SwordsmanBehaviorTimerHandle);
 	GetWorldTimerManager().SetTimer(
-		SwordsmanFormationTimerHandle,
+		SwordsmanBehaviorTimerHandle,
 		this,
-		&AOngseongEnemyWaveManager::UpdateSwordsmanFormation,
-		FMath::Max(0.1f, SwordsmanFormationUpdateInterval),
+		&AOngseongEnemyWaveManager::UpdateSwordsmanEscortBehavior,
+		FMath::Max(0.1f, SwordsmanBehaviorUpdateInterval),
 		true,
 		0.0f);
 }
@@ -128,7 +129,7 @@ void AOngseongEnemyWaveManager::StopSpawning()
 	{
 		GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 		GetWorldTimerManager().ClearTimer(ArcherSlotRetryHandle);
-		GetWorldTimerManager().ClearTimer(SwordsmanFormationTimerHandle);
+		GetWorldTimerManager().ClearTimer(SwordsmanBehaviorTimerHandle);
 	}
 	ClearPendingRespawns();
 }
@@ -148,7 +149,7 @@ void AOngseongEnemyWaveManager::RetreatAllEnemies(const FVector RetreatLocation)
 	for (AEnemyCombatCharacter* Enemy : ActiveEnemies)
 	{
 		if (UOngseongArcherCombatComponent* ArcherCombat = Enemy->FindComponentByClass<UOngseongArcherCombatComponent>()) ArcherCombat->DeactivateCombat();
-		ReleaseCannonSlots(Enemy);
+		ReleaseArcherAttackPosition(Enemy);
 		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 		{
 			Controller->OnMoveTargetReached.AddUniqueDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
@@ -174,7 +175,11 @@ void AOngseongEnemyWaveManager::ReleaseAllEnemies()
 	}
 	EnemyPoolsByActor.Reset();
 	EnemyTypesByActor.Reset();
-	SwordsmanFormationSlots.Reset();
+	ArcherAttackPositionsByEnemy.Reset();
+	SwordsmanEscortSectors.Reset();
+	SwordsmanMoveDestinations.Reset();
+	SwordsmanNextWanderTimes.Reset();
+	SwordsmenFollowingRam.Reset();
 	OnPopulationChanged.Broadcast(0, GetMaxConcurrentEnemies());
 }
 
@@ -238,8 +243,8 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 	}
 	else
 	{
-		AssignSwordsmanFormationSlot(Enemy);
-		ApplySwordsmanMarch(Enemy);
+		AssignSwordsmanEscortSector(Enemy);
+		ApplySwordsmanEscortBehavior(Enemy);
 	}
 	++TotalSpawnedEnemies;
 	OnEnemySpawned.Broadcast(Enemy, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
@@ -449,7 +454,10 @@ void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 		ActiveEnemies.Remove(Enemy);
 		EnemyPoolsByActor.Remove(Enemy);
 		EnemyTypesByActor.Remove(Enemy);
-		SwordsmanFormationSlots.Remove(Enemy);
+		SwordsmanEscortSectors.Remove(Enemy);
+		SwordsmanMoveDestinations.Remove(Enemy);
+		SwordsmanNextWanderTimes.Remove(Enemy);
+		SwordsmenFollowingRam.Remove(Enemy);
 		if (IsValid(ReleasePool)) ReleasePool->ReleaseActor(Enemy);
 		OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 	}
@@ -470,8 +478,11 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 	{
 		ArcherCombat->DeactivateCombat();
 	}
-	ReleaseCannonSlots(Enemy);
-	SwordsmanFormationSlots.Remove(Enemy);
+	ReleaseArcherAttackPosition(Enemy);
+	SwordsmanEscortSectors.Remove(Enemy);
+	SwordsmanMoveDestinations.Remove(Enemy);
+	SwordsmanNextWanderTimes.Remove(Enemy);
+	SwordsmenFollowingRam.Remove(Enemy);
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 	{
 		Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
@@ -481,53 +492,95 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 void AOngseongEnemyWaveManager::SetArcherEscortTarget(AActor* NewEscortTarget)
 {
 	ArcherEscortTarget = NewEscortTarget;
-	UpdateSwordsmanFormation();
+	UpdateSwordsmanEscortBehavior();
 }
 
-AChongtongCannonActor* AOngseongEnemyWaveManager::ReserveCannonForArcher(AEnemyCombatCharacter* Archer)
+ATargetPoint* AOngseongEnemyWaveManager::ReserveAttackPositionForArcher(
+	AEnemyCombatCharacter* Archer,
+	AChongtongCannonActor*& OutCannon)
 {
+	OutCannon = nullptr;
 	if (!IsValid(Archer) || !GetWorld())
 	{
 		return nullptr;
 	}
 
-	// Nearest first, so archers spread over the emplacements they are actually walking past.
-	TArray<AChongtongCannonActor*> Candidates;
-	for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
+	ReleaseArcherAttackPosition(Archer);
+	TSet<ATargetPoint*> OccupiedPositions;
+	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, TObjectPtr<ATargetPoint>>& Pair : ArcherAttackPositionsByEnemy)
 	{
-		AChongtongCannonActor* Cannon = *It;
-		const UHealthComponent* Health = Cannon ? Cannon->FindComponentByClass<UHealthComponent>() : nullptr;
-		if (IsValid(Cannon) && (!Health || !Health->IsDead()))
+		if (IsValid(Pair.Key) && IsValid(Pair.Value))
 		{
-			Candidates.Add(Cannon);
+			OccupiedPositions.Add(Pair.Value);
+		}
+	}
+	TArray<ATargetPoint*> Candidates;
+	for (TActorIterator<ATargetPoint> It(GetWorld()); It; ++It)
+	{
+		ATargetPoint* Position = *It;
+		if (IsValid(Position)
+			&& Position->ActorHasTag(TEXT("Ongseong.ArcherAttackPosition"))
+			&& !OccupiedPositions.Contains(Position))
+		{
+			Candidates.Add(Position);
 		}
 	}
 	const FVector ArcherLocation = Archer->GetActorLocation();
-	Candidates.Sort([&ArcherLocation](const AChongtongCannonActor& A, const AChongtongCannonActor& B)
+	Candidates.Sort([&ArcherLocation](const ATargetPoint& A, const ATargetPoint& B)
 	{
 		return FVector::DistSquared(A.GetActorLocation(), ArcherLocation)
 			< FVector::DistSquared(B.GetActorLocation(), ArcherLocation);
 	});
 
-	for (AChongtongCannonActor* Cannon : Candidates)
+	for (ATargetPoint* Position : Candidates)
 	{
-		if (Cannon->TryReserveAttackerSlot(Archer))
+		AChongtongCannonActor* NearestCannon = nullptr;
+		float NearestDistanceSquared = TNumericLimits<float>::Max();
+		for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
 		{
-			return Cannon;
+			AChongtongCannonActor* CandidateCannon = *It;
+			const UHealthComponent* Health = CandidateCannon
+				? CandidateCannon->FindComponentByClass<UHealthComponent>() : nullptr;
+			if (!IsValid(CandidateCannon) || (Health && Health->IsDead()))
+			{
+				continue;
+			}
+			const float DistanceSquared = FVector::DistSquared(
+				Position->GetActorLocation(), CandidateCannon->GetActorLocation());
+			if (DistanceSquared < NearestDistanceSquared)
+			{
+				NearestCannon = CandidateCannon;
+				NearestDistanceSquared = DistanceSquared;
+			}
 		}
+		if (!IsValid(NearestCannon))
+		{
+			continue;
+		}
+		OutCannon = NearestCannon;
+		ArcherAttackPositionsByEnemy.Add(Archer, Position);
+		UE_LOG(LogOngseong, Verbose, TEXT("Archer position %s reserved by %s for %s."),
+			*Position->GetName(), *Archer->GetName(), *NearestCannon->GetName());
+		return Position;
 	}
 	return nullptr;
 }
 
-void AOngseongEnemyWaveManager::ReleaseCannonSlots(AActor* Archer)
+void AOngseongEnemyWaveManager::ReleaseArcherAttackPosition(AActor* Archer)
 {
-	if (!GetWorld())
+	AEnemyCombatCharacter* Enemy = Cast<AEnemyCombatCharacter>(Archer);
+	if (!Enemy)
 	{
 		return;
 	}
-	for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
+	if (TObjectPtr<ATargetPoint>* Position = ArcherAttackPositionsByEnemy.Find(Enemy))
 	{
-		It->ReleaseAttackerSlot(Archer);
+		if (IsValid(*Position))
+		{
+			UE_LOG(LogOngseong, Verbose, TEXT("Archer position %s released by %s."),
+				*(*Position)->GetName(), *Archer->GetName());
+		}
+		ArcherAttackPositionsByEnemy.Remove(Enemy);
 	}
 }
 
@@ -540,9 +593,10 @@ void AOngseongEnemyWaveManager::ApplyArcherEngagement(AEnemyCombatCharacter* Arc
 		return;
 	}
 
-	AChongtongCannonActor* Cannon = ReserveCannonForArcher(Archer);
-	// A full emplacement is simply ignored: the surplus walks on to the ram instead of queueing.
-	AActor* MoveTarget = Cannon ? static_cast<AActor*>(Cannon)
+	AChongtongCannonActor* Cannon = nullptr;
+	ATargetPoint* AttackPosition = ReserveAttackPositionForArcher(Archer, Cannon);
+	// When every authored position is occupied, surplus archers continue toward the ram.
+	AActor* MoveTarget = AttackPosition ? static_cast<AActor*>(AttackPosition)
 		: (IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get());
 	ArcherCombat->ConfigureCombat(Cannon, ObjectiveTarget, ArcherProjectilePool);
 
@@ -550,10 +604,13 @@ void AOngseongEnemyWaveManager::ApplyArcherEngagement(AEnemyCombatCharacter* Arc
 	{
 		// The Behavior Tree walks to TargetActor, so this is the move destination, not the aim point.
 		Controller->SetCombatTarget(MoveTarget);
-		Controller->MoveToCombatActor(MoveTarget, FMath::Min(ArcherRange * 0.9f, ArcherApproachRadius));
+		const float ApproachRadius = ArcherApproachRadius;
+		const bool bMoveAccepted = Controller->MoveToCombatActor(MoveTarget, ApproachRadius);
+		UE_LOG(LogOngseong, VeryVerbose, TEXT("%s archer move request to %s accepted=%d radius=%.0f."),
+			*Archer->GetName(), *GetNameSafe(MoveTarget), bMoveAccepted ? 1 : 0, ApproachRadius);
 	}
 	UE_LOG(LogOngseong, Verbose, TEXT("%s engages %s (escorting=%d)."),
-		*Archer->GetName(), *GetNameSafe(MoveTarget), Cannon ? 0 : 1);
+		*Archer->GetName(), *GetNameSafe(MoveTarget), AttackPosition ? 0 : 1);
 }
 
 void AOngseongEnemyWaveManager::RetryArcherSlotAssignments()
@@ -598,97 +655,177 @@ void AOngseongEnemyWaveManager::ResolveSpawnPoints()
 	}
 }
 
-int32 AOngseongEnemyWaveManager::AssignSwordsmanFormationSlot(AEnemyCombatCharacter* Swordsman)
+int32 AOngseongEnemyWaveManager::AssignSwordsmanEscortSector(AEnemyCombatCharacter* Swordsman)
 {
 	if (!IsValid(Swordsman))
 	{
 		return INDEX_NONE;
 	}
-	if (const int32* ExistingSlot = SwordsmanFormationSlots.Find(Swordsman))
+	if (const int32* ExistingSector = SwordsmanEscortSectors.Find(Swordsman))
 	{
-		return *ExistingSlot;
+		return *ExistingSector;
 	}
 
-	TSet<int32> OccupiedSlots;
-	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanFormationSlots)
+	TSet<int32> OccupiedSectors;
+	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanEscortSectors)
 	{
 		if (IsValid(Pair.Key))
 		{
-			OccupiedSlots.Add(Pair.Value);
+			OccupiedSectors.Add(Pair.Value);
 		}
 	}
-	int32 SlotIndex = 0;
-	while (OccupiedSlots.Contains(SlotIndex))
+	int32 SectorIndex = 0;
+	while (OccupiedSectors.Contains(SectorIndex))
 	{
-		++SlotIndex;
+		++SectorIndex;
 	}
-	SwordsmanFormationSlots.Add(Swordsman, SlotIndex);
-	return SlotIndex;
+	SwordsmanEscortSectors.Add(Swordsman, SectorIndex);
+	return SectorIndex;
 }
 
-FVector AOngseongEnemyWaveManager::GetSwordsmanFormationLocation(const int32 SlotIndex) const
+FVector AOngseongEnemyWaveManager::BuildSwordsmanDestination(const int32 SectorIndex, const bool bWander) const
 {
-	const AActor* MarchTarget = IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get();
-	if (!IsValid(MarchTarget))
+	const AActor* EscortTarget = IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get();
+	if (!IsValid(EscortTarget))
 	{
 		return GetActorLocation();
 	}
 
 	FVector Forward = IsValid(ObjectiveTarget)
-		? ObjectiveTarget->GetActorLocation() - MarchTarget->GetActorLocation()
-		: MarchTarget->GetActorForwardVector();
+		? ObjectiveTarget->GetActorLocation() - EscortTarget->GetActorLocation()
+		: EscortTarget->GetActorForwardVector();
 	Forward.Z = 0.0f;
 	if (!Forward.Normalize())
 	{
 		Forward = FVector::ForwardVector;
 	}
 	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
-	constexpr int32 FormationColumns = 4;
-	const int32 Column = FMath::Max(0, SlotIndex) % FormationColumns;
-	const int32 Row = FMath::Max(0, SlotIndex) / FormationColumns;
-	const float LateralOffset = (static_cast<float>(Column) - 1.5f) * SwordsmanFormationSpacing;
-	const float TrailingOffset = SwordsmanTrailingDistance + static_cast<float>(Row) * SwordsmanFormationSpacing;
-	FVector FormationLocation = MarchTarget->GetActorLocation() - Forward * TrailingOffset + Right * LateralOffset;
-	FormationLocation.Z = MarchTarget->GetActorLocation().Z;
-	return FormationLocation;
+	constexpr int32 SectorColumns = 4;
+	const int32 Column = FMath::Max(0, SectorIndex) % SectorColumns;
+	const int32 Row = FMath::Max(0, SectorIndex) / SectorColumns;
+	float LateralOffset = (static_cast<float>(Column) - 1.5f) * SwordsmanEscortSpacing;
+	float TrailingOffset = SwordsmanSettleDistance * 0.45f + static_cast<float>(Row) * SwordsmanEscortSpacing;
+	if (bWander)
+	{
+		LateralOffset += FMath::FRandRange(-SwordsmanWanderRadius, SwordsmanWanderRadius);
+		TrailingOffset += FMath::FRandRange(-SwordsmanWanderRadius, SwordsmanWanderRadius);
+	}
+	FVector Destination = EscortTarget->GetActorLocation() - Forward * TrailingOffset + Right * LateralOffset;
+	Destination.Z = EscortTarget->GetActorLocation().Z;
+	ProjectEscortDestinationToNavigation(Destination);
+	return Destination;
 }
 
-void AOngseongEnemyWaveManager::ApplySwordsmanMarch(AEnemyCombatCharacter* Swordsman)
+bool AOngseongEnemyWaveManager::ProjectEscortDestinationToNavigation(FVector& InOutDestination) const
+{
+	if (UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+	{
+		FNavLocation ProjectedLocation;
+		const FVector EscortProjectionExtent(250.0f, 250.0f, 500.0f);
+		if (NavigationSystem->ProjectPointToNavigation(InOutDestination, ProjectedLocation, EscortProjectionExtent))
+		{
+			InOutDestination = ProjectedLocation.Location;
+			return true;
+		}
+	}
+	return false;
+}
+
+void AOngseongEnemyWaveManager::CommandSwordsmanMove(
+	AEnemyCombatCharacter* Swordsman,
+	const FVector& Destination,
+	const float Speed)
 {
 	if (!IsValid(Swordsman))
 	{
 		return;
 	}
-	const int32 SlotIndex = AssignSwordsmanFormationSlot(Swordsman);
-	if (SlotIndex == INDEX_NONE)
-	{
-		return;
-	}
-	const FVector FormationLocation = GetSwordsmanFormationLocation(SlotIndex);
-	const float DistanceToSlot = FVector::Dist2D(Swordsman->GetActorLocation(), FormationLocation);
 	if (UCharacterMovementComponent* Movement = Swordsman->GetCharacterMovement())
 	{
-		Movement->MaxWalkSpeed = DistanceToSlot > SwordsmanCatchUpDistance
-			? SwordsmanCatchUpSpeed : SwordsmanMarchSpeed;
+		Movement->MaxWalkSpeed = FMath::Max(0.0f, Speed);
 	}
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Swordsman->GetController()))
 	{
-		Controller->MoveToCombatLocation(FormationLocation, SwordsmanFormationAcceptanceRadius);
+		const bool bMoveAccepted = Controller->MoveToCombatLocation(Destination, SwordsmanMoveAcceptanceRadius);
+		SwordsmanMoveDestinations.Add(Swordsman, Destination);
+		UE_LOG(LogOngseong, VeryVerbose, TEXT("%s swordsman move request accepted=%d speed=%.0f destination=%s."),
+			*Swordsman->GetName(), bMoveAccepted ? 1 : 0, Speed, *Destination.ToCompactString());
 	}
 }
 
-void AOngseongEnemyWaveManager::UpdateSwordsmanFormation()
+void AOngseongEnemyWaveManager::ApplySwordsmanEscortBehavior(AEnemyCombatCharacter* Swordsman)
 {
-	for (auto It = SwordsmanFormationSlots.CreateIterator(); It; ++It)
+	if (!IsValid(Swordsman) || !GetWorld())
+	{
+		return;
+	}
+	const AActor* EscortTarget = IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get();
+	if (!IsValid(EscortTarget))
+	{
+		return;
+	}
+
+	const int32 SectorIndex = AssignSwordsmanEscortSector(Swordsman);
+	const float DistanceToRam = FVector::Dist2D(Swordsman->GetActorLocation(), EscortTarget->GetActorLocation());
+	const float Now = GetWorld()->GetTimeSeconds();
+	const bool bFollowing = SwordsmenFollowingRam.Contains(Swordsman);
+	UE_LOG(LogOngseong, VeryVerbose, TEXT("%s escort distance=%.0f velocity=%.1f following=%d."),
+		*Swordsman->GetName(), DistanceToRam, Swordsman->GetVelocity().Size2D(), bFollowing ? 1 : 0);
+
+	if (DistanceToRam > SwordsmanFollowTriggerDistance)
+	{
+		const FVector DesiredDestination = BuildSwordsmanDestination(SectorIndex, false);
+		const FVector* PreviousDestination = SwordsmanMoveDestinations.Find(Swordsman);
+		if (!bFollowing || !PreviousDestination
+			|| FVector::DistSquared2D(*PreviousDestination, DesiredDestination)
+				> FMath::Square(SwordsmanFollowTargetRefreshDistance))
+		{
+			CommandSwordsmanMove(Swordsman, DesiredDestination, SwordsmanFollowSpeed);
+		}
+		SwordsmenFollowingRam.Add(Swordsman);
+		return;
+	}
+
+	if (bFollowing && DistanceToRam <= SwordsmanSettleDistance)
+	{
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(Swordsman->GetController()))
+		{
+			Controller->StopCombatMovement();
+		}
+		SwordsmenFollowingRam.Remove(Swordsman);
+		SwordsmanMoveDestinations.Remove(Swordsman);
+		SwordsmanNextWanderTimes.Add(Swordsman,
+			Now + FMath::FRandRange(SwordsmanWanderIntervalMin, FMath::Max(SwordsmanWanderIntervalMin, SwordsmanWanderIntervalMax)));
+		return;
+	}
+
+	if (!bFollowing)
+	{
+		const float* NextWanderTime = SwordsmanNextWanderTimes.Find(Swordsman);
+		if (!NextWanderTime || Now >= *NextWanderTime)
+		{
+			CommandSwordsmanMove(Swordsman, BuildSwordsmanDestination(SectorIndex, true), SwordsmanWanderSpeed);
+			SwordsmanNextWanderTimes.Add(Swordsman,
+				Now + FMath::FRandRange(SwordsmanWanderIntervalMin, FMath::Max(SwordsmanWanderIntervalMin, SwordsmanWanderIntervalMax)));
+		}
+	}
+}
+
+void AOngseongEnemyWaveManager::UpdateSwordsmanEscortBehavior()
+{
+	for (auto It = SwordsmanEscortSectors.CreateIterator(); It; ++It)
 	{
 		if (!IsValid(It.Key()))
 		{
+			SwordsmanMoveDestinations.Remove(It.Key());
+			SwordsmanNextWanderTimes.Remove(It.Key());
+			SwordsmenFollowingRam.Remove(It.Key());
 			It.RemoveCurrent();
 		}
 	}
-	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanFormationSlots)
+	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanEscortSectors)
 	{
-		ApplySwordsmanMarch(Pair.Key);
+		ApplySwordsmanEscortBehavior(Pair.Key);
 	}
 }
 

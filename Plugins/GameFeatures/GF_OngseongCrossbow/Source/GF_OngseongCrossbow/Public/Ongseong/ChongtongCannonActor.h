@@ -83,22 +83,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong")
 	AActor* SelectTarget() const;
 
-	/**
-	 * Attack slots: how many enemies may close in on this emplacement at once.
-	 * A full cannon is ignored by the next archer, which walks on to another one or to the ram.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Slots")
-	bool TryReserveAttackerSlot(AActor* Attacker);
-
-	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Slots")
-	void ReleaseAttackerSlot(AActor* Attacker);
-
-	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Slots")
-	bool HasFreeAttackerSlot() const;
-
-	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Slots")
-	int32 GetReservedAttackerCount() const;
-
 	/** Spawns the configured allied operator and locks it to the cannon's seat. */
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Operator")
 	bool SpawnMountedOperator();
@@ -136,7 +120,6 @@ protected:
 	void AimAssemblyYawAtDirection(const FVector& WorldDirection);
 	/** Solves the launch velocity that drops a shell on TargetLocation under the shell's own gravity. */
 	bool SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const;
-	void PruneAttackerSlots() const;
 	void PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, float Pitch = 1.0f);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -241,13 +224,6 @@ protected:
 	/** 0 = flattest arc that still reaches, 1 = highest lob. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FiringArc = 0.45f;
-
-	/** Enemies allowed to engage this emplacement at once. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong|Slots", meta = (ClampMin = "0"))
-	int32 MaxAttackerSlots = 2;
-
-	/** Weak by design and deliberately not a UPROPERTY: a slot must never keep an attacker alive. */
-	mutable TArray<TWeakObjectPtr<AActor>> AttackerSlots;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
 	float ProjectileDamage = 40.0f;

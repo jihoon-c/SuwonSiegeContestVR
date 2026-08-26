@@ -16,6 +16,11 @@
 컴파일된 Sequence Player가 모두 루프임을 검증했다. 아군 총통 조준은 포신 단독 3축 회전에서
 **포신+화차 전체 어셈블리의 Yaw 전용 회전**으로 교체했다.
 
+**2026-08-26 보병 이동 후속 개정**: 검병은 충차의 고정 슬롯을 계속 유지하지 않고,
+700cm 밖에서 따라잡은 뒤 450cm 안에서는 정지·랜덤 배회를 반복한다. 궁병은 성벽 위 총통을
+Nav 목표로 쓰지 않고 성벽 안쪽 NavMesh의 `TargetPoint` 공격 포지션 8개를 예약한다.
+아군 총통 자동 사격은 궁병뿐 아니라 적 검병도 포함한다.
+
 **2026-08-26 2차 개정**: 본편 `LV_Ongseong`의 배치를 `LV_Ongseong_CombatTest`와 동일하게 맞추고
 (공용 남한산성 지형 연결, Transform 이관, Spawn Point 3종 배치·연결, 잔여 Actor 정리),
 본편 진행을 **총통 장전 완료 → 체험 시작 나레이션 → 2초 뒤 나팔·BGM·적 웨이브 → 충차 파괴 시
@@ -304,8 +309,9 @@ Actor `BeginPlay` 순서는 보장되지 않으므로 `AActorPool::AcquireActor`
 |---|---|---|
 | 쇠뇌 폐지 | `Removed` | 클래스 2종·Blueprint·배치 인스턴스 삭제. 화살 클래스는 적 궁병용으로 유지 |
 | 여분 충차 제거 | `Removed` | 성 안쪽 (810,2210)의 비목표 충차. 아군 사격 17%를 낭비하고 있었다 |
-| 아군 총통 표적 제한 | `Implemented` | `bEngageEnemyArchersOnly`(기본 true). 105발 전수 궁병 조준 확인 |
-| 어택 슬롯 | `Implemented` | 총통당 2명, 가득 차면 다음 총통, 전부 차면 충차 호위 |
+| 아군 총통 보병 표적 | `Implemented` | `bEngageEnemyInfantryOnly`(기본 true). 적 궁병과 검병을 포함하고 충차는 제외 |
+| 궁병 공격 포지션 | `Implemented` | 성벽 안쪽 NavMesh의 태그된 `TargetPoint` 8개를 1명씩 예약. 가장 가까운 생존 총통을 사격 표적으로 연결 |
+| 검병 충차 호위 | `Implemented` | 700cm 이탈 시 180cm/s 추종, 450cm 이내 정착, 2.5~5초 간격으로 주변 랜덤 배회(90cm/s) |
 | 충차 회전 | `Implemented (육안 확인 대기)` | `MeshYawOffset = -90` |
 | 포탄 탄도 | `Implemented` | 중력 0.7, 플레이어 2800cm/s, AI는 `SuggestProjectileVelocity_CustomArc` 곡사 |
 | 총통 어셈블리 조준 회전 | `Implemented (육안 확인 대기)` | 블루프린트 상대 배치를 유지한 포신+화차 전체를 표적 방향으로 Yaw만 회전 |

@@ -2,7 +2,7 @@
 
 **2026-08-24 갱신**: 최초 작성 시점에는 "에디터에서 만들어야 하는 것" 목록이었으나,
 BB/BT/AIController 에셋은 모두 생성되어 있다. 아래는 **현재 구성 기준 문서**이며,
-아군 총통 어택 슬롯 도입에 따른 변경 사항을 §4에 반영했다.
+성벽 안쪽 공격 포지션 슬롯 도입에 따른 변경 사항을 §4에 반영했다.
 
 ## 0. 에셋 위치
 
@@ -38,7 +38,7 @@ Root
 └─ Sequence  [Blackboard: TargetActor Is Set]
    ├─ Move To
    │  ├─ Blackboard Key: TargetActor
-   │  ├─ Acceptable Radius: 1800
+   │  ├─ Acceptable Radius: 100
    │  ├─ Stop on Overlap: false
    │  └─ Observe Blackboard Value: true
    ├─ Fire Ongseong Arrow
@@ -52,19 +52,21 @@ Pawn의 `UOngseongArcherCombatComponent::TryFireArrow()`를 호출한다. 즉 �
 사격은 Component가 결정한다. 화살 발사는 이 BT 태스크가 유일한 경로이므로,
 **BT가 없으면 궁병은 화살을 쏘지 않는다.**
 
-`1800`은 기본 `ArcherRange` 2000의 90%다. Blueprint에서 사거리를 바꾸면 이 값도
-같은 비율로 조정한다.
+`100`은 성벽 안쪽에 배치한 공격 포지션 `TargetPoint`에 정착하기 위한 반경이다.
+사거리 2000cm는 `UOngseongArcherCombatComponent`가 별도로 판정한다.
 
 `Observe Blackboard Value: true` 덕분에 `TargetActor`가 바뀌면 이동이 즉시 중단되고
 새 목적지로 다시 경로를 잡는다. 어택 슬롯 재배정이 이 동작에 의존한다.
 
-## 4. 아군 총통 어택 슬롯 (2026-08-24 추가)
+## 4. 성벽 안쪽 궁병 공격 포지션 (2026-08-26 개정)
 
 ### 규칙
 
-* 아군 총통 1문에 동시에 붙을 수 있는 적은 **최대 2명**(`AChongtongCannonActor::MaxAttackerSlots`)
-* 슬롯이 가득 찬 총통은 **무시**하고 다음 총통을 찾는다
-* 모든 총통이 가득 차면 **충차 근처로 이동**한다 (`ArcherEscortTarget`)
+* 성벽 안쪽 NavMesh에 `TargetPoint` 8개를 배치한다
+* 모든 포지션은 Actor Tag `Ongseong.ArcherAttackPosition`을 가진다
+* 포지션 하나는 궁병 한 명만 예약하고, 가까운 포지션부터 선택한다
+* 사격 표적은 포지션에서 가장 가까운 생존 총통으로 자동 결정한다
+* 모든 포지션이 가득 차면 **충차 근처로 이동**한다 (`ArcherEscortTarget`)
 * 궁병이 죽거나 퇴각하거나 Pool로 반환되면 슬롯이 즉시 반납된다
 * 슬롯을 못 얻은 궁병은 `ArcherSlotRetryInterval`(기본 3초)마다 재시도한다
 
@@ -74,23 +76,20 @@ Pawn의 `UOngseongArcherCombatComponent::TryFireArrow()`를 호출한다. 즉 �
 
 | 상황 | `TargetActor` (BT 이동) | 사격 표적 (Component) |
 |---|---|---|
-| 슬롯 확보 | 그 총통 | 그 총통 |
+| 슬롯 확보 | 예약한 공격 포지션 `TargetPoint` | 그 포지션에서 가장 가까운 생존 총통 |
 | 슬롯 없음 · 충차 있음 | 충차 | 성문 (fallback) |
 | 슬롯 없음 · 충차 없음 | 성문 | 성문 |
 
 **궁병은 자기 진영 충차를 쏘지 않는다.** 충차는 이동 목적지로만 쓰이고, 사격 표적은
 `ConfigureCombat(Cannon, ObjectiveTarget, Pool)`의 Primary/Fallback으로 결정된다.
 
-가장 가까운 총통부터 시도하므로 궁병이 지나가는 순서대로 자연스럽게 분산된다.
+총통은 성벽 위에 있어 직접 `MoveToActor`하면 경로 요청이 실패한다. 이동 가능한 공격 포지션과
+사격 표적을 분리하므로 BT 경로는 NavMesh 위에서 끝나고 사격은 성벽 위 총통을 향한다.
 
 ### 알려진 튜닝 항목
 
-* 궁병 슬롯 7명 vs 총통 4문 × 2슬롯 = 8칸이므로 **평시에는 전원이 슬롯을 얻는다.**
-  호위(충차) 분기는 총통이 파괴되었을 때 주로 발생한다.
-* `Move To`의 `Acceptable Radius: 1800`은 **총통 교전 거리** 기준이다. 충차 호위로 갈 때는
-  충차에서 1800cm 떨어진 곳에 멈추므로 "근처"라기엔 여전히 멀다. 호위 연출을 다듬으려면
-  호위 전용 분기(작은 Acceptable Radius를 가진 두 번째 `Move To`)를 BT에 추가해야 한다.
-  현재는 위 이유로 발생 빈도가 낮아 보류했다.
+* 궁병 7명 대비 공격 포지션 8개이므로 평시에는 전원이 슬롯을 얻고 한 자리는 여유다.
+* 포지션을 옮길 때는 `P` 키로 NavMesh를 확인하고 총통에서 2000cm 안쪽을 권장한다.
 
 ## 5. AIController Blueprint
 
@@ -143,8 +142,6 @@ Self → IsAttacking → Set bIsAttacking
 
 - 궁병 Spawn 지점부터 목표까지 `NavMeshBoundsVolume`이 이어져 있어야 한다.
 - 에디터에서 `P` 키를 눌러 녹색 NavMesh를 확인한다.
-- PIE에서 궁병의 Blackboard `TargetActor`가 총통 또는 충차로 설정되는지 확인한다.
-- **아군 총통은 2026-08-24부터 적 궁병만 표적으로 삼는다**
-  (`AChongtongCannonActor::bEngageEnemyArchersOnly`, 기본 true).
-  충차와 검병은 플레이어 몫이다. 총통과 궁병 사이에 Visibility를 차단하는 구조물이 있으면
-  그 궁병은 표적에서 제외된다.
+- PIE에서 궁병의 Blackboard `TargetActor`가 공격 포지션 `TargetPoint` 또는 충차인지 확인한다.
+- 아군 총통은 `bEngageEnemyInfantryOnly`(기본 true)로 적 궁병과 검병을 모두 표적으로 삼고,
+  충차 같은 비보병은 제외한다.

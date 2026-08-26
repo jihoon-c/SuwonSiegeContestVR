@@ -18,7 +18,6 @@
 #include "Ongseong/ChongtongAimGripComponent.h"
 #include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
-#include "Ongseong/OngseongArcherCombatComponent.h"
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
@@ -246,65 +245,6 @@ bool AChongtongCannonActor::SolveFiringArc(const FVector& TargetLocation, FVecto
 	const float GravityZ = GetWorld()->GetGravityZ() * GravityScale;
 	return UGameplayStatics::SuggestProjectileVelocity_CustomArc(
 		this, OutLaunchVelocity, Muzzle->GetComponentLocation(), TargetLocation, GravityZ, FiringArc);
-}
-
-bool AChongtongCannonActor::TryReserveAttackerSlot(AActor* Attacker)
-{
-	if (!IsValid(Attacker))
-	{
-		return false;
-	}
-	PruneAttackerSlots();
-	if (AttackerSlots.Contains(Attacker))
-	{
-		return true;
-	}
-	if (AttackerSlots.Num() >= MaxAttackerSlots)
-	{
-		return false;
-	}
-	AttackerSlots.Add(Attacker);
-	UE_LOG(LogOngseong, Verbose, TEXT("%s attack slot taken by %s (%d/%d)."),
-		*GetName(), *Attacker->GetName(), AttackerSlots.Num(), MaxAttackerSlots);
-	return true;
-}
-
-void AChongtongCannonActor::ReleaseAttackerSlot(AActor* Attacker)
-{
-	if (AttackerSlots.Remove(Attacker) > 0)
-	{
-		UE_LOG(LogOngseong, Verbose, TEXT("%s attack slot freed by %s (%d/%d)."),
-			*GetName(), *GetNameSafe(Attacker), AttackerSlots.Num(), MaxAttackerSlots);
-	}
-	PruneAttackerSlots();
-}
-
-bool AChongtongCannonActor::HasFreeAttackerSlot() const
-{
-	PruneAttackerSlots();
-	return AttackerSlots.Num() < MaxAttackerSlots;
-}
-
-int32 AChongtongCannonActor::GetReservedAttackerCount() const
-{
-	PruneAttackerSlots();
-	return AttackerSlots.Num();
-}
-
-void AChongtongCannonActor::PruneAttackerSlots() const
-{
-	// Pooled attackers are recycled rather than destroyed, so a dead or hidden holder must not
-	// keep its slot: the population manager releases it, and this is the safety net.
-	AttackerSlots.RemoveAll([](const TWeakObjectPtr<AActor>& Slot)
-	{
-		const AActor* Attacker = Slot.Get();
-		if (!IsValid(Attacker) || Attacker->IsHidden())
-		{
-			return true;
-		}
-		const UHealthComponent* Health = Attacker->FindComponentByClass<UHealthComponent>();
-		return Health && Health->IsDead();
-	});
 }
 
 AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& Direction, const float Speed)

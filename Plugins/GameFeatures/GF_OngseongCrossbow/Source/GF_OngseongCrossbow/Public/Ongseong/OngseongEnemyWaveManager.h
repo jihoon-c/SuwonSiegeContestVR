@@ -11,6 +11,7 @@ class AEnemyCombatCharacter;
 class UHealthComponent;
 class UOngseongArcherCombatComponent;
 class AOngseongSpawnPointActor;
+class ATargetPoint;
 
 UENUM(BlueprintType)
 enum class EOngseongEnemyType : uint8
@@ -147,15 +148,19 @@ protected:
 	int32 GetSlotsForType(EOngseongEnemyType EnemyType) const;
 	bool ChooseNextEnemyType(EOngseongEnemyType& OutEnemyType) const;
 	AActorPool* GetPoolForEnemyType(EOngseongEnemyType EnemyType) const;
-	/** Reserves an attack slot on the nearest allied cannon that still has one. */
-	class AChongtongCannonActor* ReserveCannonForArcher(AEnemyCombatCharacter* Archer);
-	void ReleaseCannonSlots(AActor* Archer);
+	/** Reserves the nearest free authored firing position and returns its linked cannon. */
+	ATargetPoint* ReserveAttackPositionForArcher(
+		AEnemyCombatCharacter* Archer,
+		class AChongtongCannonActor*& OutCannon);
+	void ReleaseArcherAttackPosition(AActor* Archer);
 	void ApplyArcherEngagement(AEnemyCombatCharacter* Archer);
-	void ApplySwordsmanMarch(AEnemyCombatCharacter* Swordsman);
-	int32 AssignSwordsmanFormationSlot(AEnemyCombatCharacter* Swordsman);
-	FVector GetSwordsmanFormationLocation(int32 SlotIndex) const;
+	void ApplySwordsmanEscortBehavior(AEnemyCombatCharacter* Swordsman);
+	int32 AssignSwordsmanEscortSector(AEnemyCombatCharacter* Swordsman);
+	FVector BuildSwordsmanDestination(int32 SectorIndex, bool bWander) const;
+	bool ProjectEscortDestinationToNavigation(FVector& InOutDestination) const;
+	void CommandSwordsmanMove(AEnemyCombatCharacter* Swordsman, const FVector& Destination, float Speed);
 	UFUNCTION()
-	void UpdateSwordsmanFormation();
+	void UpdateSwordsmanEscortBehavior();
 	UFUNCTION()
 	void RetryArcherSlotAssignments();
 	void DetachEnemy(AEnemyCombatCharacter* Enemy);
@@ -211,32 +216,49 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="1.0"))
 	float ArcherProjectileSpeed = 6500.0f;
 
-	/** Archers move inside their firing range instead of accepting a spawn point as their final position. */
+	/** Acceptance radius around an authored archer attack position. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Archer", meta=(ClampMin="100.0"))
-	float ArcherApproachRadius = 900.0f;
+	float ArcherApproachRadius = 100.0f;
 
-	/** Speed shared with the ram once swordsmen have joined its marching formation. */
+	/** Visible run speed used while a swordsman catches up to the ram. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
-	float SwordsmanMarchSpeed = 42.0f;
+	float SwordsmanFollowSpeed = 180.0f;
 
-	/** Modest catch-up speed used only while a swordsman is far outside its assigned slot. */
+	/** Slower but still animated movement used for occasional wandering near the ram. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
-	float SwordsmanCatchUpSpeed = 120.0f;
+	float SwordsmanWanderSpeed = 90.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.1"))
-	float SwordsmanFormationUpdateInterval = 0.75f;
+	float SwordsmanBehaviorUpdateInterval = 0.5f;
+
+	/** Swordsmen outside this radius run back toward the ram. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanFollowTriggerDistance = 700.0f;
+
+	/** Once inside this radius, swordsmen stop following and return to idle/wander behavior. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanSettleDistance = 450.0f;
+
+	/** Preferred separation between escort sectors; these are only used when choosing a destination. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
+	float SwordsmanEscortSpacing = 180.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
-	float SwordsmanFormationSpacing = 220.0f;
+	float SwordsmanMoveAcceptanceRadius = 70.0f;
 
+	/** Random offset around a sector target, preventing soldiers from standing on exact points. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
-	float SwordsmanTrailingDistance = 300.0f;
+	float SwordsmanWanderRadius = 160.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
-	float SwordsmanCatchUpDistance = 350.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.1"))
+	float SwordsmanWanderIntervalMin = 2.5f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.1"))
+	float SwordsmanWanderIntervalMax = 5.0f;
+
+	/** Refresh a catch-up destination after the moving ram has displaced it by this much. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning|Swordsman", meta=(ClampMin="0.0"))
-	float SwordsmanFormationAcceptanceRadius = 80.0f;
+	float SwordsmanFollowTargetRefreshDistance = 220.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Spawning", meta = (ClampMin = "0.0"))
 	float InitialDelay = 1.0f;
@@ -294,9 +316,17 @@ protected:
 	UPROPERTY(Transient)
 	TMap<TObjectPtr<AEnemyCombatCharacter>, EOngseongEnemyType> EnemyTypesByActor;
 	UPROPERTY(Transient)
-	TMap<TObjectPtr<AEnemyCombatCharacter>, int32> SwordsmanFormationSlots;
+	TMap<TObjectPtr<AEnemyCombatCharacter>, TObjectPtr<ATargetPoint>> ArcherAttackPositionsByEnemy;
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<AEnemyCombatCharacter>, int32> SwordsmanEscortSectors;
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<AEnemyCombatCharacter>, FVector> SwordsmanMoveDestinations;
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<AEnemyCombatCharacter>, float> SwordsmanNextWanderTimes;
+	UPROPERTY(Transient)
+	TSet<TObjectPtr<AEnemyCombatCharacter>> SwordsmenFollowingRam;
 	FTimerHandle SpawnTimerHandle;
 	FTimerHandle ArcherSlotRetryHandle;
-	FTimerHandle SwordsmanFormationTimerHandle;
+	FTimerHandle SwordsmanBehaviorTimerHandle;
 	TArray<FTimerHandle> RespawnTimerHandles;
 };
