@@ -19,7 +19,7 @@ class UChongtongAimGripComponent;
 class UInteractionHighlightComponent;
 class UChongtongAutomaticFireComponent;
 class AChongtongLoadingItemActor;
-class UNiagaraSystem;
+class UParticleSystem;
 class USoundBase;
 class USoundAttenuation;
 class UOngseongNarrationComponent;
@@ -118,7 +118,7 @@ protected:
 	void AimAssemblyYawAtDirection(const FVector& WorldDirection);
 	/** Solves the launch velocity that drops a shell on TargetLocation under the shell's own gravity. */
 	bool SolveFiringArc(const FVector& TargetLocation, FVector& OutLaunchVelocity) const;
-	void PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, float Pitch = 1.0f, FVector EffectScale = FVector::OneVector);
+	void PlayFeedback(UParticleSystem* Effect, USoundBase* Sound, const FVector& Location, float Pitch = 1.0f, FVector EffectScale = FVector::OneVector);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> Root;
@@ -250,10 +250,10 @@ protected:
 	TSubclassOf<AChongtongLoadingItemActor> CannonballItemClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
-	TObjectPtr<UNiagaraSystem> LoadSuccessEffect;
+	TObjectPtr<UParticleSystem> LoadSuccessEffect;
 	/** Muzzle flash used by both allied and player cannon Blueprint variants. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
-	TObjectPtr<UNiagaraSystem> MuzzleEffect;
+	TObjectPtr<UParticleSystem> MuzzleEffect;
 	/** Uniform scale applied to the cannon muzzle flash. Defaults to the requested 2x size. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback", meta=(ClampMin="0.01"))
 	float MuzzleEffectScale = 2.0f;

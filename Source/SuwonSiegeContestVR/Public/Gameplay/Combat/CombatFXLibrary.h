@@ -5,6 +5,8 @@
 #include "CombatFXLibrary.generated.h"
 
 class UNiagaraComponent;
+class UParticleSystem;
+class UParticleSystemComponent;
 class UNiagaraSystem;
 class USoundBase;
 class USoundConcurrency;
@@ -21,11 +23,28 @@ class SUWONSIEGECONTESTVR_API UCombatFXLibrary : public UBlueprintFunctionLibrar
 	GENERATED_BODY()
 
 public:
-	/** One-shot effect only. Looping systems never return to the pool and must not use this. */
-	UFUNCTION(BlueprintCallable, Category = "Combat|FX", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "Rotation,Scale"))
+	/**
+	 * One-shot effect only. Looping systems never return to the pool and must not use this.
+	 * bPreCullCheck lets the system's own cull settings drop the spawn entirely; pass false for
+	 * gameplay-critical feedback such as an impact the player is being asked to watch for.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Combat|FX", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "Rotation,Scale,bPreCullCheck"))
 	static UNiagaraComponent* SpawnPooledSystemAtLocation(
 		const UObject* WorldContextObject,
 		UNiagaraSystem* SystemTemplate,
+		FVector Location,
+		FRotator Rotation = FRotator::ZeroRotator,
+		FVector Scale = FVector(1.0f),
+		bool bPreCullCheck = true);
+
+	/**
+	 * Cascade equivalent of SpawnPooledSystemAtLocation for the StarterContent explosion/spark
+	 * systems used by the cannon feedback. One-shot only; the component returns to the PSC pool.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Combat|FX", meta = (WorldContext = "WorldContextObject", AdvancedDisplay = "Rotation,Scale"))
+	static UParticleSystemComponent* SpawnPooledEmitterAtLocation(
+		const UObject* WorldContextObject,
+		UParticleSystem* EmitterTemplate,
 		FVector Location,
 		FRotator Rotation = FRotator::ZeroRotator,
 		FVector Scale = FVector(1.0f));

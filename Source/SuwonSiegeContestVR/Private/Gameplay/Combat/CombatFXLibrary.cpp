@@ -4,6 +4,8 @@
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "Particles/ParticleSystem.h"
+#include "Particles/ParticleSystemComponent.h"
 #include "Sound/SoundBase.h"
 
 UNiagaraComponent* UCombatFXLibrary::SpawnPooledSystemAtLocation(
@@ -11,7 +13,8 @@ UNiagaraComponent* UCombatFXLibrary::SpawnPooledSystemAtLocation(
 	UNiagaraSystem* SystemTemplate,
 	const FVector Location,
 	const FRotator Rotation,
-	const FVector Scale)
+	const FVector Scale,
+	const bool bPreCullCheck)
 {
 	if (!WorldContextObject || !SystemTemplate)
 	{
@@ -27,7 +30,29 @@ UNiagaraComponent* UCombatFXLibrary::SpawnPooledSystemAtLocation(
 		/*bAutoDestroy=*/true,
 		/*bAutoActivate=*/true,
 		ENCPoolMethod::AutoRelease,
-		/*bPreCullCheck=*/true);
+		bPreCullCheck);
+}
+
+UParticleSystemComponent* UCombatFXLibrary::SpawnPooledEmitterAtLocation(
+	const UObject* WorldContextObject,
+	UParticleSystem* EmitterTemplate,
+	const FVector Location,
+	const FRotator Rotation,
+	const FVector Scale)
+{
+	if (!WorldContextObject || !EmitterTemplate)
+	{
+		return nullptr;
+	}
+
+	return UGameplayStatics::SpawnEmitterAtLocation(
+		WorldContextObject,
+		EmitterTemplate,
+		Location,
+		Rotation,
+		Scale,
+		/*bAutoDestroy=*/true,
+		EPSCPoolMethod::AutoRelease);
 }
 
 void UCombatFXLibrary::PlayPooledSoundAtLocation(

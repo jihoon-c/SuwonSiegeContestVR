@@ -60,13 +60,21 @@ protected:
 	/** Main body mesh. Edit its Transform and add further children in BP_OngseongRam's Components panel. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram|Components")
 	TObjectPtr<UStaticMeshComponent> RamMesh;
-	/** Always-on red rim overlay so the objective reads clearly at range. */
+	/** Pulsing red rim overlay so the objective reads clearly at range. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram|Components")
 	TObjectPtr<UInteractionHighlightComponent> VisibilityHighlight;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Ram|Visual")
 	bool bShowVisibilityHighlight = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Ram|Visual")
 	FLinearColor VisibilityHighlightColor = FLinearColor(1.0f, 0.035f, 0.015f, 1.0f);
+
+	/** The rim breathes instead of glowing flat, so the ram reads as the thing to shoot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Ram|Visual")
+	bool bPulseVisibilityHighlight = true;
+
+	/** Full bright-to-dim-to-bright cycles per second. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Ram|Visual", meta=(ClampMin="0.01"))
+	float VisibilityHighlightPulsesPerSecond = 1.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Ram")
 	TObjectPtr<UHealthComponent> HealthComponent;

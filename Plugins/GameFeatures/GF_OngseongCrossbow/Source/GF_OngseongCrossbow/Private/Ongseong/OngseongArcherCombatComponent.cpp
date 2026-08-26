@@ -57,6 +57,15 @@ void UOngseongArcherCombatComponent::ApplyTuning(const float InHitChance, const 
 void UOngseongArcherCombatComponent::ActivateCombat()
 {
 	bCombatActive = true;
+	// The Behavior Tree's fire task only runs on the branch that follows a completed move.
+	// When that branch never completes the archer stood there without ever firing, so the
+	// recurring attempt is owned here. TryFireArrow no-ops while out of range or mid-attack.
+	if (GetWorld() && !GetWorld()->GetTimerManager().IsTimerActive(FireTimerHandle))
+	{
+		const float Interval = FMath::Max(0.1f, FireInterval);
+		GetWorld()->GetTimerManager().SetTimer(FireTimerHandle, this,
+			&UOngseongArcherCombatComponent::PerformScheduledShot, Interval, true, Interval);
+	}
 }
 
 void UOngseongArcherCombatComponent::DeactivateCombat()

@@ -23,8 +23,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GF_OngseongCrossbow.h"
 #include "Gameplay/Combat/CombatFXLibrary.h"
-#include "NiagaraFunctionLibrary.h"
-#include "NiagaraSystem.h"
+#include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
 #include "Sound/SoundAttenuation.h"
 #include "TimerManager.h"
@@ -95,9 +94,9 @@ AChongtongCannonActor::AChongtongCannonActor()
 	ProjectileClass = AChongtongProjectileActor::StaticClass();
 	bSpawnOperatorOnBeginPlay = false;
 
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> LoadFX(TEXT("/Game/NiagaraExamples/FX_PickUp/NS_Pickup_Success.NS_Pickup_Success"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> LoadFX(TEXT("/Game/StarterContent/Particles/P_Sparks.P_Sparks"));
 	// A muzzle flash, not a generic explosion: the shell is what explodes, at the far end.
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> FireFX(TEXT("/Game/NiagaraExamples/FX_Weapons/MuzzleFlashes/NS_MuzzleFlash.NS_MuzzleFlash"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> FireFX(TEXT("/Game/StarterContent/Particles/P_Explosion.P_Explosion"));
 	static ConstructorHelpers::FObjectFinder<USoundBase> TempFireSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
 	LoadSuccessEffect = LoadFX.Object;
 	MuzzleEffect = FireFX.Object;
@@ -421,9 +420,9 @@ void AChongtongCannonActor::SpawnPlaceholderLoadingItems()
 	}
 }
 
-void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch, const FVector EffectScale)
+void AChongtongCannonActor::PlayFeedback(UParticleSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch, const FVector EffectScale)
 {
-	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, Effect, Location, FRotator::ZeroRotator, EffectScale);
+	UCombatFXLibrary::SpawnPooledEmitterAtLocation(this, Effect, Location, FRotator::ZeroRotator, EffectScale);
 	UCombatFXLibrary::PlayPooledSoundAtLocation(this, Sound, Location, 0.7f, Pitch, CombatSoundConcurrency, CombatSoundAttenuation);
 }
 

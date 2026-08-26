@@ -19,6 +19,15 @@ AOngseongRamActor::AOngseongRamActor()
 	RamMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RamMesh"));
 	RamMesh->SetupAttachment(VisualRoot);
 	RamMesh->SetMobility(EComponentMobility::Movable);
+	// Escorting infantry walk the same lane as the ram and it moves without sweeping, so a
+	// pawn-blocking mesh wedges them against it and the whole assault stalls short of the gate.
+	// Pawns pass through; shells, bolts and visibility traces still hit the ram.
+	RamMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	RamMesh->SetCollisionObjectType(ECC_WorldDynamic);
+	RamMesh->SetCollisionResponseToAllChannels(ECR_Block);
+	RamMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	// A moving mesh that carves the navmesh forces escorts to re-path around it every frame.
+	RamMesh->SetCanEverAffectNavigation(false);
 	VisibilityHighlight = CreateDefaultSubobject<UInteractionHighlightComponent>(TEXT("VisibilityHighlight"));
 	VisibilityHighlight->SetupAttachment(VisualRoot);
 	VisibilityHighlight->ConfigureHighlight(true, VisibilityHighlightColor);
@@ -37,6 +46,7 @@ void AOngseongRamActor::BeginPlay()
 	if (VisibilityHighlight)
 	{
 		VisibilityHighlight->SetHighlightColor(VisibilityHighlightColor);
+		VisibilityHighlight->SetHighlightPulse(bPulseVisibilityHighlight, VisibilityHighlightPulsesPerSecond);
 		VisibilityHighlight->SetHighlightActive(bShowVisibilityHighlight);
 	}
 	HealthComponent->OnDeath.AddUniqueDynamic(this, &AOngseongRamActor::HandleDeath);
@@ -110,6 +120,7 @@ void AOngseongRamActor::ActivateRam(AActor* NewGateTarget)
 	if (VisibilityHighlight)
 	{
 		VisibilityHighlight->SetHighlightColor(VisibilityHighlightColor);
+		VisibilityHighlight->SetHighlightPulse(bPulseVisibilityHighlight, VisibilityHighlightPulsesPerSecond);
 		VisibilityHighlight->SetHighlightActive(bShowVisibilityHighlight);
 	}
 	FVector ApproachDirection = GateTarget->GetActorLocation() - GetActorLocation();

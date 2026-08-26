@@ -55,9 +55,35 @@ void AOngseongEnemyWaveManager::BeginPlay()
 	{
 		ArcherPlayerTarget = UGameplayStatics::GetPlayerPawn(this, 0);
 	}
+	if (bResizePoolsToSlotCounts)
+	{
+		ResizePoolsToSlotCounts();
+	}
 	if (bAutoStart)
 	{
 		StartSpawning();
+	}
+}
+
+void AOngseongEnemyWaveManager::ResizePoolsToSlotCounts()
+{
+	const int32 Headroom = FMath::Max(0, EnemyPoolHeadroom);
+	const bool bSeparateArcherPool = IsValid(ArcherEnemyPool) && ArcherEnemyPool != EnemyPool;
+	if (IsValid(EnemyPool))
+	{
+		// Without a dedicated archer pool this one has to cover both types.
+		const int32 Needed = bSeparateArcherPool
+			? GetSwordsmanSlots() + Headroom
+			: GetMaxConcurrentEnemies() + Headroom;
+		EnemyPool->EnsurePoolSize(Needed);
+	}
+	if (bSeparateArcherPool)
+	{
+		ArcherEnemyPool->EnsurePoolSize(GetArcherSlots() + Headroom);
+	}
+	if (IsValid(ArcherProjectilePool))
+	{
+		ArcherProjectilePool->EnsurePoolSize(GetArcherSlots() * FMath::Max(1, ArrowsPerArcher));
 	}
 }
 
@@ -114,13 +140,13 @@ void AOngseongEnemyWaveManager::StartSpawning()
 		FMath::Max(0.5f, ArcherSlotRetryInterval),
 		true);
 
-	// Swordsmen use a loose escort leash: run back when far away, then idle and occasionally
-	// wander near the ram. Movement commands are only refreshed when behavior actually changes.
+	// Swordsmen no longer escort the ram. They pick reachable points inside the fortress and
+	// keep moving between them, so the courtyard stays populated wherever the player looks.
 	GetWorldTimerManager().ClearTimer(SwordsmanBehaviorTimerHandle);
 	GetWorldTimerManager().SetTimer(
 		SwordsmanBehaviorTimerHandle,
 		this,
-		&AOngseongEnemyWaveManager::UpdateSwordsmanEscortBehavior,
+		&AOngseongEnemyWaveManager::UpdateSwordsmanRoamBehavior,
 		FMath::Max(0.1f, SwordsmanBehaviorUpdateInterval),
 		true,
 		0.0f);
@@ -180,10 +206,8 @@ void AOngseongEnemyWaveManager::ReleaseAllEnemies()
 	EnemyPoolsByActor.Reset();
 	EnemyTypesByActor.Reset();
 	ArcherAttackPositionsByEnemy.Reset();
-	SwordsmanEscortSectors.Reset();
 	SwordsmanMoveDestinations.Reset();
-	SwordsmanNextWanderTimes.Reset();
-	SwordsmenFollowingRam.Reset();
+	SwordsmanNextRoamTimes.Reset();
 	OnPopulationChanged.Broadcast(0, GetMaxConcurrentEnemies());
 }
 
@@ -244,8 +268,13 @@ bool AOngseongEnemyWaveManager::SpawnEnemyOfType(const EOngseongEnemyType EnemyT
 	}
 	else
 	{
-		AssignSwordsmanEscortSector(Enemy);
-		ApplySwordsmanEscortBehavior(Enemy);
+		// SetObjectiveTarget above issued a MoveToCombatActor toward the gate. Cancel it before
+		// roaming, or the first roam destination competes with a march on the objective.
+		if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
+		{
+			Controller->StopCombatMovement();
+		}
+		ApplySwordsmanRoamBehavior(Enemy);
 	}
 	++TotalSpawnedEnemies;
 	OnEnemySpawned.Broadcast(Enemy, ActiveEnemies.Num(), GetMaxConcurrentEnemies());
@@ -464,10 +493,8 @@ void AOngseongEnemyWaveManager::HandleRetreatTargetReached(APawn* EnemyPawn)
 		ActiveEnemies.Remove(Enemy);
 		EnemyPoolsByActor.Remove(Enemy);
 		EnemyTypesByActor.Remove(Enemy);
-		SwordsmanEscortSectors.Remove(Enemy);
 		SwordsmanMoveDestinations.Remove(Enemy);
-		SwordsmanNextWanderTimes.Remove(Enemy);
-		SwordsmenFollowingRam.Remove(Enemy);
+		SwordsmanNextRoamTimes.Remove(Enemy);
 		if (IsValid(ReleasePool)) ReleasePool->ReleaseActor(Enemy);
 		OnPopulationChanged.Broadcast(ActiveEnemies.Num(), GetMaxConcurrentEnemies());
 	}
@@ -489,10 +516,8 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 		ArcherCombat->DeactivateCombat();
 	}
 	ReleaseArcherAttackPosition(Enemy);
-	SwordsmanEscortSectors.Remove(Enemy);
 	SwordsmanMoveDestinations.Remove(Enemy);
-	SwordsmanNextWanderTimes.Remove(Enemy);
-	SwordsmenFollowingRam.Remove(Enemy);
+	SwordsmanNextRoamTimes.Remove(Enemy);
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Enemy->GetController()))
 	{
 		Controller->OnMoveTargetReached.RemoveDynamic(this, &AOngseongEnemyWaveManager::HandleRetreatTargetReached);
@@ -502,8 +527,8 @@ void AOngseongEnemyWaveManager::DetachEnemy(AEnemyCombatCharacter* Enemy)
 
 void AOngseongEnemyWaveManager::SetArcherEscortTarget(AActor* NewEscortTarget)
 {
+	// Only surplus archers without an attack slot use this. Swordsmen roam independently.
 	ArcherEscortTarget = NewEscortTarget;
-	UpdateSwordsmanEscortBehavior();
 }
 
 ATargetPoint* AOngseongEnemyWaveManager::ReserveAttackPositionForArcher(
@@ -688,78 +713,69 @@ void AOngseongEnemyWaveManager::ResolveSpawnPoints()
 	}
 }
 
-int32 AOngseongEnemyWaveManager::AssignSwordsmanEscortSector(AEnemyCombatCharacter* Swordsman)
+FVector AOngseongEnemyWaveManager::ResolveSwordsmanRoamCentre() const
 {
-	if (!IsValid(Swordsman))
+	if (IsValid(SwordsmanRoamAnchor))
 	{
-		return INDEX_NONE;
+		return SwordsmanRoamAnchor->GetActorLocation();
 	}
-	if (const int32* ExistingSector = SwordsmanEscortSectors.Find(Swordsman))
+	TArray<AActor*> TaggedAnchors;
+	UGameplayStatics::GetAllActorsWithTag(this, TEXT("Ongseong.SwordsmanRoamAnchor"), TaggedAnchors);
+	if (!TaggedAnchors.IsEmpty() && IsValid(TaggedAnchors[0]))
 	{
-		return *ExistingSector;
+		return TaggedAnchors[0]->GetActorLocation();
 	}
 
-	TSet<int32> OccupiedSectors;
-	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanEscortSectors)
+	// The authored archer firing positions are the one set of points guaranteed to sit on
+	// navigable ground inside the walls, so their centre is a safe courtyard anchor.
+	if (GetWorld())
 	{
-		if (IsValid(Pair.Key))
+		FVector Sum = FVector::ZeroVector;
+		int32 Count = 0;
+		for (TActorIterator<ATargetPoint> It(GetWorld()); It; ++It)
 		{
-			OccupiedSectors.Add(Pair.Value);
+			const ATargetPoint* Position = *It;
+			if (IsValid(Position) && Position->ActorHasTag(TEXT("Ongseong.ArcherAttackPosition")))
+			{
+				Sum += Position->GetActorLocation();
+				++Count;
+			}
+		}
+		if (Count > 0)
+		{
+			return Sum / static_cast<float>(Count);
 		}
 	}
-	int32 SectorIndex = 0;
-	while (OccupiedSectors.Contains(SectorIndex))
-	{
-		++SectorIndex;
-	}
-	SwordsmanEscortSectors.Add(Swordsman, SectorIndex);
-	return SectorIndex;
+	// Never ObjectiveTarget: that is the gate the ram is battering, which is exactly the spot
+	// the swordsmen must stop piling into.
+	return GetActorLocation();
 }
 
-FVector AOngseongEnemyWaveManager::BuildSwordsmanDestination(const int32 SectorIndex, const bool bWander) const
+bool AOngseongEnemyWaveManager::BuildSwordsmanRoamDestination(
+	const AEnemyCombatCharacter* Swordsman,
+	FVector& OutDestination) const
 {
-	const AActor* EscortTarget = IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get();
-	if (!IsValid(EscortTarget))
+	UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (!NavigationSystem || !IsValid(Swordsman))
 	{
-		return GetActorLocation();
+		return false;
 	}
+	const FVector AnchorLocation = ResolveSwordsmanRoamCentre();
+	const float Radius = FMath::Max(100.0f, SwordsmanRoamRadius);
 
-	FVector Forward = IsValid(ObjectiveTarget)
-		? ObjectiveTarget->GetActorLocation() - EscortTarget->GetActorLocation()
-		: EscortTarget->GetActorForwardVector();
-	Forward.Z = 0.0f;
-	if (!Forward.Normalize())
+	// Reachable, not merely navigable: a point across a wall would leave the soldier
+	// walking into geometry until the next roam interval fires.
+	FNavLocation RoamPoint;
+	if (NavigationSystem->GetRandomReachablePointInRadius(AnchorLocation, Radius, RoamPoint))
 	{
-		Forward = FVector::ForwardVector;
+		OutDestination = RoamPoint.Location;
+		return true;
 	}
-	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal();
-	constexpr int32 SectorColumns = 4;
-	const int32 Column = FMath::Max(0, SectorIndex) % SectorColumns;
-	const int32 Row = FMath::Max(0, SectorIndex) / SectorColumns;
-	float LateralOffset = (static_cast<float>(Column) - 1.5f) * SwordsmanEscortSpacing;
-	float TrailingOffset = SwordsmanSettleDistance * 0.45f + static_cast<float>(Row) * SwordsmanEscortSpacing;
-	if (bWander)
+	// Fall back to a point reachable from the soldier itself when the anchor is off-mesh.
+	if (NavigationSystem->GetRandomReachablePointInRadius(Swordsman->GetActorLocation(), Radius, RoamPoint))
 	{
-		LateralOffset += FMath::FRandRange(-SwordsmanWanderRadius, SwordsmanWanderRadius);
-		TrailingOffset += FMath::FRandRange(-SwordsmanWanderRadius, SwordsmanWanderRadius);
-	}
-	FVector Destination = EscortTarget->GetActorLocation() - Forward * TrailingOffset + Right * LateralOffset;
-	Destination.Z = EscortTarget->GetActorLocation().Z;
-	ProjectEscortDestinationToNavigation(Destination);
-	return Destination;
-}
-
-bool AOngseongEnemyWaveManager::ProjectEscortDestinationToNavigation(FVector& InOutDestination) const
-{
-	if (UNavigationSystemV1* NavigationSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
-	{
-		FNavLocation ProjectedLocation;
-		const FVector EscortProjectionExtent(250.0f, 250.0f, 500.0f);
-		if (NavigationSystem->ProjectPointToNavigation(InOutDestination, ProjectedLocation, EscortProjectionExtent))
-		{
-			InOutDestination = ProjectedLocation.Location;
-			return true;
-		}
+		OutDestination = RoamPoint.Location;
+		return true;
 	}
 	return false;
 }
@@ -773,92 +789,68 @@ void AOngseongEnemyWaveManager::CommandSwordsmanMove(
 	{
 		return;
 	}
-	if (UCharacterMovementComponent* Movement = Swordsman->GetCharacterMovement())
+	// Speed <= 0 means "leave the character alone", which is what archers get. Overriding
+	// MaxWalkSpeed here is what made swordsmen visibly slower than the archers beside them.
+	if (Speed > 0.0f)
 	{
-		Movement->MaxWalkSpeed = FMath::Max(0.0f, Speed);
+		if (UCharacterMovementComponent* Movement = Swordsman->GetCharacterMovement())
+		{
+			Movement->MaxWalkSpeed = Speed;
+		}
 	}
 	if (ACombatAIController* Controller = Cast<ACombatAIController>(Swordsman->GetController()))
 	{
 		const bool bMoveAccepted = Controller->MoveToCombatLocation(Destination, SwordsmanMoveAcceptanceRadius);
 		SwordsmanMoveDestinations.Add(Swordsman, Destination);
-		UE_LOG(LogOngseong, VeryVerbose, TEXT("%s swordsman move request accepted=%d speed=%.0f destination=%s."),
+		UE_LOG(LogOngseong, VeryVerbose, TEXT("%s swordsman roam request accepted=%d speed=%.0f destination=%s."),
 			*Swordsman->GetName(), bMoveAccepted ? 1 : 0, Speed, *Destination.ToCompactString());
 	}
 }
 
-void AOngseongEnemyWaveManager::ApplySwordsmanEscortBehavior(AEnemyCombatCharacter* Swordsman)
+void AOngseongEnemyWaveManager::ApplySwordsmanRoamBehavior(AEnemyCombatCharacter* Swordsman)
 {
 	if (!IsValid(Swordsman) || !GetWorld())
 	{
 		return;
 	}
-	const AActor* EscortTarget = IsValid(ArcherEscortTarget) ? ArcherEscortTarget.Get() : ObjectiveTarget.Get();
-	if (!IsValid(EscortTarget))
-	{
-		return;
-	}
-
-	const int32 SectorIndex = AssignSwordsmanEscortSector(Swordsman);
-	const float DistanceToRam = FVector::Dist2D(Swordsman->GetActorLocation(), EscortTarget->GetActorLocation());
 	const float Now = GetWorld()->GetTimeSeconds();
-	const bool bFollowing = SwordsmenFollowingRam.Contains(Swordsman);
-	UE_LOG(LogOngseong, VeryVerbose, TEXT("%s escort distance=%.0f velocity=%.1f following=%d."),
-		*Swordsman->GetName(), DistanceToRam, Swordsman->GetVelocity().Size2D(), bFollowing ? 1 : 0);
-
-	if (DistanceToRam > SwordsmanFollowTriggerDistance)
+	const float* NextRoamTime = SwordsmanNextRoamTimes.Find(Swordsman);
+	const FVector* CurrentDestination = SwordsmanMoveDestinations.Find(Swordsman);
+	const bool bArrived = CurrentDestination
+		&& FVector::Dist2D(Swordsman->GetActorLocation(), *CurrentDestination)
+			<= FMath::Max(0.0f, SwordsmanRoamArrivalDistance);
+	const bool bDue = !NextRoamTime || Now >= *NextRoamTime;
+	if (NextRoamTime && CurrentDestination && !bArrived && !bDue)
 	{
-		const FVector DesiredDestination = BuildSwordsmanDestination(SectorIndex, false);
-		const FVector* PreviousDestination = SwordsmanMoveDestinations.Find(Swordsman);
-		if (!bFollowing || !PreviousDestination
-			|| FVector::DistSquared2D(*PreviousDestination, DesiredDestination)
-				> FMath::Square(SwordsmanFollowTargetRefreshDistance))
-		{
-			CommandSwordsmanMove(Swordsman, DesiredDestination, SwordsmanFollowSpeed);
-		}
-		SwordsmenFollowingRam.Add(Swordsman);
 		return;
 	}
 
-	if (bFollowing && DistanceToRam <= SwordsmanSettleDistance)
+	FVector Destination;
+	if (BuildSwordsmanRoamDestination(Swordsman, Destination))
 	{
-		if (ACombatAIController* Controller = Cast<ACombatAIController>(Swordsman->GetController()))
-		{
-			Controller->StopCombatMovement();
-		}
-		SwordsmenFollowingRam.Remove(Swordsman);
-		SwordsmanMoveDestinations.Remove(Swordsman);
-		SwordsmanNextWanderTimes.Add(Swordsman,
-			Now + FMath::FRandRange(SwordsmanWanderIntervalMin, FMath::Max(SwordsmanWanderIntervalMin, SwordsmanWanderIntervalMax)));
-		return;
+		CommandSwordsmanMove(Swordsman, Destination, SwordsmanRoamSpeed);
 	}
-
-	if (!bFollowing)
-	{
-		const float* NextWanderTime = SwordsmanNextWanderTimes.Find(Swordsman);
-		if (!NextWanderTime || Now >= *NextWanderTime)
-		{
-			CommandSwordsmanMove(Swordsman, BuildSwordsmanDestination(SectorIndex, true), SwordsmanWanderSpeed);
-			SwordsmanNextWanderTimes.Add(Swordsman,
-				Now + FMath::FRandRange(SwordsmanWanderIntervalMin, FMath::Max(SwordsmanWanderIntervalMin, SwordsmanWanderIntervalMax)));
-		}
-	}
+	const float IntervalMin = FMath::Max(0.1f, SwordsmanRoamIntervalMin);
+	SwordsmanNextRoamTimes.Add(Swordsman,
+		Now + FMath::FRandRange(IntervalMin, FMath::Max(IntervalMin, SwordsmanRoamIntervalMax)));
 }
 
-void AOngseongEnemyWaveManager::UpdateSwordsmanEscortBehavior()
+void AOngseongEnemyWaveManager::UpdateSwordsmanRoamBehavior()
 {
-	for (auto It = SwordsmanEscortSectors.CreateIterator(); It; ++It)
+	for (auto It = SwordsmanNextRoamTimes.CreateIterator(); It; ++It)
 	{
 		if (!IsValid(It.Key()))
 		{
 			SwordsmanMoveDestinations.Remove(It.Key());
-			SwordsmanNextWanderTimes.Remove(It.Key());
-			SwordsmenFollowingRam.Remove(It.Key());
 			It.RemoveCurrent();
 		}
 	}
-	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanEscortSectors)
+	// Iterate a copy: ApplySwordsmanRoamBehavior writes back into the same map.
+	TArray<TObjectPtr<AEnemyCombatCharacter>> Roamers;
+	SwordsmanNextRoamTimes.GetKeys(Roamers);
+	for (AEnemyCombatCharacter* Swordsman : Roamers)
 	{
-		ApplySwordsmanEscortBehavior(Pair.Key);
+		ApplySwordsmanRoamBehavior(Swordsman);
 	}
 }
 

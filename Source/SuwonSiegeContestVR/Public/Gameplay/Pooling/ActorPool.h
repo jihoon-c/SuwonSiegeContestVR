@@ -30,6 +30,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Gameplay|Pooling")
 	void PrewarmPool();
 
+	/**
+	 * Grows the pool so it holds at least DesiredSize Actors, and never shrinks it.
+	 * Lets a scenario size its pools from its own concurrency budget instead of relying on a
+	 * level-authored InitialPoolSize that nobody remembers to raise. Returns the resulting total.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Gameplay|Pooling")
+	int32 EnsurePoolSize(int32 DesiredSize);
+
 	UFUNCTION(BlueprintPure, Category = "Gameplay|Pooling")
 	int32 GetAvailableCount() const { return AvailableActors.Num(); }
 

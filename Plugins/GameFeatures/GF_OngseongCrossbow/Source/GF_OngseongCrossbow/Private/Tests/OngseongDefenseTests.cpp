@@ -35,7 +35,7 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 	AOngseongRamActor* Ram = World->SpawnActor<AOngseongRamActor>(FVector::ZeroVector, FRotator::ZeroRotator);
 	if (TestNotNull(TEXT("Gate is spawned"), Gate) && TestNotNull(TEXT("Scenario is spawned"), Scenario))
 	{
-		TestEqual(TEXT("The ongseong holds fifteen enemies"), Wave->GetMaxConcurrentEnemies(), 15);
+		TestEqual(TEXT("The ongseong holds forty enemies"), Wave->GetMaxConcurrentEnemies(), 40);
 		TestTrue(TEXT("Defeated enemies are replaced during the defense"), Wave->IsMaintainingPopulation());
 		TestFalse(TEXT("The defense is cleared by the ram, not by a timer"), Scenario->IsDefenseTimeLimited());
 		TestFalse(TEXT("No ram has been destroyed while the scenario is idle"), Scenario->IsRamDestroyed());
