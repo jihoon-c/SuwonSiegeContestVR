@@ -9,6 +9,10 @@
 #include "Gameplay/Pooling/ActorPool.h"
 #include "Gameplay/UI/VRHUDComponent.h"
 #include "Gameplay/UI/VRHUDTypes.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/ChongtongInteractionTypes.h"
 #include "Ongseong/OngseongEnemyWaveManager.h"
 #include "Ongseong/OngseongGateActor.h"
 #include "Ongseong/OngseongNarrationComponent.h"
@@ -55,12 +59,28 @@ void AOngseongDefenseScenarioManager::BeginPlay()
 		if (APawn* Pawn = PC->GetPawn()) VRHUD = Pawn->FindComponentByClass<UVRHUDComponent>();
 	}
 	ApplyPlayerLocomotionPolicy();
-	if (bAutoStart) StartDefense();
+	if (bStartAfterChongtongLoaded)
+	{
+		ArmTrainingGate();
+	}
+	else if (bAutoStart)
+	{
+		StartDefense();
+	}
 }
 
 void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearAllTimersForObject(this);
+	StopBattleMusic();
+	if (TrainingCannon)
+	{
+		TrainingCannon->OnLoadingStateChanged.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleTrainingLoadingStateChanged);
+	}
+	if (Narration)
+	{
+		Narration->OnNarrationIdle.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle);
+	}
 	if (ActiveRam) ActiveRam->StopRam();
 	if (WaveManager)
 	{
@@ -82,12 +102,127 @@ void AOngseongDefenseScenarioManager::ApplyPlayerLocomotionPolicy()
 	}
 }
 
+void AOngseongDefenseScenarioManager::ResolveTrainingCannon()
+{
+	if (IsValid(TrainingCannon) || !GetWorld()) return;
+	// The trainee operates one cannon; every other one on the wall is crewed by an ally.
+	AChongtongCannonActor* FirstCannon = nullptr;
+	for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
+	{
+		AChongtongCannonActor* Cannon = *It;
+		if (!FirstCannon) FirstCannon = Cannon;
+		if (Cannon->IsPlayerOperable())
+		{
+			TrainingCannon = Cannon;
+			return;
+		}
+	}
+	TrainingCannon = FirstCannon;
+}
+
+void AOngseongDefenseScenarioManager::ArmTrainingGate()
+{
+	ResolveTrainingCannon();
+	if (!IsValid(TrainingCannon))
+	{
+		UE_LOG(LogOngseong, Warning,
+			TEXT("Loading-gated start is on but no chongtong was found. Starting the defense immediately instead."));
+		StartDefense();
+		return;
+	}
+	TrainingCannon->OnLoadingStateChanged.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleTrainingLoadingStateChanged);
+	UE_LOG(LogOngseong, Display, TEXT("Waiting for the trainee to load %s before the assault begins."), *GetNameSafe(TrainingCannon));
+}
+
+void AOngseongDefenseScenarioManager::HandleTrainingLoadingStateChanged(const EChongtongLoadingState NewState, int32)
+{
+	// ReadyToAim is reached the moment the cannonball is seated, which is the end of the loading drill.
+	if (bTrainingComplete || NewState != EChongtongLoadingState::ReadyToAim) return;
+	bTrainingComplete = true;
+	if (TrainingCannon)
+	{
+		TrainingCannon->OnLoadingStateChanged.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleTrainingLoadingStateChanged);
+	}
+	ScheduleAssaultAfterBriefing();
+}
+
+void AOngseongDefenseScenarioManager::ScheduleAssaultAfterBriefing()
+{
+	bWaitingForBriefing = true;
+	Narration->OnNarrationIdle.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle);
+	Narration->ReportScenarioEvent(BriefingNarrationEvent, TrainingCannon);
+	// A level without a narration player never reports idle, so keep a deadline on the wait.
+	GetWorldTimerManager().SetTimer(BriefingTimeoutHandle, this, &AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle,
+		FMath::Max(1.0f, BriefingTimeout), false);
+	if (!Narration->IsNarrationBusy())
+	{
+		HandleBriefingNarrationIdle();
+	}
+}
+
+void AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle()
+{
+	if (!bWaitingForBriefing) return;
+	bWaitingForBriefing = false;
+	GetWorldTimerManager().ClearTimer(BriefingTimeoutHandle);
+	Narration->OnNarrationIdle.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleBriefingNarrationIdle);
+	if (AssaultStartDelay <= 0.0f)
+	{
+		BeginAssault();
+		return;
+	}
+	GetWorldTimerManager().SetTimer(AssaultDelayHandle, this, &AOngseongDefenseScenarioManager::BeginAssault, AssaultStartDelay, false);
+}
+
+void AOngseongDefenseScenarioManager::BeginAssault()
+{
+	if (DefenseState == EOngseongDefenseState::Defending) return;
+	StartDefense();
+}
+
+void AOngseongDefenseScenarioManager::PlayAssaultAudio()
+{
+	if (AssaultHornSound)
+	{
+		UGameplayStatics::PlaySound2D(this, AssaultHornSound, AssaultHornVolume);
+	}
+	if (!BattleMusic) return;
+	if (!BattleMusicComponent)
+	{
+		BattleMusicComponent = UGameplayStatics::SpawnSound2D(this, BattleMusic, BattleMusicVolume, 1.0f, 0.0f, nullptr, false, false);
+	}
+	if (!BattleMusicComponent) return;
+	if (BattleMusicFadeInTime > 0.0f)
+	{
+		BattleMusicComponent->FadeIn(BattleMusicFadeInTime, BattleMusicVolume);
+	}
+	else
+	{
+		BattleMusicComponent->Play();
+	}
+}
+
+void AOngseongDefenseScenarioManager::StopBattleMusic()
+{
+	if (!BattleMusicComponent) return;
+	if (BattleMusicFadeOutTime > 0.0f)
+	{
+		BattleMusicComponent->FadeOut(BattleMusicFadeOutTime, 0.0f);
+	}
+	else
+	{
+		BattleMusicComponent->Stop();
+	}
+	BattleMusicComponent = nullptr;
+}
+
 bool AOngseongDefenseScenarioManager::StartDefense()
 {
 	if (DefenseState == EOngseongDefenseState::Defending || !IsValid(GateActor) || !IsValid(WaveManager)) return false;
 	RemainingDefenseTime = bUseDefenseTimeLimit ? FMath::Max(1.0f, DefenseDuration) : 0.0f;
 	bRamDestroyed = false;
 	if (!SpawnAndActivateRam()) return false;
+	PlayAssaultAudio();
 	WaveManager->ResetWave();
 	SetDefenseState(EOngseongDefenseState::Defending);
 	WaveManager->SetObjectiveTarget(GateActor);
@@ -117,6 +252,7 @@ void AOngseongDefenseScenarioManager::RetryDefense()
 	if (WaveManager) WaveManager->ResetWave();
 	if (GateActor) GateActor->ResetGate();
 	bRamDestroyed = false;
+	bCompletionRequested = false;
 	SetDefenseState(EOngseongDefenseState::Idle);
 	StartDefense();
 }
@@ -197,12 +333,22 @@ void AOngseongDefenseScenarioManager::SucceedDefense()
 		VRHUD->SetObjective(LOCTEXT("SuccessHeadline", "옹성 방어 성공"), LOCTEXT("SuccessDetail", "적이 퇴각하고 있습니다"));
 		VRHUD->ShowNotification(LOCTEXT("SuccessNotification", "적 충차를 파괴했습니다"), EVRHUDNotificationType::Success, 5.0f);
 	}
+	StopBattleMusic();
 	if (WaveManager)
 	{
 		const FVector RetreatLocation = RetreatPoint ? RetreatPoint->GetActorLocation() : GetActorLocation();
 		WaveManager->RetreatAllEnemies(RetreatLocation);
 	}
-	else FinishSuccessfulRetreat();
+	if (SuccessCompletionDelay > 0.0f)
+	{
+		// Give the mission-clear narration room to finish before the Experience takes the player away.
+		GetWorldTimerManager().SetTimer(SuccessCompletionHandle, this, &AOngseongDefenseScenarioManager::FinishSuccessfulRetreat,
+			SuccessCompletionDelay, false);
+	}
+	else if (!WaveManager)
+	{
+		FinishSuccessfulRetreat();
+	}
 }
 
 void AOngseongDefenseScenarioManager::FailDefense(const FName NarrationEvent, const FText& Headline, const FText& Detail, const FText& Notification)
@@ -211,6 +357,7 @@ void AOngseongDefenseScenarioManager::FailDefense(const FName NarrationEvent, co
 	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
 	if (ActiveRam) ActiveRam->StopRam();
 	if (WaveManager) WaveManager->ReleaseAllEnemies();
+	StopBattleMusic();
 	SetDefenseState(EOngseongDefenseState::Failed);
 	UE_LOG(LogOngseong, Warning, TEXT("Defense failed (%s)."), *NarrationEvent.ToString());
 	Narration->ReportScenarioEvent(NarrationEvent, GateActor);
@@ -230,7 +377,8 @@ void AOngseongDefenseScenarioManager::FailDefense(const FName NarrationEvent, co
 
 void AOngseongDefenseScenarioManager::FinishSuccessfulRetreat()
 {
-	if (!bReturnToMainOnSuccess) return;
+	if (!bReturnToMainOnSuccess || bCompletionRequested) return;
+	bCompletionRequested = true;
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
 		if (UExperienceSubsystem* Experience = GameInstance->GetSubsystem<UExperienceSubsystem>())
@@ -251,7 +399,8 @@ void AOngseongDefenseScenarioManager::HandleGateDestroyed()
 
 void AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated()
 {
-	if (DefenseState == EOngseongDefenseState::Succeeded) FinishSuccessfulRetreat();
+	// With a completion delay the timer owns the handoff, so the clear line is never cut short.
+	if (DefenseState == EOngseongDefenseState::Succeeded && SuccessCompletionDelay <= 0.0f) FinishSuccessfulRetreat();
 }
 
 void AOngseongDefenseScenarioManager::HandleRamDefeated(UHealthComponent* DeadHealth, const FCombatDamageSpec&)

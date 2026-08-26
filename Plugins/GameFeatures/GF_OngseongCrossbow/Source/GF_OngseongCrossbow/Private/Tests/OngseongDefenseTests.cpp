@@ -5,6 +5,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Gameplay/Combat/HealthComponent.h"
+#include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/ChongtongInteractionTypes.h"
 #include "Ongseong/OngseongDefenseScenarioManager.h"
 #include "Ongseong/OngseongEnemyWaveManager.h"
 #include "Ongseong/OngseongGateActor.h"
@@ -103,6 +105,76 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 			AddError(TEXT("HandleGateDestroyed must remain bound as a scenario event handler"));
 		}
 	}
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FOngseongGatedAssaultStartTest,
+	"SuwonSiegeContestVR.Ongseong.Defense.GatedAssaultStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOngseongGatedAssaultStartTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("Test world is created"), World)) return false;
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Context.SetCurrentWorld(World);
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
+
+	AOngseongGateActor* Gate = World->SpawnActor<AOngseongGateActor>();
+	AOngseongEnemyWaveManager* Wave = World->SpawnActor<AOngseongEnemyWaveManager>();
+	AChongtongCannonActor* Cannon = World->SpawnActor<AChongtongCannonActor>();
+
+	// Spawned bare, so the BeginPlay auto-start finds no gate and no wave manager and does
+	// nothing. The gated start is then configured and armed the way BeginPlay would in a level.
+	AOngseongDefenseScenarioManager* Scenario = World->SpawnActor<AOngseongDefenseScenarioManager>();
+	if (!TestNotNull(TEXT("Scenario is spawned"), Scenario))
+	{
+		World->DestroyWorld(false);
+		GEngine->DestroyWorldContext(World);
+		return false;
+	}
+	TestEqual(TEXT("An unconfigured scenario cannot auto-start"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+	Scenario->SetGateActor(Gate);
+	Scenario->SetWaveManager(Wave);
+	Scenario->SetTrainingCannon(Cannon);
+	Scenario->SetStartAfterChongtongLoaded(true);
+	Scenario->ArmTrainingGate();
+
+	TestEqual(TEXT("The level opens with the drill, not the assault"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+	TestFalse(TEXT("The drill has not been completed yet"), Scenario->IsTrainingComplete());
+	TestNull(TEXT("No ram is staged during the drill"), Scenario->GetActiveRam());
+	TestFalse(TEXT("No enemy spawns during the drill"), Wave->IsSpawningActive());
+
+	// Powder, three rammer strokes and the cannonball complete one loading cycle.
+	Cannon->TryLoadItem(EChongtongLoadingItemType::Powder);
+	Cannon->RegisterRammerStroke();
+	Cannon->RegisterRammerStroke();
+	Cannon->RegisterRammerStroke();
+	TestEqual(TEXT("The drill reaches the cannonball step"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsCannonball);
+	TestFalse(TEXT("An unfinished load does not start the assault"), Scenario->IsTrainingComplete());
+
+	Cannon->TryLoadItem(EChongtongLoadingItemType::Cannonball);
+	TestEqual(TEXT("Seating the cannonball finishes the load"), Cannon->GetLoadingState(), EChongtongLoadingState::ReadyToAim);
+	TestTrue(TEXT("Finishing the load completes the drill"), Scenario->IsTrainingComplete());
+	TestEqual(TEXT("The briefing plays before the assault"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+
+	// The pause between the briefing and the horn runs on a world timer, which a bare test world
+	// does not advance. Call the entry point the timer uses and check what it produces.
+	Scenario->BeginAssault();
+	TestEqual(TEXT("The assault puts the scenario into the defending state"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
+	TestNotNull(TEXT("The assault sends in the ram"), Scenario->GetActiveRam());
+	// Spawning itself needs a configured enemy pool, which this bare world has none of; what the
+	// assault owes the wave manager is the objective it was not given during the drill.
+	TestEqual(TEXT("The assault points the enemies at the gate"), Wave->GetObjectiveTarget(), Cast<AActor>(Gate));
+
+	Scenario->BeginAssault();
+	TestEqual(TEXT("A second assault call cannot restart a running defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
 
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);

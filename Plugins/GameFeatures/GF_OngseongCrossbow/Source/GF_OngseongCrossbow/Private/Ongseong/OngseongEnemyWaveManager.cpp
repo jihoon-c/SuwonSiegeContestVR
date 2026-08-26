@@ -679,10 +679,13 @@ void AOngseongEnemyWaveManager::ApplySwordsmanMarch(AEnemyCombatCharacter* Sword
 
 void AOngseongEnemyWaveManager::UpdateSwordsmanFormation()
 {
-	SwordsmanFormationSlots.RemoveAll([](const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair)
+	for (auto It = SwordsmanFormationSlots.CreateIterator(); It; ++It)
 	{
-		return !IsValid(Pair.Key);
-	});
+		if (!IsValid(It.Key()))
+		{
+			It.RemoveCurrent();
+		}
+	}
 	for (const TPair<TObjectPtr<AEnemyCombatCharacter>, int32>& Pair : SwordsmanFormationSlots)
 	{
 		ApplySwordsmanMarch(Pair.Key);

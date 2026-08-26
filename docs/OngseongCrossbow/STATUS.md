@@ -16,6 +16,14 @@
 컴파일된 Sequence Player가 모두 루프임을 검증했다. 아군 총통 조준은 포신 단독 3축 회전에서
 **포신+화차 전체 어셈블리의 Yaw 전용 회전**으로 교체했다.
 
+**2026-08-26 2차 개정**: 본편 `LV_Ongseong`의 배치를 `LV_Ongseong_CombatTest`와 동일하게 맞추고
+(공용 남한산성 지형 연결, Transform 이관, Spawn Point 3종 배치·연결, 잔여 Actor 정리),
+본편 진행을 **총통 장전 완료 → 체험 시작 나레이션 → 2초 뒤 나팔·BGM·적 웨이브 → 충차 파괴 시
+미션 클리어·체험 종료**로 게이트했다. 나팔과 BGM은 `BP_OngseongDefenseScenarioManager`의
+Class Defaults `Ongseong|Scenario|Audio`에서 Sound Cue로 교체한다.
+본편의 VR GameMode와 디버그 전용 PlayerStart는 가져오지 않았다.
+`docs/OngseongCrossbow/completed/2026-08-26_MAIN_LEVEL_PARITY_AND_GATED_ASSAULT.md` 참조.
+
 **2026-08-26 개정**: `BP_OngseongSpawnPoint`를 추가해 적 초기 스폰, 병사 리스폰, 충차 스폰을
 역할별 레벨 인스턴스로 분리했다. 총통의 포구 화염·포격음과 공통 포탄의 폭발 이펙트·폭발음을
 Blueprint Class Defaults 및 그래프에서 교체할 수 있게 했다.

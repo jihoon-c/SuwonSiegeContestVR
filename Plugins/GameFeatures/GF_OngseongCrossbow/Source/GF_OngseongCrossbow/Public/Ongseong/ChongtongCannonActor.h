@@ -55,6 +55,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
 	bool TryFirePlayer();
 
+	/**
+	 * The trainee's emplacement. Allied cannons fire themselves; this one waits for hands on the
+	 * loading props, so the scenario uses it as the one whose loading gates the assault.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Ongseong|Chongtong|Player")
+	bool IsPlayerOperable() const { return !bEnableAutomaticFire; }
+
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
 	void BeginPlayerAim();
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
