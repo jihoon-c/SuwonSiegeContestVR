@@ -72,6 +72,10 @@ protected:
 	void HandleGrabRight(const struct FInputActionValue& Value);
 	void HandleReleaseLeft(const struct FInputActionValue& Value);
 	void HandleReleaseRight(const struct FInputActionValue& Value);
+	void HandleTriggerPressedLeft(const struct FInputActionValue& Value);
+	void HandleTriggerPressedRight(const struct FInputActionValue& Value);
+	void HandleTriggerReleasedLeft(const struct FInputActionValue& Value);
+	void HandleTriggerReleasedRight(const struct FInputActionValue& Value);
 
 	void StartTeleportTrace();
 	void UpdateTeleportTrace(const FVector2D& InputAxis);
@@ -82,7 +86,7 @@ protected:
 	void RemoveLocomotionInput();
 	void SetHandGraspAlpha(USkeletalMeshComponent* HandMesh, float Alpha) const;
 	void TryGrab(UMotionControllerComponent* MotionController, TObjectPtr<USceneComponent>& HeldComponent);
-	void TryRelease(TObjectPtr<USceneComponent>& HeldComponent);
+	void TryRelease(TObjectPtr<USceneComponent>& HeldComponent, UMotionControllerComponent* MotionController = nullptr);
 	USceneComponent* FindNearestGrabComponent(const UMotionControllerComponent* MotionController) const;
 	bool InvokeGrabFunction(USceneComponent* GrabComponent, FName FunctionName, UMotionControllerComponent* MotionController) const;
 	bool InvokeGrabOwnerFunction(USceneComponent* GrabComponent, FName FunctionName,

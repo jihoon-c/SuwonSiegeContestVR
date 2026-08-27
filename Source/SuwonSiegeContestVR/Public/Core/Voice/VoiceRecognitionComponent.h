@@ -17,8 +17,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnVoiceRecognitionStateChanged,
  * recognizes into ReportRecognizedText. Mock input, console debug input and a future on-device
  * recognizer therefore share one path. See docs/Core/specs/VOICE_RECOGNITION_BACKEND_SURVEY.md.
  *
- * Capture is only ever active between StartListening and StopListening. Owners must not leave a
- * recognizer running past the interaction that asked for it.
+ * Audio is only ever recorded between StartListening and StopListening. Owners must not leave a
+ * recognizer running past the interaction that asked for it. A backend may hold the capture device
+ * open a little longer to make back-to-back requests seamless, but nothing it hears in that window
+ * reaches a buffer or a decoder: see USherpaVoiceRecognitionComponent::CaptureIdleTimeout.
  */
 UCLASS(Abstract, ClassGroup = (Voice))
 class SUWONSIEGECONTESTVR_API UVoiceRecognitionComponent : public UActorComponent

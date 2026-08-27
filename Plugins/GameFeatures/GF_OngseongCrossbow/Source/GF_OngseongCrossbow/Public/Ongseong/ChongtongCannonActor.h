@@ -23,6 +23,8 @@ class UParticleSystem;
 class USoundBase;
 class USoundAttenuation;
 class UOngseongNarrationComponent;
+class UArrowComponent;
+class UWidgetComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnChongtongFired, AActor*, Target, AGameplayProjectileActor*, Projectile);
 
@@ -53,6 +55,13 @@ public:
 	/** Player shot: requires a complete loading cycle, two grips and both triggers. */
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
 	bool TryFirePlayer();
+
+	/** Fires a player shot using a normalized 0..1 two-trigger charge. */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
+	bool TryFirePlayerCharged(float ChargeAlpha);
+
+	void SetPlayerChargeVisible(bool bVisible);
+	void SetPlayerChargePercent(float ChargeAlpha);
 
 	/**
 	 * The trainee's emplacement. Allied cannons fire themselves; this one waits for hands on the
@@ -109,6 +118,8 @@ protected:
 	void EnterReadyStation();
 	void ExitReadyStation();
 	void SpawnPlaceholderLoadingItems();
+	void BeginAutomatedRamming(AChongtongLoadingItemActor* Rammer);
+	void UpdateAutomatedRamming(float DeltaSeconds);
 	AGameplayProjectileActor* SpawnProjectile(const FVector& Direction, float Speed);
 	/**
 	 * Turns the complete barrel-and-carriage assembly toward WorldDirection in yaw only.
@@ -141,10 +152,16 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> Muzzle;
+	/** Player-shot direction. The Arrow's local +X axis is the launch direction. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UArrowComponent> FireDirection;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> LoadingSocket;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> PlayerCameraAnchor;
+	/** World-space trigger charge bar; place/rotate this behind the cannon in the Blueprint viewport. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UWidgetComponent> ChargeDisplay;
 	/**
 	 * Viewport-editable anchors for the VR loading props.  Move these components in a playable
 	 * chongtong Blueprint's viewport; the corresponding prop spawns at its world transform.
@@ -231,6 +248,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0"))
 	float ProjectileSpeed = 2800.0f;
 
+	/** Speed produced by a tap/zero-length charge. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Player", meta=(ClampMin="0.0"))
+	float MinimumPlayerProjectileSpeed = 900.0f;
+
 	/** 0 = flattest arc that still reaches, 1 = highest lob. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Ongseong|Chongtong", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FiringArc = 0.45f;
@@ -252,6 +273,18 @@ protected:
 	float LoadingAcceptanceRadius = 30.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="1.0"))
 	float RammerWithdrawRadius = 65.0f;
+	/** One complete smooth in/out rammer stroke duration. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="0.1", Units="s"))
+	float RammerStrokeDuration = 0.8f;
+	/** Distance in front of the muzzle at the outer end of each stroke. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="0.0", Units="cm"))
+	float RammerStrokeWithdrawDistance = 75.0f;
+	/** Distance behind the muzzle reached by the rammer at full insertion. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="0.0", Units="cm"))
+	float RammerStrokeInsertDepth = 55.0f;
+	/** Corrects the prop's authored orientation after aligning it to FireDirection. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
+	FRotator RammerRotationOffset = FRotator::ZeroRotator;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
 	bool bSpawnPlaceholderProps = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
@@ -274,6 +307,9 @@ protected:
 	/** Firing sound/cue used by both allied and player cannon Blueprint variants. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<USoundBase> FireSound;
+	/** Optional looping/one-shot flight cue attached to each launched shell. Assign a Sound Cue in the editor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
+	TObjectPtr<USoundBase> ProjectileFlightSound;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
 	EChongtongLoadingState LoadingState = EChongtongLoadingState::NeedsPowder;
@@ -284,6 +320,10 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AChongtongLoadingItemActor>> LoadingItems;
 	bool bRammerInserted = false;
+	UPROPERTY(Transient)
+	TObjectPtr<AChongtongLoadingItemActor> AnimatedRammer;
+	float RammerAnimationElapsed = 0.0f;
+	int32 AnimatedRammerCompletedStrokes = 0;
 
 	UFUNCTION()
 	void HandleDeath(UHealthComponent* DeadHealthComponent, const FCombatDamageSpec& KillingDamage);

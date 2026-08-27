@@ -101,9 +101,9 @@ VoiceModels/sherpa-onnx-streaming-zipformer-korean-2024-06-16/  (.gitignore 대�
 
 # 남은 문제
 
-* **"신기전" 인식률 개선은 별도 작업으로 분리**. `docs/Core/specs/SHERPA_ONNX_INTEGRATION.md` 8절에
-  이미 기록된 hotwords 미사용 문제와 동일한 근본 원인이다. 개선하려면 sherpa-onnx의 `text2token`
-  도구로 `bpe.vocab`을 만들고 `bUseHotwords=true` + `DecodingMethod=modified_beam_search`로
-  전환해야 한다. 사용자 요청 시 진행하기로 하고 이번 작업 범위에서는 보류했다.
+* ~~**"신기전" 인식률 개선은 별도 작업으로 분리**~~ →
+  **2026-08-27 후속 작업에서 진행됨**. `docs/Core/completed/2026-08-27_VOICE_HOTWORDS_AND_CAPTURE.md`
+  참조. hotwords + `modified_beam_search`로 전환하고, 발화마다 마이크를 재오픈하던 문제도 함께
+  고쳤다. 마이크로 실제 인식률을 재확인하는 것은 그 문서의 남은 과제로 넘어갔다.
 * Android 스탠드얼론에서의 이 테스트 레벨 검증은 범위 밖 (기존 `docs/Core/specs/SHERPA_ONNX_INTEGRATION.md`
   6절의 Android 미검증 상태가 그대로 적용됨).

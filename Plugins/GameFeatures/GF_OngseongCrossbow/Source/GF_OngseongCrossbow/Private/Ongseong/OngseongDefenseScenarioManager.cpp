@@ -117,8 +117,10 @@ void AOngseongDefenseScenarioManager::ApplyPlayerLocomotionPolicy()
 	// The non-VR combat test pawn is not a VR pawn, so this simply does nothing there.
 	if (AVRPlayerPawn* VRPawn = PC ? Cast<AVRPlayerPawn>(PC->GetPawn()) : nullptr)
 	{
-		VRPawn->SetLocomotionEnabled(false, false);
-		UE_LOG(LogOngseong, Display, TEXT("Player locomotion locked to the battlement post."));
+		// Keep free/smooth movement locked for scenario staging, but retain the stock XR
+		// template teleport locomotion requested for the Ongseong battlement.
+		VRPawn->SetLocomotionEnabled(false, true);
+		UE_LOG(LogOngseong, Display, TEXT("Player smooth movement locked; teleport remains enabled on the battlement."));
 	}
 }
 

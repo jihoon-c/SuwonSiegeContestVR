@@ -454,11 +454,22 @@ bool USherpaVoiceRecognitionComponent::BeginBackendListening_Implementation(
 
 	if (bHotwordsActive && Request.Keywords.Num() > 0)
 	{
+		// One hotword per line, as raw text: sherpa-onnx maps it onto BPE units with bpe_vocab.
 		const FString Hotwords = FString::Join(Request.Keywords, TEXT("\n"));
 		const FTCHARToUTF8 HotwordsUtf8(*Hotwords);
 		Handles->Stream = SherpaOnnxCreateOnlineStreamWithHotwords(Handles->Recognizer, HotwordsUtf8.Get());
+
+		if (!Handles->Stream)
+		{
+			// A keyword sherpa cannot encode must not cost the player the whole recognizer; a plain
+			// stream still recognizes the word, it just is not boosted.
+			UE_LOG(LogSherpaVoice, Warning,
+				TEXT("sherpa-onnx rejected the hotwords \"%s\"; listening without them."),
+				*Hotwords.Replace(TEXT("\n"), TEXT(", ")));
+		}
 	}
-	else
+
+	if (!Handles->Stream)
 	{
 		Handles->Stream = SherpaOnnxCreateOnlineStream(Handles->Recognizer);
 	}

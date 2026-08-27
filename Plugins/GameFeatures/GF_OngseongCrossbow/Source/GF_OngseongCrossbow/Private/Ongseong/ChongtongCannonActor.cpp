@@ -2,6 +2,8 @@
 
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/ArrowComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Core/VR/InteractionHighlightComponent.h"
 #include "Core/VR/VRPlayerPawn.h"
 #include "Gameplay/Characters/AllyCombatCharacter.h"
@@ -16,6 +18,7 @@
 #include "Ongseong/ChongtongAimGripComponent.h"
 #include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
+#include "Ongseong/ChongtongChargeWidget.h"
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
@@ -47,12 +50,30 @@ AChongtongCannonActor::AChongtongCannonActor()
 	Muzzle = CreateDefaultSubobject<USceneComponent>(TEXT("Muzzle"));
 	Muzzle->SetupAttachment(BarrelPivot);
 	Muzzle->SetRelativeLocation(FVector(0.0f, 1345.0f, 0.0f));
+	FireDirection = CreateDefaultSubobject<UArrowComponent>(TEXT("FireDirection"));
+	FireDirection->SetupAttachment(Muzzle);
+	// Existing art points down local +Y. Arrow +X is the explicit, editor-tunable contract.
+	FireDirection->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	FireDirection->ArrowSize = 2.0f;
 	LoadingSocket = CreateDefaultSubobject<USceneComponent>(TEXT("LoadingSocket"));
 	LoadingSocket->SetupAttachment(Muzzle);
 	PlayerCameraAnchor = CreateDefaultSubobject<USceneComponent>(TEXT("PlayerCameraAnchor"));
 	PlayerCameraAnchor->SetupAttachment(HwachaBaseMesh);
 	PlayerCameraAnchor->SetRelativeLocation(FVector(-115.0f, -45.0f, 165.0f));
 	PlayerCameraAnchor->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	ChargeDisplay = CreateDefaultSubobject<UWidgetComponent>(TEXT("ChargeDisplay"));
+	ChargeDisplay->SetupAttachment(HwachaBaseMesh);
+	ChargeDisplay->SetRelativeLocation(FVector(-115.0f, -70.0f, 145.0f));
+	ChargeDisplay->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+	ChargeDisplay->SetRelativeScale3D(FVector(0.12f));
+	ChargeDisplay->SetWidgetSpace(EWidgetSpace::World);
+	ChargeDisplay->SetDrawSize(FVector2D(480.0f, 110.0f));
+	ChargeDisplay->SetPivot(FVector2D(0.5f, 0.5f));
+	ChargeDisplay->SetBlendMode(EWidgetBlendMode::Transparent);
+	ChargeDisplay->SetTwoSided(true);
+	ChargeDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ChargeDisplay->SetWidgetClass(UChongtongChargeWidget::StaticClass());
+	ChargeDisplay->SetVisibility(false);
 	PowderSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("PowderSpawnPoint"));
 	PowderSpawnPoint->SetupAttachment(PlayerCameraAnchor);
 	PowderSpawnPoint->SetRelativeLocation(FVector(65.0f, -38.0f, -65.0f));
@@ -65,6 +86,7 @@ AChongtongCannonActor::AChongtongCannonActor()
 	AimGrip = CreateDefaultSubobject<UChongtongAimGripComponent>(TEXT("AimGrip"));
 	AimGrip->SetupAttachment(HwachaBaseMesh);
 	AimGrip->SetRelativeLocation(FVector(-40.0f, 0.0f, 120.0f));
+	AimGrip->ComponentTags.Add(TEXT("VRGrab"));
 	AimGrip->SetAimTarget(BarrelPivot);
 	AimPrompt = CreateDefaultSubobject<UInteractionHighlightComponent>(TEXT("AimPrompt"));
 	AimPrompt->SetupAttachment(AimGrip);
@@ -134,6 +156,7 @@ void AChongtongCannonActor::BeginPlay()
 void AChongtongCannonActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UpdateAutomatedRamming(DeltaSeconds);
 	UpdateLoadingInteractions();
 }
 
@@ -273,14 +296,28 @@ AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& 
 	Spec.InstigatorActor = this;
 	Spec.DamageCauser = Projectile;
 	Projectile->LaunchProjectile(Direction, Speed, Spec);
+	if (ProjectileFlightSound)
+	{
+		UGameplayStatics::SpawnSoundAttached(ProjectileFlightSound, Projectile->GetRootComponent(), NAME_None,
+			FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::KeepRelativeOffset,
+			true, 1.0f, 1.0f, 0.0f, CombatSoundAttenuation, CombatSoundConcurrency, true);
+	}
 	return Projectile;
 }
 
 bool AChongtongCannonActor::TryFirePlayer()
 {
+	return TryFirePlayerCharged(1.0f);
+}
+
+bool AChongtongCannonActor::TryFirePlayerCharged(const float ChargeAlpha)
+{
 	if (LoadingState != EChongtongLoadingState::ReadyToAim || !AimGrip->IsTwoHandAiming()) return false;
-	const FVector Direction = Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
-	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction, ProjectileSpeed);
+	const FVector Direction = FireDirection ? FireDirection->GetForwardVector().GetSafeNormal()
+		: Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
+	const float Speed = FMath::Lerp(MinimumPlayerProjectileSpeed, ProjectileSpeed,
+		FMath::Clamp(ChargeAlpha, 0.0f, 1.0f));
+	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction, Speed);
 	if (!Projectile) return false;
 
 	++CompletedShots;
@@ -301,6 +338,28 @@ bool AChongtongCannonActor::TryFirePlayer()
 	return true;
 }
 
+void AChongtongCannonActor::SetPlayerChargeVisible(const bool bVisible)
+{
+	if (ChargeDisplay)
+	{
+		ChargeDisplay->SetVisibility(bVisible);
+		ChargeDisplay->SetHiddenInGame(!bVisible);
+	}
+}
+
+void AChongtongCannonActor::SetPlayerChargePercent(const float ChargeAlpha)
+{
+	if (!ChargeDisplay)
+	{
+		return;
+	}
+	ChargeDisplay->InitWidget();
+	if (UChongtongChargeWidget* Widget = Cast<UChongtongChargeWidget>(ChargeDisplay->GetUserWidgetObject()))
+	{
+		Widget->SetChargePercent(ChargeAlpha);
+	}
+}
+
 void AChongtongCannonActor::BeginPlayerAim()
 {
 	if (LoadingState == EChongtongLoadingState::ReadyToAim) EnterReadyStation();
@@ -308,6 +367,8 @@ void AChongtongCannonActor::BeginPlayerAim()
 
 void AChongtongCannonActor::EndPlayerAim()
 {
+	SetPlayerChargeVisible(false);
+	SetPlayerChargePercent(0.0f);
 }
 
 bool AChongtongCannonActor::TryLoadItem(const EChongtongLoadingItemType ItemType)
@@ -348,16 +409,64 @@ void AChongtongCannonActor::UpdateLoadingInteractions()
 		const float Distance = Item->GetDistanceToPoint(LoadingSocket->GetComponentLocation());
 		if (Item->GetItemType() == EChongtongLoadingItemType::Rammer)
 		{
-			if (LoadingState == EChongtongLoadingState::NeedsRamming && Distance <= LoadingAcceptanceRadius && !bRammerInserted)
+			if (LoadingState == EChongtongLoadingState::NeedsRamming && Distance <= LoadingAcceptanceRadius && !AnimatedRammer)
 			{
-				bRammerInserted = RegisterRammerStroke();
+				BeginAutomatedRamming(Item);
 			}
-			else if (Distance >= RammerWithdrawRadius) bRammerInserted = false;
 		}
 		else if (Distance <= LoadingAcceptanceRadius && TryLoadItem(Item->GetItemType()))
 		{
 			Item->ConsumeAndRespawn();
 		}
+	}
+}
+
+void AChongtongCannonActor::BeginAutomatedRamming(AChongtongLoadingItemActor* Rammer)
+{
+	if (!IsValid(Rammer) || AnimatedRammer || LoadingState != EChongtongLoadingState::NeedsRamming)
+	{
+		return;
+	}
+	AnimatedRammer = Rammer;
+	RammerAnimationElapsed = 0.0f;
+	AnimatedRammerCompletedStrokes = 0;
+	Rammer->SetLoadingPromptActive(false);
+	Rammer->BeginAutomatedUse();
+	UpdateAutomatedRamming(0.0f);
+}
+
+void AChongtongCannonActor::UpdateAutomatedRamming(const float DeltaSeconds)
+{
+	if (!IsValid(AnimatedRammer) || !LoadingSocket)
+	{
+		AnimatedRammer = nullptr;
+		return;
+	}
+
+	const float StrokeDuration = FMath::Max(0.1f, RammerStrokeDuration);
+	RammerAnimationElapsed += FMath::Max(0.0f, DeltaSeconds);
+	const int32 FinishedStrokes = FMath::Min(FMath::FloorToInt(RammerAnimationElapsed / StrokeDuration), RequiredRammerStrokes);
+	while (AnimatedRammerCompletedStrokes < FinishedStrokes)
+	{
+		++AnimatedRammerCompletedStrokes;
+		RegisterRammerStroke();
+	}
+
+	const FVector Forward = FireDirection ? FireDirection->GetForwardVector().GetSafeNormal()
+		: Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
+	const FVector OuterLocation = LoadingSocket->GetComponentLocation() + Forward * RammerStrokeWithdrawDistance;
+	const FVector InnerLocation = LoadingSocket->GetComponentLocation() - Forward * RammerStrokeInsertDepth;
+	const float StrokePhase = FMath::Fmod(RammerAnimationElapsed, StrokeDuration) / StrokeDuration;
+	const float LinearInsert = StrokePhase < 0.5f ? StrokePhase * 2.0f : (1.0f - StrokePhase) * 2.0f;
+	const float SmoothInsert = FMath::SmoothStep(0.0f, 1.0f, LinearInsert);
+	AnimatedRammer->SetActorLocationAndRotation(FMath::Lerp(OuterLocation, InnerLocation, SmoothInsert),
+		(Forward.Rotation() + RammerRotationOffset), false, nullptr, ETeleportType::TeleportPhysics);
+
+	if (FinishedStrokes >= RequiredRammerStrokes)
+	{
+		AChongtongLoadingItemActor* FinishedRammer = AnimatedRammer;
+		AnimatedRammer = nullptr;
+		FinishedRammer->ConsumeAndRespawn();
 	}
 }
 
@@ -396,6 +505,7 @@ void AChongtongCannonActor::SetLoadingState(const EChongtongLoadingState NewStat
 
 void AChongtongCannonActor::EnterReadyStation()
 {
+	SetPlayerChargePercent(0.0f);
 	for (TActorIterator<AVRPlayerPawn> It(GetWorld()); It; ++It)
 	{
 		It->EnterMountedInteraction(PlayerCameraAnchor);
@@ -405,6 +515,8 @@ void AChongtongCannonActor::EnterReadyStation()
 
 void AChongtongCannonActor::ExitReadyStation()
 {
+	SetPlayerChargeVisible(false);
+	SetPlayerChargePercent(0.0f);
 	for (TActorIterator<AVRPlayerPawn> It(GetWorld()); It; ++It) It->ExitMountedInteraction(PlayerCameraAnchor);
 }
 
