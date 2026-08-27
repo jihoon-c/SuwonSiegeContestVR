@@ -21,6 +21,7 @@
 #include "Singijeon/SingijeonHwachaActor.h"
 #include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/UnrealType.h"
 #include "UObject/UObjectGlobals.h"
 
 ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
@@ -76,7 +77,7 @@ ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
     ForegroundEnemyClass = AEnemySoldierActor::StaticClass();
 
     static ConstructorHelpers::FObjectFinder<USkeletalMesh> ProxySkeletalMeshFinder(
-        TEXT("/Game/NiagaraExamples/Gallery/SkeletalMesh/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
+        TEXT("/GF_Singijeon/Gameplay/Enemy/Samurai/SKM_Low_Poly_Samurai_VR.SKM_Low_Poly_Samurai_VR"));
     if (ProxySkeletalMeshFinder.Succeeded())
     {
         ProxySkeletalMesh = ProxySkeletalMeshFinder.Object;
@@ -84,7 +85,7 @@ ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
     }
 
     static ConstructorHelpers::FObjectFinder<UAnimationAsset> RunAnimationFinder(
-        TEXT("/Game/NiagaraExamples/Gallery/SkeletalMesh/Mannequins/Anims/Rifle/Jog/MF_Rifle_Jog_Fwd.MF_Rifle_Jog_Fwd"));
+        TEXT("/GF_Singijeon/Gameplay/Enemy/Samurai/MF_Rifle_Jog_Fwd_Samurai.MF_Rifle_Jog_Fwd_Samurai"));
     if (RunAnimationFinder.Succeeded())
     {
         RuntimeRunAnimationFallback = RunAnimationFinder.Object;
@@ -150,6 +151,97 @@ void ASingijeonEnemyWaveActor::OnConstruction(const FTransform& Transform)
     }
 #if WITH_EDITOR
     RefreshEditorEnemyPreview();
+#endif
+}
+
+#if WITH_EDITOR
+void ASingijeonEnemyWaveActor::PostEditChangeProperty(
+    FPropertyChangedEvent& PropertyChangedEvent)
+{
+    Super::PostEditChangeProperty(PropertyChangedEvent);
+
+    const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+    if (PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, ProxySkeletalMesh) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, ForegroundRunAnimation) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, ProxyScale) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, DesiredEnemyHeight) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, ProxyGroundOffset) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, AgentGroundOffset) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, ProxyMinLOD) ||
+        PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, bShowEnemyPreviewInEditor))
+    {
+        RefreshEnemyVisuals();
+    }
+}
+#endif
+
+void ASingijeonEnemyWaveActor::SetEnemySkeletalMesh(USkeletalMesh* NewSkeletalMesh)
+{
+    ProxySkeletalMesh = NewSkeletalMesh;
+    RefreshEnemyVisuals();
+}
+
+void ASingijeonEnemyWaveActor::RefreshEnemyVisuals()
+{
+    if (CharacterInstances)
+    {
+        CharacterInstances->SetSkinnedAssetAndUpdate(ProxySkeletalMesh);
+        CharacterInstances->MarkRenderStateDirty();
+    }
+
+    UAnimationAsset* RunAnimation = GetRunAnimation();
+    for (FEnemySlot& Slot : EnemySlots)
+    {
+        if (AEnemySoldierActor* Enemy = Slot.InteractiveActor.Get())
+        {
+            if (USkeletalMeshComponent* EnemyMesh = Enemy->GetMesh())
+            {
+                EnemyMesh->SetSkeletalMesh(ProxySkeletalMesh);
+                if (RunAnimation)
+                {
+                    EnemyMesh->PlayAnimation(RunAnimation, true);
+                    EnemyMesh->SetPlayRate(Slot.SpeedScale);
+                }
+                EnemyMesh->SetRelativeScale3D(
+                    ProxyScale * GetEnemyHeightNormalizationScale());
+                EnemyMesh->MarkRenderStateDirty();
+            }
+        }
+    }
+
+    SharedPoseLeaders.Reset();
+    for (int32 Index = 0; Index < ReliableProxyMeshes.Num(); ++Index)
+    {
+        USkeletalMeshComponent* Proxy = ReliableProxyMeshes[Index];
+        if (!IsValid(Proxy))
+        {
+            continue;
+        }
+        Proxy->SetLeaderPoseComponent(nullptr);
+        Proxy->SetSkeletalMesh(ProxySkeletalMesh);
+        Proxy->SetRelativeScale3D(
+            ProxyScale * GetEnemyHeightNormalizationScale());
+        if (Index < SharedPoseLeaderCount)
+        {
+            if (RunAnimation)
+            {
+                Proxy->PlayAnimation(RunAnimation, true);
+            }
+            SharedPoseLeaders.Add(Proxy);
+        }
+        else if (!SharedPoseLeaders.IsEmpty())
+        {
+            Proxy->SetLeaderPoseComponent(
+                SharedPoseLeaders[Index % SharedPoseLeaders.Num()]);
+        }
+        Proxy->MarkRenderStateDirty();
+    }
+
+#if WITH_EDITOR
+    if (UWorld* World = GetWorld(); World && !World->IsGameWorld())
+    {
+        RefreshEditorEnemyPreview();
+    }
 #endif
 }
 

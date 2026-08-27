@@ -65,5 +65,10 @@ protected:
 	void HandleBGMFinished();
 
 private:
+	/** Starts after the world/audio device is fully initialized and retries briefly if needed. */
+	void StartBGMWhenAudioReady();
+
+	FTimerHandle InitialStartRetryTimer;
+	int32 InitialStartRetryCount = 0;
 	bool bStopRequested = false;
 };

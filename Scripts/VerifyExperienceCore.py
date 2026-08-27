@@ -26,6 +26,14 @@ if definition:
         "LV_Singijeon" in str(experience_level),
         "ExperienceLevel references LV_Singijeon",
     )
+    check(
+        "L_Main" in str(definition.get_editor_property("return_level")),
+        "ReturnLevel references L_Main",
+    )
+    check(
+        definition.get_editor_property("return_on_completion"),
+        "Automatic return on completion is enabled",
+    )
 
 unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/LV_Singijeon")
 managers = [
