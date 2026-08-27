@@ -85,6 +85,30 @@ void AActorPool::PrewarmPool()
 	}
 }
 
+int32 AActorPool::EnsurePoolSize(const int32 DesiredSize)
+{
+	bHasPrewarmed = true;
+	PruneInvalidActors();
+	const int32 Missing = DesiredSize - GetTotalCount();
+	for (int32 Index = 0; Index < Missing; ++Index)
+	{
+		AActor* NewActor = CreatePooledActor();
+		if (!NewActor)
+		{
+			break;
+		}
+		DeactivateActor(NewActor);
+		AvailableActors.Add(NewActor);
+	}
+	if (Missing > 0)
+	{
+		UE_LOG(LogActorPool, Display, TEXT("%s grown to %d (%s), requested %d."),
+			*GetName(), GetTotalCount(),
+			PooledActorClass ? *PooledActorClass->GetName() : TEXT("<no class>"), DesiredSize);
+	}
+	return GetTotalCount();
+}
+
 AActor* AActorPool::CreatePooledActor()
 {
 	if (!PooledActorClass || !GetWorld())

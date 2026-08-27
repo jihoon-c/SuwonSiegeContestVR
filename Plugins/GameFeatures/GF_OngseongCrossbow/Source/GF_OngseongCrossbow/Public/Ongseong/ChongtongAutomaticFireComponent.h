@@ -46,5 +46,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Automatic Fire", meta=(ClampMin="0.1"))
 	float FireInterval = 5.0f;
 
+	/** Random delay applied to each allied shot (5 +/- 1 seconds by default). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Automatic Fire", meta=(ClampMin="0.0"))
+	float FireIntervalJitter = 1.0f;
+
 	FTimerHandle FireTimerHandle;
 };

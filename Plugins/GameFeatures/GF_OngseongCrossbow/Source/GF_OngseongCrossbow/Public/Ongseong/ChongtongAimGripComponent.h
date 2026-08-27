@@ -7,7 +7,7 @@
 class UMotionControllerComponent;
 class USceneComponent;
 
-/** Two-hand cannon grip. Hand separation controls yaw/pitch while both grips remain held. */
+/** Two-hand cannon grip. Hand separation controls yaw; authored elevation remains fixed. */
 UCLASS(ClassGroup=(VRInteraction), meta=(BlueprintSpawnableComponent))
 class GF_ONGSEONGCROSSBOW_API UChongtongAimGripComponent : public USceneComponent
 {
@@ -50,13 +50,12 @@ protected:
 	TObjectPtr<USceneComponent> AimTarget;
 
 	UPROPERTY(EditAnywhere, Category="Ongseong|Chongtong|Aim")
-	float MinPitch = -10.0f;
-	UPROPERTY(EditAnywhere, Category="Ongseong|Chongtong|Aim")
-	float MaxPitch = 45.0f;
-	UPROPERTY(EditAnywhere, Category="Ongseong|Chongtong|Aim")
 	float MaxYaw = 70.0f;
 	UPROPERTY(EditAnywhere, Category="Ongseong|Chongtong|Aim")
 	float RotationSpeed = 70.0f;
+	/** Both triggers reach full power after this many seconds; additional hold time is ignored. */
+	UPROPERTY(EditAnywhere, Category="Ongseong|Chongtong|Charge", meta=(ClampMin="0.1", Units="s"))
+	float MaxChargeDuration = 2.0f;
 
 	FVector BaselineHandDirection = FVector::ForwardVector;
 	FRotator BaselineRelativeRotation = FRotator::ZeroRotator;
@@ -64,4 +63,6 @@ protected:
 	bool bLeftTrigger = false;
 	bool bRightTrigger = false;
 	bool bFireLatched = false;
+	bool bCharging = false;
+	float ChargeElapsed = 0.0f;
 };

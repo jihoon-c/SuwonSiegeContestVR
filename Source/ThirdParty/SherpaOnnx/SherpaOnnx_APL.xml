@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android packaging rules for the vendored sherpa-onnx C API.
+  Copies the arm64-v8a shared objects into the APK and declares the microphone permission.
+-->
+<root xmlns:android="http://schemas.android.com/apk/res/android">
+	<init>
+		<log text="SherpaOnnx APL: configuring on-device speech recognition"/>
+	</init>
+
+	<!-- Ships the native libraries with the APK. Only arm64-v8a is supported. -->
+	<soLoadLibrary>
+		<loadLibrary name="onnxruntime" failmsg="onnxruntime not loaded and required!"/>
+		<loadLibrary name="sherpa-onnx-c-api" failmsg="sherpa-onnx-c-api not loaded and required!"/>
+	</soLoadLibrary>
+
+	<AARImports>
+	</AARImports>
+
+	<prebuildCopies>
+		<copyDir src="$S(PluginDir)/Android/arm64-v8a" dst="$S(BuildDir)/libs/arm64-v8a"/>
+	</prebuildCopies>
+
+	<androidManifestUpdates>
+		<addPermission android:name="android.permission.RECORD_AUDIO"/>
+		<!-- Meta/PICO headsets expose their array mic through the standard microphone feature. -->
+		<addFeature android:name="android.hardware.microphone" android:required="false"/>
+	</androidManifestUpdates>
+</root>

@@ -1,11 +1,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Core/Quiz/InitialConsonantQuizTypes.h"
 #include "GameFramework/Actor.h"
 #include "Gameplay/Combat/CombatTypes.h"
+#include "Ongseong/ChongtongInteractionTypes.h"
 #include "OngseongDefenseScenarioManager.generated.h"
 
 class AActorPool;
+class AChongtongCannonActor;
+class UInitialConsonantQuizComponent;
+class UAudioComponent;
+class USoundBase;
 class AOngseongEnemyWaveManager;
 class AOngseongGateActor;
 class AOngseongRamActor;
@@ -44,12 +50,43 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
 	void RetryDefense();
 
+	/**
+	 * Sounds the horn, brings up the battle music and starts the defense.
+	 * This is what the loading-gated flow calls once the instructor has finished the briefing.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
+	void BeginAssault();
+
+	/**
+	 * Puts the reusable Core initial-consonant quiz in front of the player. The briefing calls this
+	 * before the horn; the assault waits until the quiz reports a result.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Quiz")
+	bool StartIntroQuiz();
+
+	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Quiz")
+	bool IsIntroQuizComplete() const { return bIntroQuizComplete; }
+
+	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Quiz")
+	UInitialConsonantQuizComponent* GetIntroQuiz() const { return IntroQuiz; }
+
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Audio")
+	void StopBattleMusic();
+
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
 	void SetGateActor(AOngseongGateActor* NewGateActor) { GateActor = NewGateActor; }
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
 	void SetWaveManager(AOngseongEnemyWaveManager* NewWaveManager) { WaveManager = NewWaveManager; }
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
 	void SetRamPool(AActorPool* NewRamPool) { RamPool = NewRamPool; }
+	/** Must be set before BeginPlay: the gate is armed there. */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Start")
+	void SetStartAfterChongtongLoaded(bool bNewStartAfterChongtongLoaded) { bStartAfterChongtongLoaded = bNewStartAfterChongtongLoaded; }
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Start")
+	void SetTrainingCannon(AChongtongCannonActor* NewTrainingCannon) { TrainingCannon = NewTrainingCannon; }
+	/** Starts listening for the loading drill. BeginPlay calls this when the gated start is on. */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Start")
+	void ArmTrainingGate();
 
 	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario")
 	EOngseongDefenseState GetDefenseState() const { return DefenseState; }
@@ -62,6 +99,9 @@ public:
 	bool IsRamDestroyed() const { return bRamDestroyed; }
 	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario")
 	bool IsDefenseTimeLimited() const { return bUseDefenseTimeLimit; }
+	/** True once the trainee has finished loading the cannon in the gated flow. */
+	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Start")
+	bool IsTrainingComplete() const { return bTrainingComplete; }
 	/** Cumulative enemies defeated during the current defense attempt. */
 	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario")
 	int32 GetTotalDefeatedEnemies() const;
@@ -82,6 +122,18 @@ protected:
 	void HandleAutoRetry();
 	void ApplyPlayerLocomotionPolicy();
 
+	void ResolveTrainingCannon();
+	void ScheduleAssaultAfterBriefing();
+	void ScheduleAssault();
+	void PlayAssaultAudio();
+
+	UFUNCTION()
+	void HandleIntroQuizFinished(FName QuizID, bool bCorrect, EInitialConsonantQuizOutcome Outcome);
+
+	UFUNCTION()
+	void HandleTrainingLoadingStateChanged(EChongtongLoadingState NewState, int32 CompletedShots);
+	UFUNCTION()
+	void HandleBriefingNarrationIdle();
 	UFUNCTION()
 	void HandleGateDestroyed();
 	UFUNCTION()
@@ -110,6 +162,53 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bAutoStart = true;
 	/**
+	 * Gated start used by the main level: nothing spawns until the trainee has loaded the cannon
+	 * once. The briefing line plays first, then the assault begins after AssaultStartDelay.
+	 * When this is on, bAutoStart is ignored.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Start")
+	bool bStartAfterChongtongLoaded = false;
+	/** Optional. The player-operable cannon that gates the start. Auto-found when left empty. */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Ongseong|Scenario|Start")
+	TObjectPtr<AChongtongCannonActor> TrainingCannon;
+	/** Pause between the end of the briefing line and the horn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Start", meta=(ClampMin="0.0"))
+	float AssaultStartDelay = 2.0f;
+	/** Safety net so a missing or silent briefing line cannot stall the experience. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Start", meta=(ClampMin="1.0"))
+	float BriefingTimeout = 30.0f;
+	/** Instructor line announcing that the drill is starting. Queued when loading completes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Start")
+	FName BriefingNarrationEvent = FName(TEXT("TrainingCompleted"));
+
+	/**
+	 * Runs the initial-consonant quiz between the briefing line and the horn.
+	 * Turning this off restores the previous briefing-to-assault flow exactly.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Quiz")
+	bool bRunIntroQuiz = true;
+	/** Entry to run from the quiz component. The default 옹성 quiz is authored in the constructor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Quiz")
+	FName IntroQuizID = FName(TEXT("QUIZ_ONGSEONG"));
+	/** Core quiz runtime. Feature code only supplies the data and the moment it runs. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario|Quiz")
+	TObjectPtr<UInitialConsonantQuizComponent> IntroQuiz;
+
+	/** War horn that opens the assault. Assign a Sound Cue in the Blueprint. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio")
+	TObjectPtr<USoundBase> AssaultHornSound;
+	/** Battle music that runs for the length of the assault. Assign a Sound Cue in the Blueprint. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio")
+	TObjectPtr<USoundBase> BattleMusic;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio", meta=(ClampMin="0.0"))
+	float AssaultHornVolume = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio", meta=(ClampMin="0.0"))
+	float BattleMusicVolume = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio", meta=(ClampMin="0.0"))
+	float BattleMusicFadeInTime = 1.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Audio", meta=(ClampMin="0.0"))
+	float BattleMusicFadeOutTime = 3.0f;
+	/**
 	 * The player defends from a fixed post on the battlement, so locomotion stays off for this
 	 * experience. Core keeps the flags; the Feature only states the policy.
 	 */
@@ -117,6 +216,12 @@ protected:
 	bool bLockPlayerToBattlement = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bReturnToMainOnSuccess = true;
+	/**
+	 * Time held after the ram falls so the mission-clear line can finish before the handoff.
+	 * Set to 0 to end as soon as the enemies have retreated, as the experience did before.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario", meta=(ClampMin="0.0"))
+	float SuccessCompletionDelay = 10.0f;
 	/** Educational fallback: restart cleanly after showing the failure reason. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bAutoRetryOnFailure = true;
@@ -128,12 +233,24 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UVRHUDComponent> VRHUD;
 	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> BattleMusicComponent;
+	UPROPERTY(Transient)
 	TObjectPtr<AOngseongRamActor> ActiveRam;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario")
 	EOngseongDefenseState DefenseState = EOngseongDefenseState::Idle;
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario|Ram")
 	bool bRamDestroyed = false;
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario|Start")
+	bool bTrainingComplete = false;
+	/** Stays true across a retry so the player is not quizzed again after a failed defense. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario|Quiz")
+	bool bIntroQuizComplete = false;
+	bool bWaitingForBriefing = false;
+	bool bCompletionRequested = false;
 	float RemainingDefenseTime = 0.0f;
 	FTimerHandle DefenseTimerHandle;
 	FTimerHandle AutoRetryTimerHandle;
+	FTimerHandle AssaultDelayHandle;
+	FTimerHandle BriefingTimeoutHandle;
+	FTimerHandle SuccessCompletionHandle;
 };

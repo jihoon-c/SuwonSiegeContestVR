@@ -31,13 +31,13 @@ bool FOngseongWaveManagerConfigurationTest::RunTest(const FString& Parameters)
 		TestNotNull(TEXT("Enemy pool is spawned"), Pool) &&
 		TestNotNull(TEXT("Objective target is spawned"), Target))
 	{
-		TestEqual(TEXT("The ongseong holds fifteen enemies"), Manager->GetMaxConcurrentEnemies(), 15);
-		TestEqual(TEXT("Eight of them are swordsmen"), Manager->GetSwordsmanSlots(), 8);
-		TestEqual(TEXT("Seven of them are archers"), Manager->GetArcherSlots(), 7);
+		TestEqual(TEXT("The ongseong holds forty enemies"), Manager->GetMaxConcurrentEnemies(), 40);
+		TestEqual(TEXT("Twenty-two of them are swordsmen"), Manager->GetSwordsmanSlots(), 22);
+		TestEqual(TEXT("Eighteen of them are archers"), Manager->GetArcherSlots(), 18);
 		TestEqual(TEXT("Slot counts match the concurrency cap"),
 			Manager->GetSwordsmanSlots() + Manager->GetArcherSlots(), Manager->GetMaxConcurrentEnemies());
 		TestTrue(TEXT("Defeated enemies are replaced by default"), Manager->IsMaintainingPopulation());
-		TestEqual(TEXT("Replacements arrive five seconds later"), Manager->GetRespawnDelay(), 5.0f);
+		TestEqual(TEXT("Replacements arrive two seconds later"), Manager->GetRespawnDelay(), 2.0f);
 		TestEqual(TEXT("Nothing is alive before spawning starts"), Manager->GetLivingEnemyCount(), 0);
 		TestEqual(TEXT("Nothing has been defeated before spawning starts"), Manager->GetTotalDefeatedEnemies(), 0);
 		TestFalse(TEXT("Spawning is inactive before it is started"), Manager->IsSpawningActive());

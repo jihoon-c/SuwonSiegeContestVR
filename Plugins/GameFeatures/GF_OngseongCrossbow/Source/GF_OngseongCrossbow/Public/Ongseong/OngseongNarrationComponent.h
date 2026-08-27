@@ -16,6 +16,9 @@ class UVRHUDComponent;
 /** A named gameplay event. Designers can subscribe without depending on the narration mapping. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnOngseongScenarioEvent, FName, EventName, AActor*, SourceActor);
 
+/** Fired once the queue has drained, so a scenario can wait for the instructor to stop talking. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnOngseongNarrationIdle);
+
 USTRUCT(BlueprintType)
 struct GF_ONGSEONGCROSSBOW_API FOngseongNarrationEventBinding
 {
@@ -50,8 +53,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Narration")
 	bool InitializeNarrationBindings();
 
+	/** True while a row this component queued is playing, or while more rows are waiting. */
+	UFUNCTION(BlueprintPure, Category="Ongseong|Narration")
+	bool IsNarrationBusy() const { return bOwnsCurrentNarration || !PendingRows.IsEmpty(); }
+
 	UPROPERTY(BlueprintAssignable, Category="Ongseong|Narration")
 	FOnOngseongScenarioEvent OnScenarioEvent;
+
+	UPROPERTY(BlueprintAssignable, Category="Ongseong|Narration")
+	FOnOngseongNarrationIdle OnNarrationIdle;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Narration")
 	TSoftObjectPtr<UDataTable> NarrationTable;

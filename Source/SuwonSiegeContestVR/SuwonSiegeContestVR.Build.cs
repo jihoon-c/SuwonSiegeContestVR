@@ -7,7 +7,7 @@ public class SuwonSiegeContestVR : ModuleRules
 	public SuwonSiegeContestVR(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
+
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",
@@ -25,9 +25,21 @@ public class SuwonSiegeContestVR : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
+		// On-device speech recognition for the initial-consonant quiz.
+		// AudioCapture brings in the per-platform microphone backends (WASAPI/RtAudio, Android).
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"AudioCapture",
+			"AudioCaptureCore",
+			"SherpaOnnx"
+		});
+
+		if (Target.Platform == UnrealTargetPlatform.Android)
+		{
+			// Runtime RECORD_AUDIO grant.
+			PrivateDependencyModuleNames.Add("AndroidPermission");
+		}
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 

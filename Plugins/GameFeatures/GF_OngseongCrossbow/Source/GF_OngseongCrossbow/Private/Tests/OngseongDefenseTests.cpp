@@ -2,9 +2,12 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Core/Quiz/InitialConsonantQuizComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Gameplay/Combat/HealthComponent.h"
+#include "Ongseong/ChongtongCannonActor.h"
+#include "Ongseong/ChongtongInteractionTypes.h"
 #include "Ongseong/OngseongDefenseScenarioManager.h"
 #include "Ongseong/OngseongEnemyWaveManager.h"
 #include "Ongseong/OngseongGateActor.h"
@@ -33,7 +36,7 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 	AOngseongRamActor* Ram = World->SpawnActor<AOngseongRamActor>(FVector::ZeroVector, FRotator::ZeroRotator);
 	if (TestNotNull(TEXT("Gate is spawned"), Gate) && TestNotNull(TEXT("Scenario is spawned"), Scenario))
 	{
-		TestEqual(TEXT("The ongseong holds fifteen enemies"), Wave->GetMaxConcurrentEnemies(), 15);
+		TestEqual(TEXT("The ongseong holds forty enemies"), Wave->GetMaxConcurrentEnemies(), 40);
 		TestTrue(TEXT("Defeated enemies are replaced during the defense"), Wave->IsMaintainingPopulation());
 		TestFalse(TEXT("The defense is cleared by the ram, not by a timer"), Scenario->IsDefenseTimeLimited());
 		TestFalse(TEXT("No ram has been destroyed while the scenario is idle"), Scenario->IsRamDestroyed());
@@ -103,6 +106,106 @@ bool FOngseongDefenseContractsTest::RunTest(const FString& Parameters)
 			AddError(TEXT("HandleGateDestroyed must remain bound as a scenario event handler"));
 		}
 	}
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FOngseongGatedAssaultStartTest,
+	"SuwonSiegeContestVR.Ongseong.Defense.GatedAssaultStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FOngseongGatedAssaultStartTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+	if (!TestNotNull(TEXT("Test world is created"), World)) return false;
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Context.SetCurrentWorld(World);
+	FURL URL;
+	World->InitializeActorsForPlay(URL);
+	World->BeginPlay();
+
+	AOngseongGateActor* Gate = World->SpawnActor<AOngseongGateActor>();
+	AOngseongEnemyWaveManager* Wave = World->SpawnActor<AOngseongEnemyWaveManager>();
+	AChongtongCannonActor* Cannon = World->SpawnActor<AChongtongCannonActor>();
+
+	// Spawned bare, so the BeginPlay auto-start finds no gate and no wave manager and does
+	// nothing. The gated start is then configured and armed the way BeginPlay would in a level.
+	AOngseongDefenseScenarioManager* Scenario = World->SpawnActor<AOngseongDefenseScenarioManager>();
+	if (!TestNotNull(TEXT("Scenario is spawned"), Scenario))
+	{
+		World->DestroyWorld(false);
+		GEngine->DestroyWorldContext(World);
+		return false;
+	}
+	TestEqual(TEXT("An unconfigured scenario cannot auto-start"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+	Scenario->SetGateActor(Gate);
+	Scenario->SetWaveManager(Wave);
+	Scenario->SetTrainingCannon(Cannon);
+	Scenario->SetStartAfterChongtongLoaded(true);
+
+	// The intro quiz holds the result on a world timer this bare world never advances, so the test
+	// reads the answer straight through.
+	UInitialConsonantQuizComponent* IntroQuiz = Scenario->GetIntroQuiz();
+	if (TestNotNull(TEXT("The manager owns the Core quiz runtime"), IntroQuiz))
+	{
+		IntroQuiz->bShowQuizPanel = false;
+		IntroQuiz->Quizzes[0].ResultDisplayDuration = 0.0f;
+	}
+
+	Scenario->ArmTrainingGate();
+
+	TestEqual(TEXT("The level opens with the drill, not the assault"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+	TestFalse(TEXT("The drill has not been completed yet"), Scenario->IsTrainingComplete());
+	TestNull(TEXT("No ram is staged during the drill"), Scenario->GetActiveRam());
+	TestFalse(TEXT("No enemy spawns during the drill"), Wave->IsSpawningActive());
+
+	// Powder, three rammer strokes and the cannonball complete one loading cycle.
+	Cannon->TryLoadItem(EChongtongLoadingItemType::Powder);
+	Cannon->RegisterRammerStroke();
+	Cannon->RegisterRammerStroke();
+	Cannon->RegisterRammerStroke();
+	TestEqual(TEXT("The drill reaches the cannonball step"), Cannon->GetLoadingState(), EChongtongLoadingState::NeedsCannonball);
+	TestFalse(TEXT("An unfinished load does not start the assault"), Scenario->IsTrainingComplete());
+
+	Cannon->TryLoadItem(EChongtongLoadingItemType::Cannonball);
+	TestEqual(TEXT("Seating the cannonball finishes the load"), Cannon->GetLoadingState(), EChongtongLoadingState::ReadyToAim);
+	TestTrue(TEXT("Finishing the load completes the drill"), Scenario->IsTrainingComplete());
+	TestEqual(TEXT("The briefing plays before the assault"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+
+	// The briefing line stays queued in this bare world because there is no narration player to
+	// finish it, so the quiz is opened through the entry point the idle callback uses.
+	if (IntroQuiz)
+	{
+		TestFalse(TEXT("The quiz has not been answered yet"), Scenario->IsIntroQuizComplete());
+
+		TestTrue(TEXT("The briefing opens the initial-consonant quiz"), Scenario->StartIntroQuiz());
+		TestTrue(TEXT("The quiz is up"), IntroQuiz->IsQuizActive());
+		TestEqual(TEXT("The quiz asks for the ongseong"),
+			IntroQuiz->GetActiveQuiz().GetDisplayConsonants().ToString(), FString(TEXT("ㅇ ㅅ")));
+		TestEqual(TEXT("No assault runs while the quiz is up"), Scenario->GetDefenseState(), EOngseongDefenseState::Idle);
+
+		TestTrue(TEXT("The spoken answer is accepted"), IntroQuiz->SubmitAnswer(TEXT("옹성")));
+		TestTrue(TEXT("Answering completes the intro quiz"), Scenario->IsIntroQuizComplete());
+		TestFalse(TEXT("The quiz releases the microphone when it ends"), IntroQuiz->IsQuizActive());
+
+		// A retry must not quiz the player again.
+		TestFalse(TEXT("The quiz is only asked once"), Scenario->StartIntroQuiz());
+	}
+
+	// The pause between the briefing and the horn runs on a world timer, which a bare test world
+	// does not advance. Call the entry point the timer uses and check what it produces.
+	Scenario->BeginAssault();
+	TestEqual(TEXT("The assault puts the scenario into the defending state"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
+	TestNotNull(TEXT("The assault sends in the ram"), Scenario->GetActiveRam());
+	// Spawning itself needs a configured enemy pool, which this bare world has none of; what the
+	// assault owes the wave manager is the objective it was not given during the drill.
+	TestEqual(TEXT("The assault points the enemies at the gate"), Wave->GetObjectiveTarget(), Cast<AActor>(Gate));
+
+	Scenario->BeginAssault();
+	TestEqual(TEXT("A second assault call cannot restart a running defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
 
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);

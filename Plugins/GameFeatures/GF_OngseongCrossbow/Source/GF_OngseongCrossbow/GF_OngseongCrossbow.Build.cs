@@ -15,6 +15,7 @@ public class GF_OngseongCrossbow : ModuleRules
 			"GameplayTasks",
 			"HeadMountedDisplay",
 			"Niagara",
+			"UMG",
 			"SuwonSiegeContestVR"
 		});
 	}
