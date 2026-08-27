@@ -61,6 +61,11 @@ AChongtongCannonActor::AChongtongCannonActor()
 	PlayerCameraAnchor->SetupAttachment(HwachaBaseMesh);
 	PlayerCameraAnchor->SetRelativeLocation(FVector(-115.0f, -45.0f, 165.0f));
 	PlayerCameraAnchor->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	LoadingAcceptancePoint = CreateDefaultSubobject<USceneComponent>(TEXT("LoadingAcceptancePoint"));
+	LoadingAcceptancePoint->SetupAttachment(PlayerCameraAnchor);
+	// The player can only reach the rear of the carriage.  Keep the actual loading socket at
+	// the muzzle for the rammer animation, but accept hand-held props at this rear-side point.
+	LoadingAcceptancePoint->SetRelativeLocation(FVector(140.0f, 0.0f, -55.0f));
 	ChargeDisplay = CreateDefaultSubobject<UWidgetComponent>(TEXT("ChargeDisplay"));
 	ChargeDisplay->SetupAttachment(HwachaBaseMesh);
 	ChargeDisplay->SetRelativeLocation(FVector(-115.0f, -70.0f, 145.0f));
@@ -405,8 +410,9 @@ void AChongtongCannonActor::UpdateLoadingInteractions()
 	if (!LoadingSocket || LoadingState == EChongtongLoadingState::ReadyToAim || LoadingState == EChongtongLoadingState::Completed) return;
 	for (AChongtongLoadingItemActor* Item : LoadingItems)
 	{
-		if (!IsValid(Item) || Item->IsHidden()) continue;
-		const float Distance = Item->GetDistanceToPoint(LoadingSocket->GetComponentLocation());
+		if (!IsValid(Item) || Item->IsHidden() || !Item->IsHeldForInteraction()) continue;
+		const USceneComponent* AcceptancePoint = LoadingAcceptancePoint ? LoadingAcceptancePoint : LoadingSocket;
+		const float Distance = FVector::Distance(Item->GetInteractionLocation(), AcceptancePoint->GetComponentLocation());
 		if (Item->GetItemType() == EChongtongLoadingItemType::Rammer)
 		{
 			if (LoadingState == EChongtongLoadingState::NeedsRamming && Distance <= LoadingAcceptanceRadius && !AnimatedRammer)

@@ -6,6 +6,8 @@
 #include "ChongtongLoadingItemActor.generated.h"
 
 class UInteractionHighlightComponent;
+class UMotionControllerComponent;
+class USceneComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 
@@ -26,8 +28,22 @@ public:
 	EChongtongLoadingItemType GetItemType() const { return ItemType; }
 	UFUNCTION(BlueprintPure, Category="Ongseong|Chongtong|Loading")
 	float GetDistanceToPoint(FVector WorldPoint) const;
+	/** Uses the holding hand while grabbed, so an attached Blueprint grab point cannot leave the actor transform stale. */
+	UFUNCTION(BlueprintPure, Category="Ongseong|Chongtong|Loading")
+	FVector GetInteractionLocation() const;
+	UFUNCTION(BlueprintPure, Category="Ongseong|Chongtong|Loading")
+	bool IsHeldForInteraction() const;
 	/** Releases the prop from the hand and makes it kinematic for the cannon-driven ram animation. */
 	void BeginAutomatedUse();
+
+	/**
+	 * Lets the visible loading prop be selected directly by the Core VR pawn, then forwards the
+	 * operation to the Blueprint BP_GrabComponent used by the Singijeon props.
+	 */
+	UFUNCTION()
+	bool HandleVRGrabbed(USceneComponent* GrabComponent, UMotionControllerComponent* MotionController);
+	UFUNCTION()
+	void HandleVRReleased(USceneComponent* GrabComponent, UMotionControllerComponent* MotionController);
 
 	/** Glows while this is the item the loading sequence is waiting for. */
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Chongtong|Loading")
@@ -57,4 +73,6 @@ protected:
 	EChongtongLoadingItemType ItemType = EChongtongLoadingItemType::Powder;
 	FTransform HomeTransform;
 	bool bHomeSimulatingPhysics = false;
+	TWeakObjectPtr<USceneComponent> ForwardedGrabComponent;
+	TWeakObjectPtr<UMotionControllerComponent> HoldingMotionController;
 };

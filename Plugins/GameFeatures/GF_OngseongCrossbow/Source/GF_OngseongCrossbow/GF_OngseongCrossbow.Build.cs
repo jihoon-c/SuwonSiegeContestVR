@@ -14,6 +14,7 @@ public class GF_OngseongCrossbow : ModuleRules
 			"NavigationSystem",
 			"GameplayTasks",
 			"HeadMountedDisplay",
+			"InputCore",
 			"Niagara",
 			"UMG",
 			"SuwonSiegeContestVR"

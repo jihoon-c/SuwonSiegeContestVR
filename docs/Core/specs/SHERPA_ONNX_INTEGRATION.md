@@ -195,13 +195,30 @@ LogSherpaVoice: Recognized "옹성".
 `Suwon.Core.Voice.SherpaKoreanDecode` 자동화 테스트가 **실제 모델로 실제 음성 파일을 인식**한다.
 마이크가 없는 빌드 머신에서도 백엔드가 살아 있는지 확인할 수 있다.
 
+**`modified_beam_search` + hotwords 전환 후 (2026-08-27, 현재 기본값)**
+
 ```text
-Recognizer ready in 1.6s.
-test_wavs/0.wav -> "걔는괜찮은척하려구애쓰는거같았다" (0.20s)   기준: 그는 괜찮은 척하려고 애쓰는 것 같았다.
-test_wavs/1.wav -> "지하철에서다리를벌리고하진마라." (0.17s)   기준: 지하철에서 다리를 벌리고 앉지 마라.
+Korean speech recognizer loaded in 1.96s (..., modified_beam_search, hotwords on, 2 threads).
+Recognizer ready in 2.0s.
+test_wavs/0.wav -> "걔는괜찮은척할려구애쓰는거같았다" (0.23s)   기준: 그는 괜찮은 척하려고 애쓰는 것 같았다.
+test_wavs/1.wav -> "지하철에서다리를벌리고앉지마라." (0.18s)   기준: 지하철에서 다리를 벌리고 앉지 마라.
 ```
 
-* 모델 로드 **1.6초**, 3~4초 발화 디코딩 **0.2초**(RTF ≈ 0.06) — VR 프레임에 부담이 없다
+**이전 `greedy_search` 기준값 (비교용)**
+
+```text
+Recognizer ready in 1.6s.
+test_wavs/0.wav -> "걔는괜찮은척하려구애쓰는거같았다" (0.20s)
+test_wavs/1.wav -> "지하철에서다리를벌리고하진마라." (0.17s)
+```
+
+* 모델 로드 **1.6초 → 2.0초**, 3~4초 발화 디코딩 **0.2초 → 0.23초**(RTF ≈ 0.07).
+  비용 증가는 미미하고 VR 프레임에 부담이 없다
+* **정확도는 오히려 개선됐다.** `1.wav`의 "벌리고**하진**마라"가 "벌리고**앉지**마라"로 바뀌어
+  기준 문장과 일치한다. 마침 문제였던 파찰음/마찰음 계열이 개선된 사례다
+* 이 테스트는 `Keywords`를 넘기지 않으므로 **스트림 단위 hotwords는 적용되지 않는다.**
+  위 개선은 순수하게 `modified_beam_search` 효과이고, hotwords 부스팅 효과는 마이크 실측에서
+  따로 확인해야 한다
 * 모델이 없으면 테스트는 경고를 남기고 통과(skip)한다
 * **출력에 띄어쓰기가 없다.** 정답 판정은 공백을 제거하고 비교하므로 문제되지 않는다
 

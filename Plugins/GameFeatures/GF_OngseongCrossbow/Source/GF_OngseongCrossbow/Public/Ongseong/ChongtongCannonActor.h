@@ -157,6 +157,9 @@ protected:
 	TObjectPtr<UArrowComponent> FireDirection;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> LoadingSocket;
+	/** Rear-side handoff point for loading props. Move this in BP_PlayableChongtong if its mounted player pose changes. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Loading Placement")
+	TObjectPtr<USceneComponent> LoadingAcceptancePoint;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> PlayerCameraAnchor;
 	/** World-space trigger charge bar; place/rotate this behind the cannon in the Blueprint viewport. */
@@ -269,8 +272,9 @@ protected:
 	int32 RequiredRammerStrokes = 3;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="1"))
 	int32 RequiredShotsToComplete = 5;
+	/** A held prop is required, so this intentionally covers the reachable rear section of the carriage. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="1.0"))
-	float LoadingAcceptanceRadius = 30.0f;
+	float LoadingAcceptanceRadius = 150.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading", meta=(ClampMin="1.0"))
 	float RammerWithdrawRadius = 65.0f;
 	/** One complete smooth in/out rammer stroke duration. */

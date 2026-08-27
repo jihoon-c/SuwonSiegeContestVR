@@ -49,6 +49,9 @@ public:
 	bool StartDefense();
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
 	void RetryDefense();
+	/** Skips the active Ongseong narration line only. */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Narration")
+	bool SkipNarration();
 
 	/**
 	 * Sounds the horn, brings up the battle music and starts the defense.
@@ -123,6 +126,8 @@ protected:
 	void ApplyPlayerLocomotionPolicy();
 
 	void ResolveTrainingCannon();
+	void SetupNarrationSkipInput();
+	void HandleSpacebarNarrationSkip();
 	void ScheduleAssaultAfterBriefing();
 	void ScheduleAssault();
 	void PlayAssaultAudio();
@@ -161,6 +166,9 @@ protected:
 	float DefenseDuration = 180.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bAutoStart = true;
+	/** Development VR/PC shortcut: Space skips the active instructor narration. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario|Narration", meta=(AdvancedDisplay))
+	bool bEnableSpacebarNarrationSkip = true;
 	/**
 	 * Gated start used by the main level: nothing spawns until the trainee has loaded the cannon
 	 * once. The briefing line plays first, then the assault begins after AssaultStartDelay.
@@ -245,6 +253,7 @@ protected:
 	/** Stays true across a retry so the player is not quizzed again after a failed defense. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Ongseong|Scenario|Quiz")
 	bool bIntroQuizComplete = false;
+	bool bNarrationSkipInputBound = false;
 	bool bWaitingForBriefing = false;
 	bool bCompletionRequested = false;
 	float RemainingDefenseTime = 0.0f;

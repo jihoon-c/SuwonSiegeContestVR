@@ -3,6 +3,7 @@
 #include "GF_OngseongCrossbow.h"
 
 #include "Components/SceneComponent.h"
+#include "Components/InputComponent.h"
 #include "Core/Experience/ExperienceSubsystem.h"
 #include "Core/Quiz/InitialConsonantQuizComponent.h"
 #include "Core/VR/VRPlayerPawn.h"
@@ -13,6 +14,7 @@
 #include "Gameplay/UI/VRHUDComponent.h"
 #include "Gameplay/UI/VRHUDTypes.h"
 #include "Components/AudioComponent.h"
+#include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "Ongseong/ChongtongCannonActor.h"
 #include "Ongseong/ChongtongInteractionTypes.h"
@@ -68,6 +70,7 @@ void AOngseongDefenseScenarioManager::BeginPlay()
 	Narration->GateActor = GateActor;
 	Narration->WaveManager = WaveManager;
 	Narration->InitializeNarrationBindings();
+	SetupNarrationSkipInput();
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
 	{
 		if (APawn* Pawn = PC->GetPawn()) VRHUD = Pawn->FindComponentByClass<UVRHUDComponent>();
@@ -107,6 +110,10 @@ void AOngseongDefenseScenarioManager::EndPlay(const EEndPlayReason::Type EndPlay
 		WaveManager->OnAllEnemiesRetreated.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleAllEnemiesRetreated);
 	}
 	if (GateActor) GateActor->OnGateDestroyed.RemoveDynamic(this, &AOngseongDefenseScenarioManager::HandleGateDestroyed);
+	if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+	{
+		DisableInput(PlayerController);
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -140,6 +147,33 @@ void AOngseongDefenseScenarioManager::ResolveTrainingCannon()
 		}
 	}
 	TrainingCannon = FirstCannon;
+}
+
+void AOngseongDefenseScenarioManager::SetupNarrationSkipInput()
+{
+#if !UE_BUILD_SHIPPING
+	if (!bEnableSpacebarNarrationSkip || bNarrationSkipInputBound)
+	{
+		return;
+	}
+
+	if (APlayerController* PlayerController = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		EnableInput(PlayerController);
+		if (InputComponent)
+		{
+			FInputKeyBinding& Binding = InputComponent->BindKey(
+				EKeys::SpaceBar, IE_Pressed, this, &ThisClass::HandleSpacebarNarrationSkip);
+			Binding.bConsumeInput = false;
+			bNarrationSkipInputBound = true;
+		}
+	}
+#endif
+}
+
+void AOngseongDefenseScenarioManager::HandleSpacebarNarrationSkip()
+{
+	SkipNarration();
 }
 
 void AOngseongDefenseScenarioManager::ArmTrainingGate()
@@ -242,6 +276,11 @@ void AOngseongDefenseScenarioManager::BeginAssault()
 {
 	if (DefenseState == EOngseongDefenseState::Defending) return;
 	StartDefense();
+}
+
+bool AOngseongDefenseScenarioManager::SkipNarration()
+{
+	return Narration && Narration->SkipNarration();
 }
 
 void AOngseongDefenseScenarioManager::PlayAssaultAudio()
