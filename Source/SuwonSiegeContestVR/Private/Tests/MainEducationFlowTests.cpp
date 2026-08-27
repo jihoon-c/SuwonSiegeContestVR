@@ -27,6 +27,30 @@ bool FMainEducationDefaultFlowTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Gate and five presentation stages"), Definition->Stages.Num(), 6);
 	TestEqual(TEXT("Editor Flow mirrors the six runtime stages"), Definition->EditorFlow.Num(), 6);
 	TestEqual(TEXT("Main presentation flow has no experience routes"), Definition->ExperienceRoutes.Num(), 0);
+	const FMainEducationAuthoringStage* GeojunggiAndNokroStage = Definition->EditorFlow.FindByPredicate(
+		[](const FMainEducationAuthoringStage& Stage)
+		{
+			return Stage.StageID == TEXT("GEO_NOKRO");
+		});
+	TestNotNull(TEXT("Geojunggi and Nokro stage exists"), GeojunggiAndNokroStage);
+	if (GeojunggiAndNokroStage)
+	{
+		TestEqual(TEXT("Geojunggi and Nokro include their narration beats"),
+			GeojunggiAndNokroStage->Steps.Num(), 4);
+		if (GeojunggiAndNokroStage->Steps.Num() == 4)
+		{
+			TestEqual(TEXT("Geojunggi is presented first"),
+				GeojunggiAndNokroStage->Steps[0].StepID, FName(TEXT("GEOJUNGGI_IMAGE")));
+			TestEqual(TEXT("Geojunggi narration starts from Narration2 row 02"),
+				GeojunggiAndNokroStage->Steps[1].NarrationStartRow, FName(TEXT("MAIN_NA_02")));
+			TestEqual(TEXT("Nokro is presented after the Geojunggi narration"),
+				GeojunggiAndNokroStage->Steps[2].StepID, FName(TEXT("NOKRO_IMAGE")));
+			TestEqual(TEXT("Nokro narration starts from Narration2 row 05"),
+				GeojunggiAndNokroStage->Steps[3].NarrationStartRow, FName(TEXT("MAIN_NA_05")));
+			TestTrue(TEXT("Nokro study image is assigned"),
+				GeojunggiAndNokroStage->Steps[2].Content.Image.ToSoftObjectPath().ToString().Contains(TEXT("/study/study_nokro")));
+		}
+	}
 
 	for (int32 StageIndex = 0; StageIndex < Definition->EditorFlow.Num(); ++StageIndex)
 	{
@@ -66,10 +90,16 @@ bool FMainEducationDefaultFlowTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestEqual(TEXT("No travel routes remain"), TravelRouteIDs.Num(), 0);
-	TestEqual(TEXT("Only one opening narration remains"), NarrationIDs.Num(), 1);
-	if (NarrationIDs.Num() == 1)
+	const TArray<FName> ExpectedNarrationStarts = {
+		TEXT("MAIN_NA_01"), TEXT("MAIN_NA_02"), TEXT("MAIN_NA_05"),
+		TEXT("MAIN_NA_08"), TEXT("MAIN_NA_13"), TEXT("MAIN_NA_18"), TEXT("MAIN_NA_25")};
+	TestEqual(TEXT("Narration2 is divided at the presentation transition points"), NarrationIDs.Num(), ExpectedNarrationStarts.Num());
+	if (NarrationIDs.Num() == ExpectedNarrationStarts.Num())
 	{
-		TestEqual(TEXT("Opening narration starts at row 01"), NarrationIDs[0], FName(TEXT("MAIN_NA_01")));
+		for (int32 Index = 0; Index < ExpectedNarrationStarts.Num(); ++Index)
+		{
+			TestEqual(TEXT("Narration2 starts are in presentation order"), NarrationIDs[Index], ExpectedNarrationStarts[Index]);
+		}
 	}
 	FMainEducationContent RemovedContent;
 	TestFalse(TEXT("Gongsimdon content is absent"), Definition->FindEducationContent(TEXT("QUIZ_GONGSIMDON"), RemovedContent));

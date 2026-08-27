@@ -95,10 +95,8 @@ for wave in waves:
             "Wave enforces LOD1 or lower detail")
     require(not wave.get_editor_property("use_gpu_instanced_crowd"),
             "Wave uses the reliable pose-sharing skeletal renderer by default")
-    require(wave.get_editor_property("shared_pose_leader_count") == 6,
-            "Wave limits single-Wave animation evaluation to six pose leaders")
-    require(wave.get_editor_property("auto_scale_budgets_for_multiple_waves"),
-            "Copied Waves share the foreground and pose budgets")
+    require(wave.get_editor_property("shared_pose_leader_count") == 8,
+            "Wave uses the retarget-fix checkpoint pose budget")
     require(wave.get_editor_property("enemy_count") == 45 and
             wave.get_editor_property("max_interactive_enemies") == 3,
             "Wave retains 45 enemies with an authored three-Actor maximum")

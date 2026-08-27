@@ -2,6 +2,7 @@
 
 #include "Animation/AnimationAsset.h"
 #include "Animation/AnimSequenceTransformProviderData.h"
+#include "Components/AudioComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/InstancedSkinnedMeshComponent.h"
@@ -18,6 +19,7 @@
 #include "Shared/Characters/EnemySoldierActor.h"
 #include "Shared/Combat/LegacyHealthComponent.h"
 #include "Singijeon/SingijeonHwachaActor.h"
+#include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -28,6 +30,12 @@ ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
 
     SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
     SetRootComponent(SceneRoot);
+
+    MarchAudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("MarchAudioComponent"));
+    MarchAudioComponent->SetupAttachment(SceneRoot);
+    MarchAudioComponent->bAutoActivate = false;
+    MarchAudioComponent->bAllowSpatialization = false;
+    MarchAudioComponent->OnAudioFinished.AddDynamic(this, &ThisClass::HandleMarchAudioFinished);
 
     SpawnVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("SpawnVolume"));
     SpawnVolume->SetupAttachment(SceneRoot);
@@ -91,6 +99,14 @@ ASingijeonEnemyWaveActor::ASingijeonEnemyWaveActor()
         CharacterInstances->SetTransformProvider(ProxyAnimationProvider);
     }
 
+    static ConstructorHelpers::FObjectFinder<USoundBase> MarchSoundFinder(
+        TEXT("/GF_Singijeon/Asset/Sound/Effect/Troop_march_2.Troop_march_2"));
+    if (MarchSoundFinder.Succeeded())
+    {
+        MarchSound = MarchSoundFinder.Object;
+        MarchAudioComponent->SetSound(MarchSound);
+    }
+
 }
 
 void ASingijeonEnemyWaveActor::OnConstruction(const FTransform& Transform)
@@ -114,12 +130,6 @@ void ASingijeonEnemyWaveActor::OnConstruction(const FTransform& Transform)
     PanicLateralDistance = FMath::Max(0.0f, PanicLateralDistance);
     PanicRetreatDistance = FMath::Max(0.0f, PanicRetreatDistance);
     PanicAnimationRateMultiplier = FMath::Clamp(PanicAnimationRateMultiplier, 0.1f, 3.0f);
-    RetreatDuration = FMath::Clamp(RetreatDuration, 0.0f, 20.0f);
-    RetreatDistance = FMath::Max(0.0f, RetreatDistance);
-    MinimumInteractiveEnemiesPerWave = FMath::Clamp(
-        MinimumInteractiveEnemiesPerWave, 0, MaxInteractiveEnemies);
-    MinimumPoseLeadersPerWave = FMath::Clamp(
-        MinimumPoseLeadersPerWave, 1, SharedPoseLeaderCount);
     if (ProxyInstances)
     {
         // Serialized actors may still contain the old target-disc mesh. Keeping
@@ -160,6 +170,7 @@ void ASingijeonEnemyWaveActor::BeginPlay()
 
 void ASingijeonEnemyWaveActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    StopMarchAudio();
 #if WITH_EDITOR
     DestroyEditorEnemyPreview();
 #endif
@@ -184,29 +195,6 @@ void ASingijeonEnemyWaveActor::Tick(const float DeltaSeconds)
         if (PanicElapsed >= PanicDuration && bVolleyResolutionPending)
         {
             CompletePanicResolution();
-        }
-        return;
-    }
-    if (WaveState == ESingijeonEnemyWaveState::Retreating)
-    {
-        RetreatElapsed += FMath::Max(0.0f, DeltaSeconds);
-        const float Alpha = RetreatDuration > KINDA_SMALL_NUMBER
-            ? FMath::Clamp(RetreatElapsed / RetreatDuration, 0.0f, 1.0f)
-            : 1.0f;
-        WaveDistance = FMath::Lerp(
-            RetreatStartWaveDistance,
-            RetreatTargetWaveDistance,
-            FMath::InterpEaseInOut(0.0f, 1.0f, Alpha, 2.0f));
-        UpdateInteractiveEnemies();
-        ProxyUpdateAccumulator += FMath::Max(0.0f, DeltaSeconds);
-        if (ProxyUpdateAccumulator >= ProxyUpdateInterval || Alpha >= 1.0f)
-        {
-            ProxyUpdateAccumulator = FMath::Fmod(ProxyUpdateAccumulator, ProxyUpdateInterval);
-            UpdateProxyEnemies(true);
-        }
-        if (Alpha >= 1.0f)
-        {
-            FinishRetreat();
         }
         return;
     }
@@ -267,7 +255,6 @@ void ASingijeonEnemyWaveActor::RefreshEditorEnemyPreview()
     {
         return;
     }
-    ResolveRuntimeBudgets();
     BuildFormationSlots();
     EditorPreviewMeshes.Reserve(EnemySlots.Num());
     for (int32 Index = 0; Index < EnemySlots.Num(); ++Index)
@@ -431,7 +418,6 @@ bool ASingijeonEnemyWaveActor::PrepareWave()
         return false;
     }
 
-    ResolveRuntimeBudgets();
     BuildFormationSlots();
     if (!SpawnVisualRepresentations())
     {
@@ -441,9 +427,6 @@ bool ASingijeonEnemyWaveActor::PrepareWave()
     WaveDistance = 0.0f;
     ProxyUpdateAccumulator = 0.0f;
     PanicElapsed = 0.0f;
-    RetreatElapsed = 0.0f;
-    RetreatStartWaveDistance = 0.0f;
-    RetreatTargetWaveDistance = 0.0f;
     bVolleyResolutionPending = false;
     AliveEnemyCount = EnemySlots.Num();
     UpdateInteractiveEnemies();
@@ -460,8 +443,7 @@ void ASingijeonEnemyWaveActor::StartWave()
         return;
     }
     if (WaveState == ESingijeonEnemyWaveState::Defeated ||
-        WaveState == ESingijeonEnemyWaveState::ReachedTarget ||
-        WaveState == ESingijeonEnemyWaveState::Retreated)
+        WaveState == ESingijeonEnemyWaveState::ReachedTarget)
     {
         ResetWave();
     }
@@ -473,6 +455,7 @@ void ASingijeonEnemyWaveActor::StartWave()
 void ASingijeonEnemyWaveActor::StopWave(const bool bHideEnemies)
 {
     SetActorTickEnabled(false);
+    StopMarchAudio();
     if (bHideEnemies)
     {
         SetVisualsActive(false);
@@ -485,9 +468,6 @@ void ASingijeonEnemyWaveActor::ResetWave()
     ProxyUpdateAccumulator = 0.0f;
     AliveEnemyCount = EnemySlots.Num();
     PanicElapsed = 0.0f;
-    RetreatElapsed = 0.0f;
-    RetreatStartWaveDistance = 0.0f;
-    RetreatTargetWaveDistance = 0.0f;
     bVolleyResolutionPending = false;
     SetPanicAnimationRates(false);
     for (FEnemySlot& Slot : EnemySlots)
@@ -555,46 +535,10 @@ void ASingijeonEnemyWaveActor::CompletePanicResolution()
         SetActorTickEnabled(false);
         return;
     }
-    if (bRetreatAfterVolley)
-    {
-        BeginRetreat();
-        return;
-    }
     SetPanicAnimationRates(false);
     SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Unrestricted);
     SetWaveState(ESingijeonEnemyWaveState::Charging);
     SetActorTickEnabled(true);
-}
-
-void ASingijeonEnemyWaveActor::BeginRetreat()
-{
-    RetreatElapsed = 0.0f;
-    RetreatStartWaveDistance = WaveDistance;
-    RetreatTargetWaveDistance = FMath::Max(0.0f, WaveDistance - RetreatDistance);
-    SetProcedureApproachPhase(ESingijeonEnemyApproachPhase::Unrestricted);
-    SetWaveState(ESingijeonEnemyWaveState::Retreating);
-    if (RetreatDuration <= KINDA_SMALL_NUMBER ||
-        FMath::IsNearlyEqual(RetreatStartWaveDistance, RetreatTargetWaveDistance))
-    {
-        WaveDistance = RetreatTargetWaveDistance;
-        UpdateInteractiveEnemies();
-        UpdateProxyEnemies(true);
-        FinishRetreat();
-        return;
-    }
-    SetActorTickEnabled(true);
-}
-
-void ASingijeonEnemyWaveActor::FinishRetreat()
-{
-    SetPanicAnimationRates(false);
-    SetWaveState(ESingijeonEnemyWaveState::Retreated);
-    SetActorTickEnabled(false);
-    if (bHideAfterRetreat)
-    {
-        SetVisualsActive(false);
-    }
-    OnWaveRetreated.Broadcast();
 }
 
 int32 ASingijeonEnemyWaveActor::ResolveVolley(const FVector Origin, const FVector Direction)
@@ -814,7 +758,7 @@ void ASingijeonEnemyWaveActor::BuildFormationSlots()
     const int32 PlatoonSize = FMath::CeilToInt(static_cast<float>(EnemyCount) / SafePlatoonCount);
     const int32 Columns = FMath::Max(1, FormationColumnsPerPlatoon);
 
-    FRandomStream Random(EffectiveFormationSeed);
+    FRandomStream Random(FormationRandomSeed);
     TArray<float> PlatoonLateralOffsets;
     PlatoonLateralOffsets.SetNum(SafePlatoonCount);
     for (float& PlatoonOffset : PlatoonLateralOffsets)
@@ -847,51 +791,6 @@ void ASingijeonEnemyWaveActor::BuildFormationSlots()
     }
 }
 
-void ASingijeonEnemyWaveActor::ResolveRuntimeBudgets()
-{
-    int32 WaveCount = 1;
-    if (GetWorld() && bAutoScaleBudgetsForMultipleWaves)
-    {
-        WaveCount = 0;
-        for (TActorIterator<ASingijeonEnemyWaveActor> It(GetWorld()); It; ++It)
-        {
-            if (IsValid(*It) && !It->IsTemplate())
-            {
-                ++WaveCount;
-            }
-        }
-        WaveCount = FMath::Max(1, WaveCount);
-    }
-
-    RuntimeInteractiveEnemyCount = MaxInteractiveEnemies;
-    RuntimePoseLeaderCount = SharedPoseLeaderCount;
-    if (bAutoScaleBudgetsForMultipleWaves && WaveCount > 1)
-    {
-        RuntimeInteractiveEnemyCount = FMath::Max(
-            MinimumInteractiveEnemiesPerWave,
-            FMath::DivideAndRoundUp(MaxInteractiveEnemies, WaveCount));
-        RuntimePoseLeaderCount = FMath::Max(
-            MinimumPoseLeadersPerWave,
-            FMath::DivideAndRoundUp(SharedPoseLeaderCount, WaveCount));
-    }
-    RuntimeInteractiveEnemyCount = FMath::Clamp(
-        RuntimeInteractiveEnemyCount, 0, FMath::Min(EnemyCount, MaxInteractiveEnemies));
-    RuntimePoseLeaderCount = FMath::Clamp(
-        RuntimePoseLeaderCount, 1, FMath::Max(1, EnemyCount - RuntimeInteractiveEnemyCount));
-
-    EffectiveFormationSeed = FormationRandomSeed;
-    if (bMixActorLocationIntoFormationSeed)
-    {
-        const FVector Location = GetActorLocation();
-        const FIntVector QuantizedLocation(
-            FMath::RoundToInt(Location.X / 100.0),
-            FMath::RoundToInt(Location.Y / 100.0),
-            FMath::RoundToInt(Location.Z / 100.0));
-        EffectiveFormationSeed = static_cast<int32>(HashCombineFast(
-            GetTypeHash(FormationRandomSeed), GetTypeHash(QuantizedLocation)));
-    }
-}
-
 bool ASingijeonEnemyWaveActor::SpawnVisualRepresentations()
 {
     if (!GetWorld())
@@ -913,7 +812,7 @@ bool ASingijeonEnemyWaveActor::SpawnVisualRepresentations()
     CharacterInstances->SetHiddenInGame(true, true);
 
     const int32 InteractiveCount = ForegroundEnemyClass
-        ? FMath::Min(RuntimeInteractiveEnemyCount, EnemySlots.Num())
+        ? FMath::Min(MaxInteractiveEnemies, EnemySlots.Num())
         : 0;
     for (int32 Index = 0; Index < EnemySlots.Num(); ++Index)
     {
@@ -1060,7 +959,7 @@ USkeletalMeshComponent* ASingijeonEnemyWaveActor::CreateReliableProxyMesh(
     FActorSpawnParameters SpawnParameters;
     SpawnParameters.Owner = this;
     SpawnParameters.OverrideLevel = GetLevel();
-    const int32 SlotIndex = FMath::Clamp(RuntimeInteractiveEnemyCount, 0, EnemyCount) + ProxyOrdinal;
+    const int32 SlotIndex = FMath::Clamp(MaxInteractiveEnemies, 0, EnemyCount) + ProxyOrdinal;
     SpawnParameters.Name = MakeUniqueObjectName(
         GetLevel(), AEnemySoldierActor::StaticClass(),
         *FString::Printf(TEXT("SingijeonEnemy_%02d"), SlotIndex + 1));
@@ -1112,8 +1011,8 @@ USkeletalMeshComponent* ASingijeonEnemyWaveActor::CreateReliableProxyMesh(
     ProxyActor->SetSoldierActive(true);
     ProxyActor->SetActorEnableCollision(false);
 
-    const int32 ProxyCount = FMath::Max(1, EnemyCount - RuntimeInteractiveEnemyCount);
-    const int32 LeaderCount = FMath::Clamp(RuntimePoseLeaderCount, 1, ProxyCount);
+    const int32 ProxyCount = FMath::Max(1, EnemyCount - MaxInteractiveEnemies);
+    const int32 LeaderCount = FMath::Clamp(SharedPoseLeaderCount, 1, ProxyCount);
     if (ProxyOrdinal < LeaderCount)
     {
         Proxy->VisibilityBasedAnimTickOption =
@@ -1203,17 +1102,6 @@ FTransform ASingijeonEnemyWaveActor::GetSlotTransform(const FEnemySlot& Slot) co
         Location += Right * (Slot.PanicLateralScale * PanicLateralDistance * Ease + Weave);
         Location -= Direction * Slot.PanicRetreatScale * PanicRetreatDistance * Ease;
     }
-    else if (WaveState == ESingijeonEnemyWaveState::Retreating)
-    {
-        const float RetreatAlpha = RetreatDuration > KINDA_SMALL_NUMBER
-            ? FMath::Clamp(RetreatElapsed / RetreatDuration, 0.0f, 1.0f)
-            : 1.0f;
-        const float ScatterFade = 1.0f - RetreatAlpha;
-        const float Weave = FMath::Sin(RetreatElapsed * 4.0f + Slot.PanicPhase) *
-            PanicLateralDistance * 0.08f * ScatterFade;
-        Location += Right * (Slot.PanicLateralScale * PanicLateralDistance * ScatterFade + Weave);
-        Location -= Direction * Slot.PanicRetreatScale * PanicRetreatDistance * ScatterFade;
-    }
     const bool bVisualProxy = Slot.ProxyInstanceIndex != INDEX_NONE ||
         Slot.ReliableProxyIndex != INDEX_NONE;
     Location.Z += bVisualProxy ? ProxyGroundOffset : AgentGroundOffset;
@@ -1223,12 +1111,6 @@ FTransform ASingijeonEnemyWaveActor::GetSlotTransform(const FEnemySlot& Slot) co
     {
         Rotation.Yaw += Slot.PanicLateralScale * 70.0f +
             FMath::Sin(PanicElapsed * 6.0f + Slot.PanicPhase) * 22.0f;
-    }
-    else if (WaveState == ESingijeonEnemyWaveState::Retreating)
-    {
-        Rotation = (-Direction).Rotation();
-        Rotation.Yaw += Slot.YawOffset +
-            FMath::Sin(RetreatElapsed * 3.0f + Slot.PanicPhase) * 12.0f;
     }
     const FVector Scale = bVisualProxy
 		? ProxyScale * GetEnemyHeightNormalizationScale() * Slot.UniformScale
@@ -1365,11 +1247,80 @@ void ASingijeonEnemyWaveActor::SetWaveState(const ESingijeonEnemyWaveState NewSt
 {
     if (WaveState == NewState)
     {
+        if (NewState == ESingijeonEnemyWaveState::Charging)
+        {
+            StartMarchAudio();
+        }
         return;
     }
     const ESingijeonEnemyWaveState OldState = WaveState;
     WaveState = NewState;
+    if (NewState == ESingijeonEnemyWaveState::Charging)
+    {
+        StartMarchAudio();
+    }
+    else
+    {
+        StopMarchAudio();
+    }
     OnWaveStateChanged.Broadcast(OldState, NewState);
+}
+
+bool ASingijeonEnemyWaveActor::IsPrimaryMarchAudioWave() const
+{
+    if (!GetWorld())
+    {
+        return false;
+    }
+
+    const ASingijeonEnemyWaveActor* PrimaryWave = nullptr;
+    for (TActorIterator<ASingijeonEnemyWaveActor> It(GetWorld()); It; ++It)
+    {
+        if (!IsValid(*It) || It->IsTemplate())
+        {
+            continue;
+        }
+        if (!PrimaryWave || It->GetPathName() < PrimaryWave->GetPathName())
+        {
+            PrimaryWave = *It;
+        }
+    }
+    return PrimaryWave == this;
+}
+
+void ASingijeonEnemyWaveActor::StartMarchAudio()
+{
+    if (!MarchAudioComponent || !MarchSound || !IsPrimaryMarchAudioWave())
+    {
+        bMarchAudioRequested = false;
+        return;
+    }
+
+    bMarchAudioRequested = true;
+    MarchAudioComponent->SetSound(MarchSound);
+    MarchAudioComponent->SetVolumeMultiplier(MarchSoundVolume);
+    if (!MarchAudioComponent->IsPlaying())
+    {
+        MarchAudioComponent->Play();
+    }
+}
+
+void ASingijeonEnemyWaveActor::StopMarchAudio()
+{
+    bMarchAudioRequested = false;
+    if (MarchAudioComponent && MarchAudioComponent->IsPlaying())
+    {
+        MarchAudioComponent->Stop();
+    }
+}
+
+void ASingijeonEnemyWaveActor::HandleMarchAudioFinished()
+{
+    if (bMarchAudioRequested && WaveState == ESingijeonEnemyWaveState::Charging &&
+        MarchAudioComponent && MarchSound && IsPrimaryMarchAudioWave())
+    {
+        MarchAudioComponent->Play();
+    }
 }
 
 void ASingijeonEnemyWaveActor::SetVisualsActive(const bool bActive)

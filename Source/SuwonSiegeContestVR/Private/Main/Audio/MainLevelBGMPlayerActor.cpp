@@ -21,6 +21,9 @@ void AMainLevelBGMPlayerActor::BeginPlay()
 	Super::BeginPlay();
 	if (bPlayOnBeginPlay)
 	{
+		// Explicitly activate first: placed actors can have an auto-activation
+		// override saved in the level, while BGM must always start with the level.
+		BGMComponent->Activate(true);
 		PlayBGM();
 	}
 }
@@ -38,11 +41,13 @@ void AMainLevelBGMPlayerActor::PlayBGM()
 	bStopRequested = true;
 	BGMComponent->Stop();
 	BGMComponent->SetSound(Music);
-	BGMComponent->SetVolumeMultiplier(Volume);
+	BGMComponent->SetVolumeMultiplier(FMath::Max(0.0f, Volume));
 	bStopRequested = false;
 	if (FadeInDuration > 0.0f)
 	{
-		BGMComponent->FadeIn(FadeInDuration, Volume);
+		// FadeIn's target is an additional multiplier. Using 1.0 here avoids
+		// applying the editor Volume value twice (for example 0.35 x 0.35).
+		BGMComponent->FadeIn(FadeInDuration, 1.0f);
 	}
 	else
 	{

@@ -34,6 +34,8 @@ unreal.log(f"ENEMY_VIS count={wave.get_editor_property('enemy_count')} "
            f"show_ready={wave.get_editor_property('show_enemies_while_ready')} "
            f"start_cull={wave.get_editor_property('proxy_start_cull_distance')} "
            f"end_cull={wave.get_editor_property('proxy_end_cull_distance')}")
+unreal.log(f"ENEMY_VIS desired_height={wave.get_editor_property('desired_enemy_height')} "
+           f"proxy_scale={wave.get_editor_property('proxy_scale')}")
 unreal.log(f"ENEMY_VIS component_visible={character_instances.get_editor_property('visible')} "
            f"hidden_game={character_instances.get_editor_property('hidden_in_game')}")
 for property_name in ("hidden", "hidden_editor", "hidden_editor_views", "hidden_editor_views"):
