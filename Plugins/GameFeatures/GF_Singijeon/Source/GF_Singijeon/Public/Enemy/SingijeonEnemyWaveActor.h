@@ -64,6 +64,9 @@ public:
 
     virtual void Tick(float DeltaSeconds) override;
     virtual void OnConstruction(const FTransform& Transform) override;
+#if WITH_EDITOR
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
     /** Builds one shared Nav path. Falls back to a direct path when NavMesh is unavailable. */
     UFUNCTION(BlueprintCallable, Category = "Singijeon|Enemy Wave")
@@ -119,6 +122,15 @@ public:
     /** Scatters the formation for a short time, then resolves the pending volley. */
     UFUNCTION(BlueprintCallable, Category = "Singijeon|Enemy Wave")
     void BeginPanic(FVector VolleyOrigin, FVector VolleyDirection);
+
+    /** Replaces the character mesh on every generated soldier without moving the wave. */
+    UFUNCTION(BlueprintCallable, Category = "Singijeon|Visual")
+    void SetEnemySkeletalMesh(USkeletalMesh* NewSkeletalMesh);
+
+    /** Reapplies the visual settings to editor previews and already spawned soldiers. */
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "Singijeon|Visual",
+        meta = (DisplayName = "Refresh Enemy Visuals"))
+    void RefreshEnemyVisuals();
 
     UFUNCTION(BlueprintPure, Category = "Singijeon|Enemy Wave")
     bool IsPanicking() const { return WaveState == ESingijeonEnemyWaveState::Panicking; }
@@ -179,15 +191,19 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual", meta = (DeprecatedProperty, DeprecationMessage = "Use ProxySkeletalMesh"))
     TObjectPtr<UStaticMesh> ProxyMesh;
 
-    /** Full character surface used by the GPU-instanced background force. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual")
+    /** Character mesh used by every editor preview and runtime soldier in this Wave instance. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual",
+        meta = (DisplayName = "Enemy Skeletal Mesh",
+            ToolTip = "This Wave instance's character mesh. Changing it refreshes editor previews and runtime soldiers without changing their positions."))
     TObjectPtr<USkeletalMesh> ProxySkeletalMesh;
 
     /** GPU animation provider containing a small set of phase-shifted run tracks. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual")
     TObjectPtr<UAnimSequenceTransformProviderData> ProxyAnimationProvider;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual",
+        meta = (DisplayName = "Enemy Run Animation",
+            ToolTip = "Looping animation for this Wave. It must be compatible with Enemy Skeletal Mesh."))
     TObjectPtr<UAnimationAsset> ForegroundRunAnimation;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual")
@@ -419,7 +435,7 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<ASingijeonHwachaActor> BoundHwacha;
 
-    /** Manny-compatible fallback survives serialized level instances with Animation=None. */
+    /** Mesh-compatible default survives serialized level instances with Animation=None. */
     UPROPERTY(Transient)
     TObjectPtr<UAnimationAsset> RuntimeRunAnimationFallback;
 

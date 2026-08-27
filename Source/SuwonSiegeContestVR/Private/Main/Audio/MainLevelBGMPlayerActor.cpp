@@ -1,7 +1,9 @@
 #include "Main/Audio/MainLevelBGMPlayerActor.h"
 
 #include "Components/AudioComponent.h"
+#include "Engine/World.h"
 #include "Sound/SoundBase.h"
+#include "TimerManager.h"
 
 AMainLevelBGMPlayerActor::AMainLevelBGMPlayerActor()
 {
@@ -19,12 +21,41 @@ AMainLevelBGMPlayerActor::AMainLevelBGMPlayerActor()
 void AMainLevelBGMPlayerActor::BeginPlay()
 {
 	Super::BeginPlay();
-	if (bPlayOnBeginPlay)
+
+	if (!Music)
 	{
-		// Explicitly activate first: placed actors can have an auto-activation
-		// override saved in the level, while BGM must always start with the level.
-		BGMComponent->Activate(true);
-		PlayBGM();
+		UE_LOG(LogTemp, Warning, TEXT("MainLevelBGMPlayerActor %s has no Music asset assigned."), *GetName());
+		return;
+	}
+
+	// A placed instance can retain an older, disabled bPlayOnBeginPlay value.
+	// The Main BGM actor's contract is instead simple: whenever Music is assigned,
+	// start it with the level. Starting next tick also avoids racing the VR audio
+	// device during level initialization.
+	InitialStartRetryCount = 0;
+	GetWorldTimerManager().SetTimerForNextTick(this, &ThisClass::StartBGMWhenAudioReady);
+}
+
+void AMainLevelBGMPlayerActor::StartBGMWhenAudioReady()
+{
+	if (!Music || !BGMComponent)
+	{
+		return;
+	}
+
+	BGMComponent->Activate(true);
+	PlayBGM();
+
+	// On some VR startup paths the AudioComponent accepts the request before its
+	// audio device is ready. Retry a few times only while it reports not playing.
+	if (!BGMComponent->IsPlaying() && InitialStartRetryCount++ < 3)
+	{
+		GetWorldTimerManager().SetTimer(
+			InitialStartRetryTimer,
+			this,
+			&ThisClass::StartBGMWhenAudioReady,
+			0.25f,
+			false);
 	}
 }
 
