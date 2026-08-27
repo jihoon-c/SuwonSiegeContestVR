@@ -21,11 +21,14 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "01 Editor Flow")
 	void RebuildScenarioFromEditorFlow();
 
-	/** Replaces the Main route with the narration-free Singijeon -> Ongseong flow. */
+	/** Replaces the Main route with the Singijeon -> Ongseong flow, quizzes and travel included. */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "01 Editor Flow")
 	void ResetToSingijeonAndOngseongFlow();
 
-	/** Sets the narration-free, Main-level gate presentation sequence. */
+	/**
+	 * Sets the Main-level gate sequence: greeting, then each experience as
+	 * explain -> spoken initial-consonant quiz -> travel -> return.
+	 */
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "01 Editor Flow")
 	void ResetToMainGatePresentationFlow();
 

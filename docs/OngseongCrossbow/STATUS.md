@@ -38,6 +38,19 @@ Class Defaults `Ongseong|Scenario|Audio`에서 Sound Cue로 교체한다.
 `BP_OngseongDefenseScenarioManager`의 `Ongseong|Scenario|Quiz`에서 끄거나 다른 퀴즈로 교체할 수 있다.
 `docs/OngseongCrossbow/completed/2026-08-27_ONGSEONG_INTRO_QUIZ.md` 참조.
 
+**2026-08-27 재개정 — 레벨 내 퀴즈는 기본 꺼짐(`bRunIntroQuiz = false`).**
+Main 교육 흐름이 옹성 체험으로 이동하기 전에 같은 "ㅇ ㅅ" 퀴즈를 내므로, 레벨 안에서 다시 물으면
+중복 출제가 된다. 이 레벨을 단독으로 실행하거나 Main이 묻지 않게 바뀌면
+`Ongseong|Scenario|Quiz`에서 다시 켜면 된다(코드에서는 `SetRunIntroQuiz(true)`).
+현재 흐름은 총통 장전 완료 → 교관 나레이션 → 나팔·BGM·적 웨이브다.
+`docs/Main/completed/2026-08-27_MAIN_VOICE_QUIZ_EXPERIENCE_FLOW.md` 참조.
+
+**2026-08-27 전투 시간 상한**: `BattleTimeLimit`(기본 **30초**)을 추가했다.
+나팔이 울린 시점부터 30초가 지나면 승패와 무관하게 전투를 정리하고 곧바로 `L_Main`으로 복귀해
+교육 마무리 인사말로 이어진다. 훈련·나레이션 구간은 상한에 포함되지 않는다.
+0으로 두면 상한 없이 충차 파괴로만 끝나는 기존 동작이다.
+`docs/OngseongCrossbow/completed/2026-08-27_ONGSEONG_BATTLE_TIME_LIMIT.md` 참조.
+
 **2026-08-26 개정**: `BP_OngseongSpawnPoint`를 추가해 적 초기 스폰, 병사 리스폰, 충차 스폰을
 역할별 레벨 인스턴스로 분리했다. 총통의 포구 화염·포격음과 공통 포탄의 폭발 이펙트·폭발음을
 Blueprint Class Defaults 및 그래프에서 교체할 수 있게 했다.

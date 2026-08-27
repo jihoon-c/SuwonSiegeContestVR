@@ -5,7 +5,6 @@
 #include "Components/ArrowComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Core/VR/InteractionHighlightComponent.h"
-#include "Core/VR/VRPlayerPawn.h"
 #include "Gameplay/Characters/AllyCombatCharacter.h"
 #include "Gameplay/Combat/CombatFactionComponent.h"
 #include "Gameplay/Combat/HealthComponent.h"
@@ -130,11 +129,9 @@ AChongtongCannonActor::AChongtongCannonActor()
 	ProjectileClass = AChongtongProjectileActor::StaticClass();
 	bSpawnOperatorOnBeginPlay = false;
 
-	static ConstructorHelpers::FObjectFinder<UParticleSystem> LoadFX(TEXT("/Game/StarterContent/Particles/P_Sparks.P_Sparks"));
 	// A muzzle flash, not a generic explosion: the shell is what explodes, at the far end.
 	static ConstructorHelpers::FObjectFinder<UParticleSystem> FireFX(TEXT("/Game/StarterContent/Particles/P_Explosion.P_Explosion"));
 	static ConstructorHelpers::FObjectFinder<USoundBase> TempFireSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
-	LoadSuccessEffect = LoadFX.Object;
 	MuzzleEffect = FireFX.Object;
 	InteractionSound = TempFireSound.Object;
 	FireSound = TempFireSound.Object;
@@ -152,7 +149,9 @@ void AChongtongCannonActor::BeginPlay()
 		SpawnMountedOperator();
 	}
 	AutomaticFire->ConfigureAutomaticFire(bEnableAutomaticFire, FireInterval);
-	if (bSpawnPlaceholderProps)
+	// The player starts combat-ready after the narration; physical powder/rammer/ball props are
+	// intentionally reserved for non-player variants only.
+	if (bSpawnPlaceholderProps && !IsPlayerOperable())
 	{
 		SpawnPlaceholderLoadingItems();
 	}
@@ -328,7 +327,8 @@ bool AChongtongCannonActor::TryFirePlayerCharged(const float ChargeAlpha)
 	++CompletedShots;
 	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation(), 1.0f, FVector(MuzzleEffectScale));
 	OnFired.Broadcast(nullptr, Projectile);
-	ExitReadyStation();
+	SetPlayerChargeVisible(false);
+	SetPlayerChargePercent(0.0f);
 	if (CompletedShots >= RequiredShotsToComplete)
 	{
 		SetLoadingState(EChongtongLoadingState::Completed);
@@ -367,7 +367,7 @@ void AChongtongCannonActor::SetPlayerChargePercent(const float ChargeAlpha)
 
 void AChongtongCannonActor::BeginPlayerAim()
 {
-	if (LoadingState == EChongtongLoadingState::ReadyToAim) EnterReadyStation();
+	// Keep the player in place; the earlier mounted interaction unexpectedly relocated them.
 }
 
 void AChongtongCannonActor::EndPlayerAim()
@@ -376,19 +376,28 @@ void AChongtongCannonActor::EndPlayerAim()
 	SetPlayerChargePercent(0.0f);
 }
 
+void AChongtongCannonActor::PrepareForImmediatePlayerFire()
+{
+	if (!IsPlayerOperable() || LoadingState == EChongtongLoadingState::ReadyToAim ||
+		LoadingState == EChongtongLoadingState::Completed)
+	{
+		return;
+	}
+
+	CompletedRammerStrokes = 0;
+	SetLoadingState(EChongtongLoadingState::ReadyToAim);
+}
+
 bool AChongtongCannonActor::TryLoadItem(const EChongtongLoadingItemType ItemType)
 {
 	if (ItemType == EChongtongLoadingItemType::Powder && LoadingState == EChongtongLoadingState::NeedsPowder)
 	{
 		SetLoadingState(EChongtongLoadingState::NeedsRamming);
-		PlayFeedback(LoadSuccessEffect, InteractionSound, LoadingSocket->GetComponentLocation(), 1.15f);
 		return true;
 	}
 	if (ItemType == EChongtongLoadingItemType::Cannonball && LoadingState == EChongtongLoadingState::NeedsCannonball)
 	{
 		SetLoadingState(EChongtongLoadingState::ReadyToAim);
-		PlayFeedback(LoadSuccessEffect, InteractionSound, LoadingSocket->GetComponentLocation(), 1.35f);
-		EnterReadyStation();
 		return true;
 	}
 	return false;
@@ -399,7 +408,6 @@ bool AChongtongCannonActor::RegisterRammerStroke()
 	if (LoadingState != EChongtongLoadingState::NeedsRamming) return false;
 	CompletedRammerStrokes = FMath::Min(CompletedRammerStrokes + 1, RequiredRammerStrokes);
 	OnRammingProgress.Broadcast(CompletedRammerStrokes, RequiredRammerStrokes);
-	PlayFeedback(LoadSuccessEffect, InteractionSound, LoadingSocket->GetComponentLocation(), 0.8f + CompletedRammerStrokes * 0.1f);
 	if (CompletedRammerStrokes >= RequiredRammerStrokes) SetLoadingState(EChongtongLoadingState::NeedsCannonball);
 	return true;
 }
@@ -407,6 +415,7 @@ bool AChongtongCannonActor::RegisterRammerStroke()
 void AChongtongCannonActor::UpdateLoadingInteractions()
 {
 	UpdateInteractionPrompts();
+	if (IsPlayerOperable()) return;
 	if (!LoadingSocket || LoadingState == EChongtongLoadingState::ReadyToAim || LoadingState == EChongtongLoadingState::Completed) return;
 	for (AChongtongLoadingItemActor* Item : LoadingItems)
 	{
@@ -507,23 +516,6 @@ void AChongtongCannonActor::SetLoadingState(const EChongtongLoadingState NewStat
 {
 	LoadingState = NewState;
 	OnLoadingStateChanged.Broadcast(LoadingState, CompletedShots);
-}
-
-void AChongtongCannonActor::EnterReadyStation()
-{
-	SetPlayerChargePercent(0.0f);
-	for (TActorIterator<AVRPlayerPawn> It(GetWorld()); It; ++It)
-	{
-		It->EnterMountedInteraction(PlayerCameraAnchor);
-		break;
-	}
-}
-
-void AChongtongCannonActor::ExitReadyStation()
-{
-	SetPlayerChargeVisible(false);
-	SetPlayerChargePercent(0.0f);
-	for (TActorIterator<AVRPlayerPawn> It(GetWorld()); It; ++It) It->ExitMountedInteraction(PlayerCameraAnchor);
 }
 
 void AChongtongCannonActor::SpawnPlaceholderLoadingItems()

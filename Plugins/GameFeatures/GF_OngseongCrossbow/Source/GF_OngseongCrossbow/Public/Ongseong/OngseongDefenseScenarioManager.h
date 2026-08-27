@@ -70,6 +70,21 @@ public:
 	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Quiz")
 	bool IsIntroQuizComplete() const { return bIntroQuizComplete; }
 
+	/** Off by default because Main asks the 옹성 quiz; turn it on for a standalone run of this level. */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario|Quiz")
+	void SetRunIntroQuiz(bool bNewRunIntroQuiz) { bRunIntroQuiz = bNewRunIntroQuiz; }
+
+	/**
+	 * Stops the battle and hands the player straight back to Main, whatever the current state is.
+	 * The battle time cap uses this; a Blueprint can call it to end the experience early.
+	 * Returns true when this call requested the handoff.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Scenario")
+	bool FinishExperienceNow();
+
+	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario")
+	float GetRemainingBattleTime() const;
+
 	UFUNCTION(BlueprintPure, Category="Ongseong|Scenario|Quiz")
 	UInitialConsonantQuizComponent* GetIntroQuiz() const { return IntroQuiz; }
 
@@ -120,6 +135,9 @@ protected:
 	void SucceedDefense();
 	void FailDefense(FName NarrationEvent, const FText& Headline, const FText& Detail, const FText& Notification);
 	void FinishSuccessfulRetreat();
+	void HandleBattleTimeLimitReached();
+	/** Single handoff point back to Main. Runs once per experience. */
+	bool RequestReturnToMain();
 	void SetDefenseState(EOngseongDefenseState NewState);
 	void UpdateHUDTime();
 	void HandleAutoRetry();
@@ -191,10 +209,12 @@ protected:
 
 	/**
 	 * Runs the initial-consonant quiz between the briefing line and the horn.
-	 * Turning this off restores the previous briefing-to-assault flow exactly.
+	 * Off by default since 2026-08-27: the Main education flow asks the 옹성 quiz before travelling
+	 * here, so asking again inside the level would repeat the same question. Turn it on to run this
+	 * level standalone, or when Main stops asking it.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Quiz")
-	bool bRunIntroQuiz = true;
+	bool bRunIntroQuiz = false;
 	/** Entry to run from the quiz component. The default 옹성 quiz is authored in the constructor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario|Quiz")
 	FName IntroQuizID = FName(TEXT("QUIZ_ONGSEONG"));
@@ -224,6 +244,13 @@ protected:
 	bool bLockPlayerToBattlement = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Scenario")
 	bool bReturnToMainOnSuccess = true;
+	/**
+	 * Hard cap on the battle, counted from the assault horn. When it runs out the experience hands
+	 * the player back to Main immediately — no clear line, no retry — and the Main flow resumes at
+	 * the closing greeting. 0 turns the cap off and the experience ends on the ram instead.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Scenario", meta=(ClampMin="0.0", Units="s"))
+	float BattleTimeLimit = 30.0f;
 	/**
 	 * Time held after the ram falls so the mission-clear line can finish before the handoff.
 	 * Set to 0 to end as soon as the enemies have retreated, as the experience did before.
@@ -262,4 +289,5 @@ protected:
 	FTimerHandle AssaultDelayHandle;
 	FTimerHandle BriefingTimeoutHandle;
 	FTimerHandle SuccessCompletionHandle;
+	FTimerHandle BattleTimeLimitHandle;
 };

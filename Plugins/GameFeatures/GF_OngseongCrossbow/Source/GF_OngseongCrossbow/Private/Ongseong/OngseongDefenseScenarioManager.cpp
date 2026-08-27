@@ -15,6 +15,7 @@
 #include "Gameplay/UI/VRHUDTypes.h"
 #include "Components/AudioComponent.h"
 #include "InputCoreTypes.h"
+#include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
 #include "Ongseong/ChongtongCannonActor.h"
 #include "Ongseong/ChongtongInteractionTypes.h"
@@ -134,19 +135,45 @@ void AOngseongDefenseScenarioManager::ApplyPlayerLocomotionPolicy()
 void AOngseongDefenseScenarioManager::ResolveTrainingCannon()
 {
 	if (IsValid(TrainingCannon) || !GetWorld()) return;
-	// The trainee operates one cannon; every other one on the wall is crewed by an ally.
+	// The trainee operates the playable cannon nearest their spawn position; every other cannon
+	// on the wall is crewed by an ally. Do not rely on TActorIterator order here.
+	FVector ReferenceLocation = GetActorLocation();
+	bool bFoundPlayerReference = false;
+	if (const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
+	{
+		if (const APawn* PlayerPawn = PlayerController->GetPawn())
+		{
+			ReferenceLocation = PlayerPawn->GetActorLocation();
+			bFoundPlayerReference = true;
+		}
+	}
+	if (!bFoundPlayerReference)
+	{
+		for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+		{
+			ReferenceLocation = It->GetActorLocation();
+			break;
+		}
+	}
+
 	AChongtongCannonActor* FirstCannon = nullptr;
+	AChongtongCannonActor* NearestPlayerCannon = nullptr;
+	float NearestPlayerCannonDistanceSquared = TNumericLimits<float>::Max();
 	for (TActorIterator<AChongtongCannonActor> It(GetWorld()); It; ++It)
 	{
 		AChongtongCannonActor* Cannon = *It;
 		if (!FirstCannon) FirstCannon = Cannon;
 		if (Cannon->IsPlayerOperable())
 		{
-			TrainingCannon = Cannon;
-			return;
+			const float DistanceSquared = FVector::DistSquared(Cannon->GetActorLocation(), ReferenceLocation);
+			if (DistanceSquared < NearestPlayerCannonDistanceSquared)
+			{
+				NearestPlayerCannon = Cannon;
+				NearestPlayerCannonDistanceSquared = DistanceSquared;
+			}
 		}
 	}
-	TrainingCannon = FirstCannon;
+	TrainingCannon = NearestPlayerCannon ? NearestPlayerCannon : FirstCannon;
 }
 
 void AOngseongDefenseScenarioManager::SetupNarrationSkipInput()
@@ -187,12 +214,13 @@ void AOngseongDefenseScenarioManager::ArmTrainingGate()
 		return;
 	}
 	TrainingCannon->OnLoadingStateChanged.AddUniqueDynamic(this, &AOngseongDefenseScenarioManager::HandleTrainingLoadingStateChanged);
-	UE_LOG(LogOngseong, Display, TEXT("Waiting for the trainee to load %s before the assault begins."), *GetNameSafe(TrainingCannon));
+	TrainingCannon->PrepareForImmediatePlayerFire();
+	UE_LOG(LogOngseong, Display, TEXT("Narration-gated assault armed for combat-ready cannon %s."), *GetNameSafe(TrainingCannon));
 }
 
 void AOngseongDefenseScenarioManager::HandleTrainingLoadingStateChanged(const EChongtongLoadingState NewState, int32)
 {
-	// ReadyToAim is reached the moment the cannonball is seated, which is the end of the loading drill.
+	// The player cannon is made ready immediately; the assault starts once the queued narration ends.
 	if (bTrainingComplete || NewState != EChongtongLoadingState::ReadyToAim) return;
 	bTrainingComplete = true;
 	if (TrainingCannon)
@@ -334,13 +362,27 @@ bool AOngseongDefenseScenarioManager::StartDefense()
 	{
 		GetWorldTimerManager().SetTimer(DefenseTimerHandle, this, &AOngseongDefenseScenarioManager::TickDefenseTimer, 1.0f, true);
 	}
+	// The battle is timeboxed: the horn starts the cap that hands the player back to Main.
+	if (BattleTimeLimit > 0.0f)
+	{
+		GetWorldTimerManager().SetTimer(BattleTimeLimitHandle, this,
+			&AOngseongDefenseScenarioManager::HandleBattleTimeLimitReached, BattleTimeLimit, false);
+	}
 	Narration->ReportScenarioEvent(TEXT("ScenarioStarted"), this);
 	UpdateHUDTime();
-	UE_LOG(LogOngseong, Display, TEXT("Defense started. Ram=%s, enemy slots=%d, time limit=%s"),
+	UE_LOG(LogOngseong, Display, TEXT("Defense started. Ram=%s, enemy slots=%d, time limit=%s, battle cap=%s"),
 		*GetNameSafe(ActiveRam),
 		WaveManager->GetMaxConcurrentEnemies(),
-		bUseDefenseTimeLimit ? *FString::Printf(TEXT("%.0fs"), DefenseDuration) : TEXT("off"));
+		bUseDefenseTimeLimit ? *FString::Printf(TEXT("%.0fs"), DefenseDuration) : TEXT("off"),
+		BattleTimeLimit > 0.0f ? *FString::Printf(TEXT("%.0fs"), BattleTimeLimit) : TEXT("off"));
 	return true;
+}
+
+float AOngseongDefenseScenarioManager::GetRemainingBattleTime() const
+{
+	if (BattleTimeLimit <= 0.0f || !GetWorld()) return 0.0f;
+	const float Remaining = GetWorldTimerManager().GetTimerRemaining(BattleTimeLimitHandle);
+	return Remaining > 0.0f ? Remaining : 0.0f;
 }
 
 int32 AOngseongDefenseScenarioManager::GetTotalDefeatedEnemies() const
@@ -480,15 +522,54 @@ void AOngseongDefenseScenarioManager::FailDefense(const FName NarrationEvent, co
 
 void AOngseongDefenseScenarioManager::FinishSuccessfulRetreat()
 {
-	if (!bReturnToMainOnSuccess || bCompletionRequested) return;
+	if (!bReturnToMainOnSuccess) return;
+	RequestReturnToMain();
+}
+
+void AOngseongDefenseScenarioManager::HandleBattleTimeLimitReached()
+{
+	if (bCompletionRequested) return;
+	UE_LOG(LogOngseong, Display,
+		TEXT("Battle time cap of %.0fs reached in state %d; returning to Main."),
+		BattleTimeLimit, static_cast<int32>(DefenseState));
+	if (VRHUD)
+	{
+		VRHUD->SetObjective(LOCTEXT("TimeUpHeadline", "옹성 체험 종료"),
+			LOCTEXT("TimeUpDetail", "성문 앞으로 돌아갑니다"));
+		VRHUD->ShowNotification(LOCTEXT("TimeUpNotification", "체험 시간이 끝났습니다"),
+			EVRHUDNotificationType::Info, 4.0f);
+	}
+	FinishExperienceNow();
+}
+
+bool AOngseongDefenseScenarioManager::FinishExperienceNow()
+{
+	if (bCompletionRequested) return false;
+
+	// Quiet the battle before the handoff so nothing keeps fighting through the level transition.
+	GetWorldTimerManager().ClearTimer(BattleTimeLimitHandle);
+	GetWorldTimerManager().ClearTimer(DefenseTimerHandle);
+	GetWorldTimerManager().ClearTimer(AutoRetryTimerHandle);
+	GetWorldTimerManager().ClearTimer(SuccessCompletionHandle);
+	if (ActiveRam) ActiveRam->StopRam();
+	if (WaveManager) WaveManager->ReleaseAllEnemies();
+	StopBattleMusic();
+	return RequestReturnToMain();
+}
+
+bool AOngseongDefenseScenarioManager::RequestReturnToMain()
+{
+	if (bCompletionRequested) return false;
 	bCompletionRequested = true;
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
 		if (UExperienceSubsystem* Experience = GameInstance->GetSubsystem<UExperienceSubsystem>())
 		{
-			Experience->CompleteCurrentExperience(true);
+			// Main resumes at its return checkpoint, which leads into the closing greeting.
+			return Experience->CompleteCurrentExperience(true);
 		}
 	}
+	return false;
 }
 
 void AOngseongDefenseScenarioManager::HandleGateDestroyed()

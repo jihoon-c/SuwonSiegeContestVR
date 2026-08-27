@@ -144,7 +144,7 @@ sequenceDiagram
 브리지가 `OnInteractionRequested`를 받아 퀴즈를 시작하고,
 결과를 `ReportInteractionResult(TargetID, Quiz, bSuccess)`로 돌려준다. 추가 코드가 없다.
 
-### 7.2 자체 매니저를 쓰는 경우 (옹성 방식)
+### 7.2 자체 매니저를 쓰는 경우 (옹성 · Main 방식)
 
 ```cpp
 QuizComponent->OnQuizFinished.AddDynamic(this, &AMyManager::HandleQuizFinished);
@@ -152,6 +152,22 @@ QuizComponent->StartQuiz(TEXT("QUIZ_ONGSEONG"));
 ```
 
 Blueprint에서도 동일하게 `Start Quiz` 노드 + `On Quiz Finished` 이벤트만 연결하면 된다.
+
+### 7.3 자기 데이터로 퀴즈를 만드는 경우 (Main 방식)
+
+퀴즈 데이터를 이미 갖고 있다면 `StartQuizDefinition()`으로 런타임 퀴즈를 만들어 넘긴다.
+데이터가 두 곳으로 갈라지지 않는다.
+
+```cpp
+FInitialConsonantQuizDefinition Quiz;
+Quiz.QuizID = Content.ContentID;
+Quiz.QuestionText = Content.Body;
+Quiz.Answer = Content.AcceptedAnswers[0];   // 초성은 여기서 자동 추출된다
+QuizComponent->StartQuizDefinition(Quiz);
+```
+
+`AMainEducationScenarioManagerActor`가 이 방식으로 `FMainEducationContent`를 그대로 사용한다
+(`QUIZ_HWACHA` "ㅎ ㅊ", `QUIZ_ONGSEONG` "ㅇ ㅅ"). 상세는 `docs/Main/specs/MAIN_EDUCATION_FLOW.md`.
 
 ---
 
@@ -181,9 +197,14 @@ Blueprint에서도 동일하게 `Start Quiz` 노드 + `On Quiz Finished` 이벤�
 
 ---
 
-## 10. 남은 문제
+## 10. 사용처
 
-* 실제 음성 인식 백엔드 미연결 (Mock만 존재)
-* Main 교육 흐름(`UMainEducationScenarioDefinition`)은 아직 자체 퀴즈 데이터를 사용한다.
-  Core 런타임으로 통합할지 여부는 별도 판단이 필요하다.
-* 마이크 권한(Android `RECORD_AUDIO`) 요청 흐름은 백엔드 도입 시 함께 설계한다.
+| 사용처 | 퀴즈 | 방식 |
+|---|---|---|
+| Main 교육 흐름 | `QUIZ_HWACHA`(화차), `QUIZ_ONGSEONG`(옹성) | Main Content → `StartQuizDefinition()` (7.3) |
+| `GF_OngseongCrossbow` | `QUIZ_ONGSEONG` | 컴포넌트 내장 퀴즈 → `StartQuiz()` (7.2). **기본 꺼짐** — Main이 같은 질문을 낸다 |
+
+## 11. 남은 문제
+
+* 마이크 권한(Android `RECORD_AUDIO`) 요청 흐름은 미설계다.
+* 퀴즈 패널의 최종 아트(WBP)와 정답/오답 사운드는 미제작이다. 네이티브 패널이 기본값으로 동작한다.

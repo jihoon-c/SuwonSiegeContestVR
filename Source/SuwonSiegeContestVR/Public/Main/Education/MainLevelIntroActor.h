@@ -133,6 +133,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Intro|Playback")
 	bool bPlayOnBeginPlay = true;
 
+	/**
+	 * Skips the camera intro when the level is entered on the way back from an experience.
+	 * The player has already seen it this session, and replaying it would take the camera away
+	 * again just as the education flow resumes.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Intro|Playback")
+	bool bSkipIntroOnExperienceReturn = true;
+
 protected:
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void BeginPlay() override;
@@ -144,6 +152,8 @@ protected:
 
 private:
 	void BeginIntroWhenReady();
+	/** True when a Main Scenario checkpoint is waiting, i.e. the player is returning from an experience. */
+	bool HasPendingExperienceReturn() const;
 	void MovePawnToAnchor(const UArrowComponent* TargetAnchor, float Alpha);
 	void ShowTitle(float Opacity);
 	void HideTitle();

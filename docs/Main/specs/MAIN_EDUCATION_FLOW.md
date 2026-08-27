@@ -15,15 +15,40 @@ AMainEducationScenarioManagerActor
 
 ## 기본 흐름
 
+현재 연결된 체험은 신기전과 옹성 두 개다. 두 체험 모두 같은 형태를 따른다.
+
 ```text
-부임·전체 구조·성벽 방어
-→ 신기전 체험
-→ 공심돈 상황/퀴즈/설명/체험
-→ 옹성 상황/퀴즈/설명/체험
-→ 녹로 상황/퀴즈/설명/체험
-→ 거중기 상황/퀴즈/설명/비교/체험
+성문 앞 인사
+→ 신기전 설명 → 초성 퀴즈 "ㅎ ㅊ"(화차) → LV_Singijeon 체험 → L_Main 복귀
+→ 옹성 설명   → 초성 퀴즈 "ㅇ ㅅ"(옹성) → LV_Ongseong 체험 → L_Main 복귀
 → 전체 정리
 ```
+
+| Stage | Step |
+|---|---|
+| `MAIN_GATE` | `GATE_GREETING` (Narration `MAIN_NA_01`) |
+| `SINGIJEON` | `SINGIJEON_IMAGE` → `SINGIJEON_NARRATION`(`MAIN_NA_13`) → `SINGIJEON_QUIZ`(`QUIZ_HWACHA`) → `TRAVEL_SINGIJEON` → `AFTER_SINGIJEON` |
+| `ONGSEONG` | `ONGSEONG_IMAGE` → `ONGSEONG_NARRATION`(`MAIN_NA_18`) → `ONGSEONG_QUIZ`(`QUIZ_ONGSEONG`) → `TRAVEL_ONGSEONG` → `AFTER_ONGSEONG` |
+| `SUMMARY` | `SUMMARY_01` → `SUMMARY_NARRATION`(`MAIN_NA_25`) |
+
+**퀴즈는 설명 나레이션이 끝난 뒤에만 열린다.** 질문 음성과 마이크가 겹치지 않게 하기 위한 배치다.
+
+**Travel Step 뒤에는 반드시 Step이 하나 더 있어야 한다.** `BeginExperienceTravel()`이
+`NextInteractionID`를 복귀 체크포인트로 저장하므로, Travel이 Stage의 마지막 Step이면 이동이 거부된다.
+`AFTER_*`가 그 자리이자 체험을 마치고 돌아오는 지점이다.
+
+**체험이 끝나는 조건**
+
+| 체험 | 복귀 조건 |
+|---|---|
+| 신기전 | `DA_Scenario_Singijeon` 종료 시 `ScenarioExperienceBridgeComponent`가 복귀시킨다 |
+| 옹성 | 충차 파괴(성공)로 복귀하거나, **전투 시작 30초 뒤 자동 복귀**(`BattleTimeLimit`) |
+
+복귀 체크포인트가 남아 있으면 `AMainLevelIntroActor`는 성문 인트로 연출을 건너뛰고
+곧바로 교육 흐름을 이어 간다(`bSkipIntroOnExperienceReturn`).
+
+거중기·녹로·공심돈 설명 구간은 2026-08-27에 흐름에서 제외했다. Level과 Experience 에셋은 그대로 있으며,
+Stage와 Route를 다시 추가하면 복원된다.
 
 ## 메인 레벨 시작 연출
 
@@ -33,6 +58,9 @@ AMainEducationScenarioManagerActor
 ```text
 OverviewAnchor → TitleAnchor → (타이틀 3초) → 페이드 아웃 → PlayerAnchor → 교관 나레이션
 ```
+
+이 연출은 **처음 입장할 때만** 재생된다. 체험에서 돌아와 복귀 체크포인트가 남아 있으면
+연출을 건너뛰고 교육 흐름을 이어 간다(`bSkipIntroOnExperienceReturn`, 기본 켜짐).
 
 Actor의 파란 `OverviewAnchor`, 노란 `TitleAnchor`, 초록 `PlayerAnchor` 화살표를 Viewport에서
 직접 이동·회전해 세 시점을 잡는다. 기본 설정에서 `TitleAnchor`와 `PlayerAnchor`는 같은 정문
@@ -101,28 +129,26 @@ Step Type의 의미:
 메인 전용 나레이션은 `/Game/Audio/Narration/DT_Narration_Main`에서 관리한다. 기존 신기전
 `/Game/Data/DT_Narration`과 분리되어 있어 Main 음원 추가가 체험 나레이션 순서에 영향을 주지 않는다.
 
-현재 등록 범위는 01~33번이며 녹로 원리 설명까지다. Scenario는 다음 14개 화면 단위로 재생한다.
+현재 등록 범위는 `MAIN_NA_01` ~ `MAIN_NA_30`이다. Row는 `NextRow` + `AdvanceMode = Auto`로 이어지고
+구간의 마지막 Row가 `Stop`이므로, Scenario가 지정한 시작 Row 하나로 구간 전체가 재생된다.
 
 ```text
-01~03 부임
-04~07 성벽 방어
-08 신기전 체험 전환
-09~11 공심돈 상황·질문
-12~13 공심돈 정답
-14 공심돈 이미지 설명
-15~16 공심돈 체험 전환
-17~20 옹성 상황·질문
-21~22 옹성 정답
-23~24 옹성 비교 설명
-25~26 옹성 체험 전환
-27~30 녹로 상황·질문
-31~32 녹로 정답
-33 녹로 원리 설명
+01     건설 장치 예고
+02~04  거중기
+05~07  녹로 + 감시·방어 예고
+08~12  공심돈
+13~17  신기전  (16번에 "여러 발의 신기전을 화차에 장착하면 한꺼번에 발사")
+18~24  옹성    (24번 "이번에는 … 성문을 방어하는 상황을 직접 체험해 보겠습니다")
+25~30  마무리
 ```
 
-각 구간 마지막 Row는 `Stop`이다. 질문 음성이 끝난 뒤 Scenario가 Quiz Interaction으로 이동하므로,
-음성 인식 담당자의 `RequestVoiceRecognition`도 질문 재생 완료 후 호출된다. 거중기와 최종 정리는
-해당 음원이 추가될 때 별도 구간을 이어서 등록한다.
+현재 흐름이 쓰는 구간은 `01`, `13`, `18`, `25` 네 개다.
+
+**퀴즈는 구간 재생이 끝난 뒤에 열린다.** 나레이션 Step이 완료되어야 다음 Quiz Step이 시작되고,
+그때 `RequestVoiceRecognition`이 호출되어 마이크가 열린다. 질문 음성과 마이크는 겹치지 않는다.
+
+흐름에서 빠진 거중기·녹로·공심돈을 `01`과 `26`이 여전히 언급한다. 음원 재녹음 또는 구간 재조정이
+필요하며, 화면 텍스트는 실제 체험 내용에 맞게 이미 수정되어 있다.
 
 ## UI 연결
 
@@ -136,28 +162,47 @@ Step Type의 의미:
 - 개발 중 미구현 체험 통과 → `SkipUnavailableExperience()`
 
 공통 VR HUD Component가 Pawn에 있으면 제목·본문과 각 Step의 `InteractionGuideText`가 기본 미러링된다.
-이미지와 퀴즈의 최종 레이아웃은 별도 Main Widget에서 위 이벤트를 소비한다.
+이미지의 최종 레이아웃은 별도 Main Widget에서 위 이벤트를 소비한다.
+퀴즈 화면은 Core 퀴즈 패널이 담당하며, 그동안 Main 프레젠테이션 패널은 숨는다.
 
-## 음성 인식 담당자 연결점
+## 음성 퀴즈 연결 (2026-08-27 구현)
 
-이 베이스에는 마이크 캡처, 권한 요청, 음성 모델, STT 판정 코드가 없다.
+퀴즈 Step은 음성으로 답한다. Manager가 Core 초성 퀴즈 런타임을 구동한다.
 
-1. `RequestVoiceRecognition(QuizID)`를 Blueprint 또는 별도 모듈에서 구현해 녹음을 시작한다.
-2. 인식된 최종 문자열을 `SubmitQuizAnswer(RecognizedText)`에 전달한다.
-3. `CancelVoiceRecognition()`에서 녹음/인식을 중지한다.
+```text
+Quiz Interaction
+      ↓
+AMainEducationScenarioManagerActor::RequestVoiceRecognition(QuizID)
+      ↓  FMainEducationContent(질문·초성·정답) → FInitialConsonantQuizDefinition
+UInitialConsonantQuizComponent (Core) — 패널 · 시도 · 마이크 소유
+      ↓  OnQuizFinished
+정답      → SubmitQuizAnswer(정답)              → 다음 Step(Travel)
+시도 소진 → 정답 공개 후 CompleteQuizInteraction → 다음 Step(Travel)
+취소      → 아무 것도 하지 않는다 (레벨 종료·재시작)
+```
 
-두 Blueprint Native Event의 C++ 기본 구현은 의도적으로 비어 있다. 따라서 음성 모듈이 없어도
-버튼 또는 개발용 텍스트 입력으로 같은 정답 판정 경로를 검증할 수 있다.
+* **퀴즈 데이터는 Main Content에만 둔다.** 별도의 Core 퀴즈 Data Asset을 만들지 않으므로
+  디자이너는 지금까지처럼 `01 Editor Flow`의 Quiz Step만 편집하면 된다.
+  `Initial Consonants`를 비워 두면 정답에서 자동으로 추출된다.
+* 퀴즈 Step 동안 Main 프레젠테이션 패널은 숨고 Core 퀴즈 패널만 보인다.
+* `SubmitQuizAnswer(Answer)`는 그대로 열려 있다. 버튼·키보드·콘솔로도 같은 판정 경로를 쓴다.
+  마이크 없이 확인하려면 콘솔 `ssv.voice.submit 화차`.
+* 조정 프로퍼티: `bUseVoiceQuiz`(기본 켜짐), `QuizListenDuration`(8초), `QuizMaxAttempts`(3회).
+* 다른 음성 백엔드를 쓰려면 `RequestVoiceRecognition` / `CancelVoiceRecognition`를 오버라이드한다.
+
+Core 런타임 상세는 `docs/Core/specs/INITIAL_CONSONANT_QUIZ.md`를 참조한다.
 
 ## 체험 연결 현황
 
-| Route | 기본 연결 |
-|---|---|
-| 신기전 | `DA_Experience_Singijeon` |
-| 공심돈 | `DA_Experience_Gongsimdon` |
-| 옹성 | 생성 스크립트가 `DA_Experience_Ongseong`을 구성 |
-| 녹로 | Level/Experience 미존재, 빈 슬롯 |
-| 거중기 | `DA_Experience_Geojunggi` 경로 예약, 현재 Asset 미존재 |
+| Route | 기본 연결 | 흐름 포함 |
+|---|---|---|
+| 신기전 | `DA_Experience_Singijeon` | 포함 (`Travel_Singijeon`) |
+| 옹성 | `DA_Experience_Ongseong` | 포함 (`Travel_Ongseong`) |
+| 공심돈 | `DA_Experience_Gongsimdon` | 미포함 — 에셋만 존재 |
+| 녹로 | Level/Experience 미존재 | 미포함 |
+| 거중기 | `DA_Experience_Geojunggi` 경로 예약, 현재 Asset 미존재 | 미포함 |
+
+옹성 Level 자체의 초성 퀴즈(`bRunIntroQuiz`)는 Main이 같은 질문을 내므로 **기본 꺼짐**이다.
 
 체험 완료 담당자는 해당 Level에서 `UExperienceSubsystem.CompleteCurrentExperience(true)`를 호출해야
 Main 복귀 체크포인트가 복원된다.
