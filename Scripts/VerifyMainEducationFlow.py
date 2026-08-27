@@ -15,19 +15,15 @@ content = scenario.get_editor_property("education_content")
 routes = scenario.get_editor_property("experience_routes")
 if len(stages) != 6:
     raise RuntimeError(f"Expected 6 education stages, found {len(stages)}")
-if len(routes) != 5:
-    raise RuntimeError(f"Expected 5 experience routes, found {len(routes)}")
-
-quiz_ids = {
-    str(item.get_editor_property("content_id"))
-    for item in content
-    if item.get_editor_property("content_type") == unreal.MainEducationContentType.QUIZ
-}
-expected_quiz_ids = {
-    "QUIZ_GONGSIMDON", "QUIZ_ONGSEONG", "QUIZ_NOKRO", "QUIZ_GEOJUNGGI"
-}
-if quiz_ids != expected_quiz_ids:
-    raise RuntimeError(f"Unexpected quiz set: {sorted(quiz_ids)}")
+if len(routes) != 0:
+    raise RuntimeError(f"Expected no experience routes, found {len(routes)}")
+table = scenario.get_editor_property("narration_table")
+if table is None or "DT_Narration_Main" not in table.get_path_name():
+    raise RuntimeError("Main education scenario must reference DT_Narration_Main")
+if [stage.get_editor_property("stage_id") for stage in stages] != [
+    "MAIN_GATE", "GEO_NOKRO", "GONGSIMDON", "SINGIJEON", "ONGSEONG", "SUMMARY"
+]:
+    raise RuntimeError("Unexpected Main gate presentation stage order")
 
 main_experience = unreal.load_asset(MAIN_EXPERIENCE_PATH)
 if main_experience.get_editor_property("scenario_definition") != scenario:
@@ -46,6 +42,5 @@ if managers[0].get_editor_property("experience_definition") != main_experience:
 
 unreal.log(
     f"MAIN_EDUCATION_FLOW VERIFY SUCCESS: {len(stages)} stages, "
-    f"{len(content)} presentation entries, {len(quiz_ids)} quizzes, {len(routes)} routes"
+    f"{len(content)} presentation entries, opening narration enabled, {len(routes)} routes"
 )
-

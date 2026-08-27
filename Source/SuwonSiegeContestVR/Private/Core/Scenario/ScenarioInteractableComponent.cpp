@@ -20,7 +20,11 @@ namespace
 		TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents(Owner);
 		for (const UPrimitiveComponent* Primitive : PrimitiveComponents)
 		{
-			if (Primitive && Primitive->IsRegistered() && !Primitive->IsVisualizationComponent())
+		if (Primitive && Primitive->IsRegistered()
+#if WITH_EDITORONLY_DATA
+			&& !Primitive->IsVisualizationComponent()
+#endif
+		)
 			{
 				Bounds += Primitive->Bounds.GetBox();
 			}

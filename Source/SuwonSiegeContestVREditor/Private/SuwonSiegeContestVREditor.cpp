@@ -426,6 +426,213 @@ namespace SuwonLandscapeReuse
 		FConsoleCommandDelegate::CreateStatic(&AttachSharedLandscapeToCurrentLevel));
 }
 
+namespace SuwonFlatLandscape
+{
+	constexpr int32 ComponentCount = 4;
+	constexpr int32 QuadsPerSection = 63;
+	constexpr int32 SectionsPerComponent = 1;
+	constexpr uint16 FlatHeight = 32768;
+	const FVector AerialPlatformCenter(0.0, 0.0, 100000.0);
+	const FName FlatLandscapeTag(TEXT("FlatLandscape4x4"));
+	constexpr const TCHAR* SharedLandscapeMaterialPath = TEXT("/Game/Namhansanseong/Materials/Landscape/MI_Landscape.MI_Landscape");
+
+	void CreateFlatLandscape4x4()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_4X4 no editor world is open"));
+			return;
+		}
+
+		for (TActorIterator<ALandscape> It(World); It; ++It)
+		{
+			if (It->Tags.Contains(FlatLandscapeTag))
+			{
+				UE_LOG(LogTemp, Display, TEXT("FLAT_LANDSCAPE_4X4 already exists: %s"), *It->GetPathName());
+				return;
+			}
+		}
+
+		const int32 QuadsPerComponent = QuadsPerSection * SectionsPerComponent;
+		const int32 Resolution = ComponentCount * QuadsPerComponent + 1;
+		const FVector Scale(100.0, 100.0, 100.0);
+		const FVector SpawnLocation = AerialPlatformCenter - FVector(
+			ComponentCount * QuadsPerComponent * Scale.X * 0.5,
+			ComponentCount * QuadsPerComponent * Scale.Y * 0.5,
+			0.0);
+
+		const FScopedTransaction Transaction(LOCTEXT("CreateFlatLandscape4x4", "Create Flat Landscape 4x4"));
+		ALandscape* Landscape = World->SpawnActor<ALandscape>(SpawnLocation, FRotator::ZeroRotator);
+		if (!Landscape)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_4X4 could not spawn Landscape actor"));
+			return;
+		}
+
+		Landscape->Modify();
+		Landscape->SetActorScale3D(Scale);
+		Landscape->MaxLODLevel = 2;
+		Landscape->Tags.Add(FlatLandscapeTag);
+		Landscape->SetActorLabel(TEXT("Landscape_Flat4x4_Aerial"));
+
+		const FGuid ImportLayerGuid;
+		TMap<FGuid, TArray<uint16>> HeightDataPerLayers;
+		TArray<uint16>& HeightData = HeightDataPerLayers.Add(ImportLayerGuid);
+		HeightData.Init(FlatHeight, Resolution * Resolution);
+		TMap<FGuid, TArray<FLandscapeImportLayerInfo>> MaterialLayerDataPerLayers;
+		MaterialLayerDataPerLayers.Add(ImportLayerGuid);
+		Landscape->Import(
+			FGuid::NewGuid(),
+			0,
+			0,
+			Resolution - 1,
+			Resolution - 1,
+			SectionsPerComponent,
+			QuadsPerSection,
+			HeightDataPerLayers,
+			TEXT(""),
+			MaterialLayerDataPerLayers,
+			ELandscapeImportAlphamapType::Additive,
+			TArrayView<const FLandscapeLayer>());
+		Landscape->PostEditChange();
+		Landscape->MarkPackageDirty();
+
+		if (!FEditorFileUtils::SaveCurrentLevel())
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_4X4 failed to save current level"));
+			return;
+		}
+
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("FLAT_LANDSCAPE_4X4 SUCCESS actor=%s components=%dx%d resolution=%dx%d center=%s"),
+			*Landscape->GetPathName(),
+			ComponentCount,
+			ComponentCount,
+			Resolution,
+			Resolution,
+			*AerialPlatformCenter.ToString());
+	}
+
+	void ApplyNearbyLandscapeMaterialToFlat4x4()
+	{
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_MATERIAL no editor world is open"));
+			return;
+		}
+
+		ALandscape* TargetLandscape = nullptr;
+		for (TActorIterator<ALandscape> It(World); It; ++It)
+		{
+			if (It->Tags.Contains(FlatLandscapeTag))
+			{
+				TargetLandscape = *It;
+				break;
+			}
+		}
+		if (!TargetLandscape)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_MATERIAL target Landscape_Flat4x4_Aerial was not found"));
+			return;
+		}
+
+		ALandscapeProxy* SourceLandscape = nullptr;
+		TMap<ULandscapeLayerInfoObject*, int32> LayerUseCounts;
+		for (TActorIterator<ALandscapeProxy> It(World); It; ++It)
+		{
+			ALandscapeProxy* Candidate = *It;
+			if (Candidate == TargetLandscape || !Candidate->LandscapeMaterial)
+			{
+				continue;
+			}
+			if (!SourceLandscape)
+			{
+				SourceLandscape = Candidate;
+			}
+			for (ULandscapeComponent* Component : Candidate->LandscapeComponents)
+			{
+				for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations())
+				{
+					if (Allocation.LayerInfo)
+					{
+						LayerUseCounts.FindOrAdd(Allocation.LayerInfo)++;
+					}
+				}
+			}
+		}
+		if (!SourceLandscape)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_MATERIAL no placed landscape material was found"));
+			return;
+		}
+
+		ULandscapeLayerInfoObject* PrimaryLayer = nullptr;
+		int32 HighestUseCount = INDEX_NONE;
+		for (const TPair<ULandscapeLayerInfoObject*, int32>& Pair : LayerUseCounts)
+		{
+			if (Pair.Value > HighestUseCount)
+			{
+				PrimaryLayer = Pair.Key;
+				HighestUseCount = Pair.Value;
+			}
+		}
+		if (!PrimaryLayer)
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_MATERIAL source landscape has no paint layers"));
+			return;
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("ApplyFlatLandscapeMaterial", "Apply Nearby Landscape Material to Flat Landscape"));
+		TargetLandscape->Modify();
+		TargetLandscape->LandscapeMaterial = SourceLandscape->LandscapeMaterial;
+		const FIntRect TargetRect = TargetLandscape->GetBoundingRect() + TargetLandscape->GetSectionBase();
+		const int32 SampleCount = (TargetRect.Width() + 1) * (TargetRect.Height() + 1);
+		TArray<uint8> PrimaryLayerWeights;
+		PrimaryLayerWeights.Init(255, SampleCount);
+		TAlphamapAccessor<false> WeightAccessor(TargetLandscape->GetLandscapeInfo(), PrimaryLayer);
+		if (ULandscapeEditLayerBase* EditLayer = TargetLandscape->GetEditLayer(0))
+		{
+			WeightAccessor.SetEditLayer(EditLayer->GetGuid());
+		}
+		WeightAccessor.SetData(
+			TargetRect.Min.X,
+			TargetRect.Min.Y,
+			TargetRect.Max.X,
+			TargetRect.Max.Y,
+			PrimaryLayerWeights.GetData(),
+			ELandscapeLayerPaintingRestriction::None);
+		TargetLandscape->RequestLayersContentUpdateForceAll(ELandscapeLayerUpdateMode::Update_All, true);
+		TargetLandscape->ForceUpdateLayersContent();
+		TargetLandscape->PostEditChange();
+		TargetLandscape->MarkPackageDirty();
+
+		if (!FEditorFileUtils::SaveCurrentLevel())
+		{
+			UE_LOG(LogTemp, Error, TEXT("FLAT_LANDSCAPE_MATERIAL could not save current level"));
+			return;
+		}
+		UE_LOG(LogTemp, Display, TEXT("FLAT_LANDSCAPE_MATERIAL SUCCESS target=%s material=%s primary_layer=%s source=%s"),
+			*TargetLandscape->GetPathName(),
+			*GetPathNameSafe(TargetLandscape->LandscapeMaterial),
+			*GetPathNameSafe(PrimaryLayer),
+			*SourceLandscape->GetPathName());
+	}
+
+	FAutoConsoleCommand CreateFlatLandscape4x4Command(
+		TEXT("Suwon.CreateFlatLandscape4x4"),
+		TEXT("Creates a flat 4x4-component Landscape 1km above the current level origin."),
+		FConsoleCommandDelegate::CreateStatic(&CreateFlatLandscape4x4));
+
+	FAutoConsoleCommand ApplyNearbyLandscapeMaterialToFlat4x4Command(
+		TEXT("Suwon.ApplyNearbyLandscapeMaterialToFlat4x4"),
+		TEXT("Applies the placed landscape material and its dominant paint layer to Landscape_Flat4x4_Aerial."),
+		FConsoleCommandDelegate::CreateStatic(&ApplyNearbyLandscapeMaterialToFlat4x4));
+}
+
 namespace SuwonGmarketSans
 {
 	constexpr const TCHAR* FontFacePath = TEXT("/Game/UI/Fonts/GmarketSansBold.GmarketSansBold");

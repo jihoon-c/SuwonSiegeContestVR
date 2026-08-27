@@ -24,6 +24,7 @@
 #include "Singijeon/SingijeonAmmoSlotComponent.h"
 #include "Singijeon/SingijeonAmmunitionInterface.h"
 #include "Singijeon/SingijeonHwachaActor.h"
+#include "Singijeon/SingijeonHwachaBatteryActor.h"
 #include "Singijeon/SingijeonProjectileActor.h"
 #include "Shared/Characters/EnemySoldierActor.h"
 #include "Shared/Combat/LegacyHealthComponent.h"
@@ -52,6 +53,51 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FSingijeonHwachaCarryHeightLockTest,
     "SuwonSiegeContestVR.GF_Singijeon.Hwacha.CarryHeightLock",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FSingijeonOptimizedSupportBatteryTest,
+    "SuwonSiegeContestVR.GF_Singijeon.Hwacha.OptimizedSupportBattery",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSingijeonOptimizedSupportBatteryTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    if (!TestNotNull(TEXT("Support battery test world is created"), World))
+    {
+        return false;
+    }
+    FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+    WorldContext.SetCurrentWorld(World);
+    World->InitializeActorsForPlay(FURL());
+
+    ASingijeonHwachaActor* PlayableHwacha = World->SpawnActor<ASingijeonHwachaActor>();
+    ASingijeonHwachaBatteryActor* Battery = World->SpawnActor<ASingijeonHwachaBatteryActor>();
+    TestNotNull(TEXT("Playable Hwacha is spawned as the synchronization source"), PlayableHwacha);
+    TestNotNull(TEXT("Optimized support battery is spawned"), Battery);
+    if (PlayableHwacha && Battery)
+    {
+        if (!Battery->HasActorBegunPlay())
+        {
+            Battery->DispatchBeginPlay();
+        }
+        TestEqual(TEXT("One independently placed actor renders one support cart"),
+            Battery->GetCartCount(), 1);
+        TestEqual(TEXT("One support cart owns one 6 x 11 loaded-arrow ISM"),
+            Battery->GetLoadedArrowCount(), 6 * 11);
+        TestEqual(TEXT("No flying instances exist before launch"), Battery->GetFlyingArrowCount(), 0);
+        PlayableHwacha->OnHwachaStateChanged.Broadcast(
+            ESingijeonHwachaState::Loaded,
+            ESingijeonHwachaState::Fired);
+        TestEqual(TEXT("First support arrow launches immediately"),
+            Battery->GetLoadedArrowCount(), 6 * 11 - 1);
+        TestEqual(TEXT("The launched arrow uses the pooled flying-arrow ISM"),
+            Battery->GetFlyingArrowCount(), 1);
+    }
+
+    World->DestroyWorld(false);
+    GEngine->DestroyWorldContext(World);
+    return true;
+}
 
 bool FSingijeonHwachaCarryHeightLockTest::RunTest(const FString& Parameters)
 {
@@ -118,8 +164,13 @@ bool FSingijeonProjectileDamageTest::RunTest(const FString& Parameters)
     if (Arrow && Enemy && Enemy->GetHealthComponent())
     {
         Enemy->SetSoldierActive(true);
+        const FVector RequestedLaunchDirection = FVector(1.0f, 1.0f, 0.2f).GetSafeNormal();
         ISingijeonAmmunitionInterface::Execute_OnLaunched(
-            Arrow, FVector::ForwardVector, 1000.0f);
+            Arrow, RequestedLaunchDirection, 1000.0f);
+        TestTrue(TEXT("Projectile honors the spread direction supplied by the Hwacha"),
+            FVector::DotProduct(Arrow->GetVelocity().GetSafeNormal(), RequestedLaunchDirection) > 0.999f);
+        TestTrue(TEXT("Projectile arrowhead rotates into the supplied spread direction"),
+            FVector::DotProduct(Arrow->GetArrowTipDirection(), RequestedLaunchDirection) > 0.999f);
         TestTrue(TEXT("Launched projectile applies standard Health damage once"),
             Arrow->ApplyImpactDamage(Enemy));
         TestFalse(TEXT("A projectile cannot damage the same target twice"),
@@ -581,6 +632,10 @@ bool FSingijeonHwachaAutoFillGridConfigurationTest::RunTest(const FString& Param
             Hwacha->LaunchVolley();
             TestEqual(TEXT("Volley duration defaults to ten seconds"),
                 Hwacha->GetVolleyDuration(), 10.0f);
+            TestEqual(TEXT("Playable volley defaults to a fourteen-degree horizontal fan"),
+                Hwacha->GetVolleyHorizontalSpreadHalfAngle(), 14.0f);
+            TestEqual(TEXT("Playable volley defaults to a six-degree vertical fan"),
+                Hwacha->GetVolleyVerticalSpreadHalfAngle(), 6.0f);
             TestTrue(TEXT("A 66-arrow volley spaces launches across ten seconds"),
                 FMath::IsNearlyEqual(Hwacha->GetCurrentLaunchInterval(), 10.0f / 65.0f, 0.001f));
             TestEqual(TEXT("The first random arrow launches immediately"),

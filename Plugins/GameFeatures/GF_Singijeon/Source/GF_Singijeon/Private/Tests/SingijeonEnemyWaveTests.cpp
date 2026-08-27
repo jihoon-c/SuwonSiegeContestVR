@@ -21,6 +21,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     "SuwonSiegeContestVR.GF_Singijeon.EnemyWave.EditorPreview",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FSingijeonEnemyWaveMultiWaveBudgetTest,
+    "SuwonSiegeContestVR.GF_Singijeon.EnemyWave.MultiWaveBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
 bool FSingijeonEnemyWaveEditorPreviewTest::RunTest(const FString& Parameters)
 {
 	UWorld* World = UWorld::CreateWorld(EWorldType::Editor, false);
@@ -123,14 +128,28 @@ bool FSingijeonEnemyWaveScaleAndVolleyTest::RunTest(const FString& Parameters)
 
         Wave->StartWave();
         TestEqual(TEXT("StartWave begins the charge"), Wave->GetWaveState(), ESingijeonEnemyWaveState::Charging);
+        Wave->ChargeSpeed = 1000.0f;
+        Wave->Tick(0.5f);
         Wave->PanicDuration = 0.25f;
+        Wave->VolleyCasualtyFraction = 0.4f;
+        Wave->RetreatDuration = 0.5f;
+        Wave->RetreatDistance = 1000.0f;
         Wave->BeginPanic(Wave->GetActorLocation(), Wave->GetActorForwardVector());
         TestTrue(TEXT("Volley first enters the panic state"), Wave->IsPanicking());
         Wave->Tick(0.1f);
         TestEqual(TEXT("Enemies remain visible during the panic window"), Wave->GetAliveEnemyCount(), 45);
         Wave->Tick(0.2f);
-        TestEqual(TEXT("No logical enemies remain"), Wave->GetAliveEnemyCount(), 0);
-        TestEqual(TEXT("Wave enters Defeated state"), Wave->GetWaveState(), ESingijeonEnemyWaveState::Defeated);
+        TestEqual(TEXT("Volley removes 40 percent of the logical force"), Wave->GetAliveEnemyCount(), 27);
+        TestEqual(TEXT("Survivors begin retreating after panic"),
+            Wave->GetWaveState(), ESingijeonEnemyWaveState::Retreating);
+        const float RetreatStartDistance = Wave->GetWaveDistance();
+        Wave->Tick(0.25f);
+        TestTrue(TEXT("Retreat moves survivors away from the destination"),
+            Wave->GetWaveDistance() < RetreatStartDistance);
+        Wave->Tick(0.3f);
+        TestEqual(TEXT("Wave reaches the terminal Retreated state"),
+            Wave->GetWaveState(), ESingijeonEnemyWaveState::Retreated);
+        TestFalse(TEXT("Retreated Wave no longer ticks"), Wave->IsActorTickEnabled());
 
         Wave->ResetWave();
         Wave->ChargeSpeed = 20000.0f;
@@ -165,6 +184,45 @@ bool FSingijeonEnemyWaveScaleAndVolleyTest::RunTest(const FString& Parameters)
         Wave->Tick(1.0f);
         TestEqual(TEXT("Survivors can reach their fixed destinations after volley completion"),
             Wave->GetWaveState(), ESingijeonEnemyWaveState::ReachedTarget);
+    }
+
+    World->DestroyWorld(false);
+    GEngine->DestroyWorldContext(World);
+    return true;
+}
+
+bool FSingijeonEnemyWaveMultiWaveBudgetTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
+    if (!TestNotNull(TEXT("Multi-Wave test world is created"), World))
+    {
+        return false;
+    }
+    FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::Game);
+    WorldContext.SetCurrentWorld(World);
+    World->InitializeActorsForPlay(FURL());
+
+    ASingijeonEnemyWaveActor* WaveA = World->SpawnActor<ASingijeonEnemyWaveActor>(
+        ASingijeonEnemyWaveActor::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
+    ASingijeonEnemyWaveActor* WaveB = World->SpawnActor<ASingijeonEnemyWaveActor>(
+        ASingijeonEnemyWaveActor::StaticClass(), FVector(0.0f, 2500.0f, 0.0f), FRotator::ZeroRotator);
+    if (TestNotNull(TEXT("First copied Wave exists"), WaveA) &&
+        TestNotNull(TEXT("Second copied Wave exists"), WaveB))
+    {
+        TestTrue(TEXT("First Wave prepares"), WaveA->PrepareWave());
+        TestTrue(TEXT("Second Wave prepares"), WaveB->PrepareWave());
+        TestEqual(TEXT("Copying a Wave doubles the logical force"),
+            WaveA->GetLogicalEnemyCount() + WaveB->GetLogicalEnemyCount(), 90);
+        TestEqual(TEXT("Two Waves reduce each foreground Actor budget to two"),
+            WaveA->GetRuntimeInteractiveEnemyBudget(), 2);
+        TestEqual(TEXT("Second Wave receives the same foreground budget"),
+            WaveB->GetRuntimeInteractiveEnemyBudget(), 2);
+        TestEqual(TEXT("Two Waves split six pose leaders into three each"),
+            WaveA->GetRuntimePoseLeaderBudget(), 3);
+        TestEqual(TEXT("Second Wave receives three pose leaders"),
+            WaveB->GetRuntimePoseLeaderBudget(), 3);
+        TestNotEqual(TEXT("Copied Waves at different positions get different formations"),
+            WaveA->GetEffectiveFormationSeed(), WaveB->GetEffectiveFormationSeed());
     }
 
     World->DestroyWorld(false);

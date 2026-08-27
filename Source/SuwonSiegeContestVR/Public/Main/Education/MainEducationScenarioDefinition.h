@@ -21,6 +21,14 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "01 Editor Flow")
 	void RebuildScenarioFromEditorFlow();
 
+	/** Replaces the Main route with the narration-free Singijeon -> Ongseong flow. */
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "01 Editor Flow")
+	void ResetToSingijeonAndOngseongFlow();
+
+	/** Sets the narration-free, Main-level gate presentation sequence. */
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "01 Editor Flow")
+	void ResetToMainGatePresentationFlow();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "01 Editor Flow")
 	bool bAutoRebuildFromEditorFlow = true;
 

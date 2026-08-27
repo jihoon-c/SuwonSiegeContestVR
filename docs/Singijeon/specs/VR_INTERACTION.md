@@ -74,7 +74,7 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
 - 발사할 때 실제 화살과 Instance 전체를 섞은 무작위 순서로 한 발씩 발사한다. 첫 발부터 마지막 발까지 `Volley Duration`(기본 10초)에 맞춰 균등 배분한다.
 - 한 발이 발사될 때마다 대응하는 실제 화살 또는 ISM Instance 하나를 제거하고 장전 수를 `66 → 65 → ... → 0`으로 갱신한다.
 - ISM 발사는 Instance 월드 Transform을 읽은 뒤 `RemoveInstance` 성공을 확인하고 Render State를 갱신한 다음 발사체를 Spawn한다. 제거 실패 시 장전 수를 감소시키지 않는다.
-- 발사 방향은 슬롯의 임의 Forward가 아니라 화살 메시의 `Arrow Tip Local Axis`를 월드 방향으로 변환해 결정한다. 현재 신기전 화살 메시의 화살촉 축은 로컬 `-X`다. 발사체는 비행 속도에 맞춰 이 화살촉 축을 회전시키며, 화차와 같은 일제 발사 화살끼리는 이동 충돌을 무시한다.
+- 발사 기준은 슬롯의 임의 Forward가 아니라 화살 메시의 `Arrow Tip Local Axis`를 월드 방향으로 변환해 결정한다. 현재 신기전 화살 메시의 화살촉 축은 로컬 `-X`다. 이 기준에 `Volley Horizontal Spread Half Angle`(기본 14도)과 `Volley Vertical Spread Half Angle`(기본 6도)을 무작위 적용해 얕은 부채꼴로 확산한다. 발사체는 분산된 비행 방향에 화살촉을 정렬하며, 화차와 같은 일제 발사 화살끼리는 이동 충돌을 무시한다.
 - 발사된 물리 화살 Actor는 기본 12초 후 제거되어 66발 Volley의 충돌 잔해가 월드에 계속 누적되지 않는다.
 - 물리 화살은 `FlightTrailEffect` Niagara Component를 가진다. `BP_SingijeonArrow`의 Class Defaults > `Singijeon > Flight Trail`에서 `Flight Trail System`을 지정하면 실제 발사 중에만 활성화되고, 장전·언로드·피격 시 비활성화된다.
 - 이펙트 부착 위치는 `Flight Trail Relative Location`, 방향은 `Relative Rotation`, 크기는 `Relative Scale`로 화살 메시 기준 조절한다. System 슬롯을 비워 두면 이펙트 없이 기존과 동일하게 동작한다.
@@ -115,6 +115,7 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
 - 최소 장전 수: 화차의 `Minimum Loaded Ammunition`
 - 점화 유지 시간: `Fuse.Ignition Duration`
 - 탄속과 전탄 발사 시간: `Launch Speed`, `Volley Duration`
+- 부채꼴 확산: `Volley Horizontal Spread Half Angle`, `Volley Vertical Spread Half Angle`
 - 화살별 효과: `ASingijeonProjectileActor.OnLaunched` 오버라이드
 - 화살 피해: 발사 후 Health 대상 첫 충돌에 `ImpactDamage`를 표준 Damage로 1회 전달, `OnProjectileImpact`에서 VFX/SFX 연결
 - 횃불 점화/소화: `SetIgnitionActive`
@@ -123,8 +124,8 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
 
 ## 적군 돌진 Wave
 
-`LV_Singijeon`에는 `ASingijeonEnemyWaveActor` 기반 `Singijeon_EnemyWave`가 한 개
-배치되어 있다. 개별 적군 Spline이나 AIController는 사용하지 않는다.
+`LV_Singijeon`에는 `ASingijeonEnemyWaveActor` 기반 `Singijeon_EnemyWave`가 배치되어 있다.
+같은 Actor를 복제하면 Wave당 45명이 추가되며, 개별 적군 Spline이나 AIController는 사용하지 않는다.
 
 에디터에서는 `Show Enemy Preview In Editor=true`일 때 `EnemyPreview_01~45`가 실제 Seed/Route/크기로 표시된다. 이 컴포넌트는 배치 확인용 Ref Pose이며 EditorOnly/Transient라 저장·패키징되지 않는다. PIE 시작 시 제거되고 런타임의 3 Actor + 42 Reliable Proxy로 교체된다.
 
@@ -134,16 +135,17 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
   → SpawnVolume에서 화차까지 Nav 경로 1회 계산
   → 45명 / 3개 소대 돌진
   → 화차 OnVolleyLaunched
+  → 3초간 우왕좌왕
   → 논리 피격 판정
-  → Defeated 또는 ReachedTarget
+  → 생존자 후퇴 → Retreated
 ```
 
 - `Enemy Count`: 기본 45명
 - `Max Interactive Enemies`: 실제 Shared Enemy Actor 최대 3명
 - 나머지 42명: 플랫폼에서 확실히 렌더되는 일반 `USkeletalMeshComponent` 풀 캐릭터
-- `Proxy Update Interval`: 0.1초(10Hz), `Proxy Cull Distance`: 5000~12000cm
-- 일반 프록시는 기본 8개의 Animation Leader만 Rifle Jog를 평가하고 나머지는 Leader Pose를 공유해 CPU 애니메이션 비용을 제한한다.
-- 8개 리더는 서로 다른 시작 위상과 `0.86~1.14` 재생 속도를 사용해 동일한 보폭 반복을 줄인다.
+- `Proxy Update Interval`: 0.125초(8Hz), `Proxy Cull Distance`: 5000~12000cm
+- 일반 프록시는 단일 Wave 기준 6개의 Animation Leader만 Rifle Jog를 평가하고 나머지는 Leader Pose를 공유해 CPU 애니메이션 비용을 제한한다.
+- 리더는 서로 다른 시작 위상과 `0.86~1.14` 재생 속도를 사용해 동일한 보폭 반복을 줄인다.
 - `SKM_Low_Poly_Samurai_VR`은 3개 LOD를 가지며 Wave에서는 최소 LOD 1을 강제한다.
 - 모든 프록시는 충돌, Overlap, Navigation 영향, Decal과 그림자를 사용하지 않는다.
 - `Use GPU Instanced Crowd`는 기본 `false`다. 플랫폼 검증 후 켜면 기존 GPU Animation Provider 경로를 선택적으로 사용할 수 있다.
@@ -154,7 +156,11 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
 - 실제 Shared Enemy Actor는 동적 그림자를 사용하지 않는다.
 - `Target Actor`: Level의 `BP_SingijeonHwacha`, 비어 있으면 자동 탐색
 - `Start When Hwacha Loaded`: 첫 화살 장전 완료 시 시작
-- `Volley Casualty Fraction`: 기본 1.0, 66발 일제 사격으로 남은 Wave 처리
+- `Volley Casualty Fraction`: 기본 0.35. 발사 후 3초간 흩어진 다음 사상자를 제외한 병력이 후퇴한다.
+- `Retreat Duration/Distance`: 기본 6초/3500cm. 완료하면 `Retreated`가 되고 기본 설정에서는 메시와 Animation Tick을 숨긴다.
+- `Auto Scale Budgets For Multiple Waves`: 복제된 Wave 수에 따라 전경 Actor(기본 3)와 Pose Leader(기본 6)를 자동 분배한다. 두 Wave면 각 2 Actor/3 Leader를 사용한다.
+- 복제본도 같은 화차 이벤트에 자동 연결된다. 위치가 다르면 위치 Hash가 Seed에 섞여 서로 다른 편대 형태를 만든다.
+- Quest/OpenXR 표시 안정성을 위해 42명 프록시의 독립 Enemy Actor 소유 구조는 유지하며, 컬링 구조를 바꾸는 대신 업데이트 주기·Pose 공유·후퇴 후 Tick 정지로 최적화한다.
 
 ### 절차별 적군 접근 제한
 
@@ -198,3 +204,21 @@ Root Motion Bone은 각각 `root`와 `Root`를 사용한다.
 `Empty -> Loaded -> Igniting -> Fired`
 
 횃불이 점화 완료 전에 도화선에서 떨어지거나 꺼지면 `Igniting -> Loaded`로 복귀한다.
+
+## 최적화 지원 화차 편대
+
+- `LV_Singijeon`의 `Singijeon_OptimizedSupportHwacha_01~04`는 각각 독립 배치 가능한 화차 1대 Actor이며 플레이 가능한 화차의 `OnHwachaStateChanged`를 구독한다.
+- 플레이 가능한 화차가 `Fired`가 되면 지원 화차 4대의 신기전 264발도 10초 동안 순차 발사된다.
+- 각 Actor에서 화차, 장전 화살 66발, 비행 화살은 각각 하나의 ISM으로 묶는다. 지원 화살별 Actor, 충돌, Overlap, Niagara는 만들지 않는다.
+- 비행 Transform은 각 Actor가 발사 중에만 30Hz로 묶어 갱신하고 수명이 끝난 인스턴스는 제거한다.
+- 지원 편대는 시각 연출 전용이며 그랩과 시나리오 성공 판정은 기존 플레이 가능 화차만 담당한다.
+- 각 지원 화차의 위치는 Actor Transform으로 별도 수정한다. 화살 위치는 Details의 `Arrow Rack Transform` 또는 뷰포트 편집 Widget으로 조절하며 청록색 `ArrowRackEditorGuide`가 방향을 표시한다.
+- 지원 화차도 Playable과 같은 기본 좌우 14도/상하 6도 부채꼴 분산을 사용하며 Actor별 `Launch > Spread`에서 조절할 수 있다.
+
+## 조선군 Kneel/Point VR 에셋
+
+- 공용 메시: `/GF_Singijeon/Gameplay/Characters/JosunGoon/SKM_JosunGoon_VR`
+- 애니메이션: `A_JosunGoon_Kneel_VR`, `A_JosunGoon_Point_VR`
+- 공용 메시에는 LOD 3개와 LOD별 `Optimize For Instancing`을 적용했다.
+- Kneel/Point 원본 Skeleton은 Bone 구조는 같지만 Reference Pose가 달라 Kneel을 `RTG_JosunGoonKneel_To_Point`로 변환했다.
+- 원본 임포트 에셋은 유지한다. 다수 배치 시 Skeletal Mesh Component의 충돌/Overlap/그림자를 필요에 따라 끄고 거리 컬링을 함께 사용한다.

@@ -216,6 +216,8 @@ protected:
 	bool bValidTeleportLocation = false;
 	bool bTurnLatched = false;
 	bool bMoveEnabledBeforeMountedInteraction = true;
+	bool bWidgetPressLeft = false;
+	bool bWidgetPressRight = false;
 	FVector ProjectedTeleportLocation = FVector::ZeroVector;
 	TWeakObjectPtr<USceneComponent> MountedCameraAnchor;
 
