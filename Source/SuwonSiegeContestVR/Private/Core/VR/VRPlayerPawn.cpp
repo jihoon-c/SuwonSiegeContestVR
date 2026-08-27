@@ -194,14 +194,11 @@ void AVRPlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	{
 		EnhancedInput->BindAction(SmoothMoveAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleSmoothMoveTriggered);
 	}
-	if (TeleportAction)
+	if (TeleportAction && TeleportAction != SmoothMoveAction)
 	{
-		// IA_Move is the stock XR template's teleport stick action. Preserve its full
-		// Started/Triggered/Completed lifecycle so releasing the stick commits the move.
-		EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTeleportStarted);
-		EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleTeleportTriggered);
-		EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTeleportCompleted);
-		EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTeleportCanceled);
+		// IMC_Default already registers IA_Move with OpenXR at startup. Keep it as a
+		// locomotion fallback when IMC_Menu is filtered by the current input mode.
+		EnhancedInput->BindAction(TeleportAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleSmoothMoveTriggered);
 	}
 
 	if (ViewTurnAction)
