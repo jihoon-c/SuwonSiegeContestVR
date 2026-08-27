@@ -7,11 +7,15 @@ The model is ~140MB, so it is not committed. Run this once per checkout:
 Files land in <Project>/VoiceModels/<model>/ , which DefaultGame.ini stages as non-UFS content
 for packaged Windows and Android builds. Re-running only fetches what is missing or truncated.
 
+The script also derives bpe.vocab from bpe.model. sherpa-onnx needs that file to turn hotwords
+into BPE units, and the upstream model package only ships bpe.model.
+
 See docs/Core/specs/SHERPA_ONNX_INTEGRATION.md.
 """
 
 import argparse
 import os
+import struct
 import sys
 import urllib.error
 import urllib.request
@@ -33,6 +37,10 @@ FILES = [
 ]
 
 MIN_SIZE_RATIO = 0.8
+
+# Derived locally rather than downloaded: the upstream repository ships no bpe.vocab.
+BPE_MODEL = "bpe.model"
+BPE_VOCAB = "bpe.vocab"
 
 
 def project_root() -> str:
@@ -58,6 +66,110 @@ def download(url: str, destination: str) -> None:
         print()
 
     os.replace(temporary, destination)
+
+
+def _read_varint(data: bytes, index: int):
+    result = 0
+    shift = 0
+    while True:
+        byte = data[index]
+        index += 1
+        result |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return result, index
+        shift += 7
+
+
+def _read_sentence_piece(payload: bytes):
+    """Reads one SentencePiece submessage: {string piece = 1, float score = 2, enum type = 3}."""
+    index = 0
+    piece = None
+    score = 0.0
+    while index < len(payload):
+        key, index = _read_varint(payload, index)
+        field, wire = key >> 3, key & 7
+        if wire == 0:
+            _, index = _read_varint(payload, index)
+        elif wire == 5:
+            if field == 2:
+                score = struct.unpack("<f", payload[index:index + 4])[0]
+            index += 4
+        elif wire == 2:
+            length, index = _read_varint(payload, index)
+            if field == 1:
+                piece = payload[index:index + length].decode("utf-8")
+            index += length
+        elif wire == 1:
+            index += 8
+        else:
+            raise ValueError(f"unsupported wire type {wire}")
+    return piece, score
+
+
+def read_bpe_pieces(bpe_model_path: str):
+    """Extracts (piece, score) pairs from a sentencepiece bpe.model, in vocabulary id order.
+
+    bpe.model is a protobuf ModelProto whose field 1 repeats SentencePiece. Only that field is
+    needed, so it is walked directly rather than pulling in the sentencepiece package: the point of
+    this script is that a fresh checkout needs nothing but a Python interpreter.
+    """
+    with open(bpe_model_path, "rb") as model_file:
+        data = model_file.read()
+
+    index = 0
+    pieces = []
+    while index < len(data):
+        key, index = _read_varint(data, index)
+        field, wire = key >> 3, key & 7
+        if wire == 2:
+            length, index = _read_varint(data, index)
+            if field == 1:
+                pieces.append(_read_sentence_piece(data[index:index + length]))
+            index += length
+        elif wire == 0:
+            _, index = _read_varint(data, index)
+        elif wire == 5:
+            index += 4
+        elif wire == 1:
+            index += 8
+        else:
+            raise ValueError(f"unsupported wire type {wire}")
+    return pieces
+
+
+def write_bpe_vocab(model_dir: str, force: bool) -> bool:
+    """Writes bpe.vocab beside bpe.model in the "piece<TAB>score" form sherpa-onnx expects.
+
+    Without it sherpa-onnx cannot map a hotword such as "신기전" onto BPE units, and hotwords are
+    what makes multi-syllable answers survive decoding.
+    """
+    bpe_model_path = os.path.join(model_dir, BPE_MODEL)
+    vocab_path = os.path.join(model_dir, BPE_VOCAB)
+
+    if not os.path.exists(bpe_model_path):
+        print(f"[warn] {BPE_MODEL} is missing, so hotwords stay unavailable.", file=sys.stderr)
+        return False
+    if not force and os.path.exists(vocab_path) and os.path.getsize(vocab_path) > 0:
+        print(f"[skip] {BPE_VOCAB}")
+        return True
+
+    try:
+        pieces = read_bpe_pieces(bpe_model_path)
+    except (ValueError, IndexError, UnicodeDecodeError) as error:
+        print(f"[warn] Could not read {BPE_MODEL}: {error}", file=sys.stderr)
+        return False
+
+    if not pieces:
+        print(f"[warn] {BPE_MODEL} held no vocabulary entries.", file=sys.stderr)
+        return False
+
+    temporary = vocab_path + ".part"
+    with open(temporary, "w", encoding="utf-8", newline="\n") as out:
+        for piece, score in pieces:
+            out.write(f"{piece}\t{score}\n")
+    os.replace(temporary, vocab_path)
+    print(f"[make] {BPE_VOCAB} ({len(pieces)} pieces)")
+    return True
 
 
 def main() -> int:
@@ -86,6 +198,8 @@ def main() -> int:
         except (urllib.error.URLError, urllib.error.HTTPError) as error:
             print(f"Failed to download {url}: {error}", file=sys.stderr)
             return 1
+
+    write_bpe_vocab(model_dir, args.force)
 
     print("\nDone. The quiz uses this model automatically on the next Play.")
     print("Windows: nothing else to do. Android: the files are staged into the package and")

@@ -34,7 +34,7 @@ bool UVoiceModelLibrary::IsModelStaged(const FString& ModelName, const TArray<FS
 }
 
 FString UVoiceModelLibrary::ResolveNativeModelDirectory(
-	const FString& ModelName, const TArray<FString>& RequiredFiles)
+	const FString& ModelName, const TArray<FString>& RequiredFiles, const TArray<FString>& OptionalFiles)
 {
 	const FString StagedDirectory = GetStagedModelDirectory(ModelName);
 	if (!IsModelStaged(ModelName, RequiredFiles))
@@ -51,7 +51,18 @@ FString UVoiceModelLibrary::ResolveNativeModelDirectory(
 		FPaths::Combine(FPaths::ProjectPersistentDownloadDir(), GetVoiceModelsFolderName(), ModelName));
 
 	IFileManager& FileManager = IFileManager::Get();
-	for (const FString& RelativeFile : RequiredFiles)
+
+	TArray<FString> FilesToExtract = RequiredFiles;
+	for (const FString& RelativeFile : OptionalFiles)
+	{
+		// An optional file that was never provisioned is not an error: the caller degrades instead.
+		if (FileManager.FileExists(*FPaths::Combine(StagedDirectory, RelativeFile)))
+		{
+			FilesToExtract.AddUnique(RelativeFile);
+		}
+	}
+
+	for (const FString& RelativeFile : FilesToExtract)
 	{
 		const FString SourceFile = FPaths::Combine(StagedDirectory, RelativeFile);
 		const FString TargetFile = FPaths::Combine(NativeDirectory, RelativeFile);

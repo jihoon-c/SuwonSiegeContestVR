@@ -3,12 +3,14 @@
 #include "Async/Async.h"
 #include "Core/Text/HangulTextLibrary.h"
 #include "Core/Voice/VoiceModelLibrary.h"
+#include "Engine/World.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/ThreadSafeBool.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
+#include "TimerManager.h"
 
 #define SUWON_WITH_SHERPA (PLATFORM_WINDOWS || PLATFORM_ANDROID)
 
@@ -38,6 +40,12 @@ struct FSherpaRecognizerHandles
 	FCriticalSection AudioLock;
 	TArray<float> PendingSamples;
 	int32 CaptureSampleRate = 16000;
+
+	/**
+	 * The device can outlive a request by CaptureIdleTimeout so consecutive requests do not reopen
+	 * it. This gates the callback so nothing is recorded in that window.
+	 */
+	FThreadSafeBool bAcceptSamples = false;
 
 	TArray<FString> Keywords;
 	TFuture<void> DecodeWorker;
@@ -98,6 +106,11 @@ FString USherpaVoiceRecognitionComponent::GetBackendDescription() const
 		*Super::GetBackendDescription(), *ModelName,
 		*StatusEnum->GetNameStringByValue(static_cast<int64>(RecognizerStatus)));
 
+	if (!ResolvedDecodingMethod.IsEmpty())
+	{
+		Description += FString::Printf(TEXT(" | %s, hotwords %s"),
+			*ResolvedDecodingMethod, bHotwordsActive ? TEXT("on") : TEXT("off"));
+	}
 	if (!ResolvedModelDirectory.IsEmpty())
 	{
 		Description += FString::Printf(TEXT(" | files: %s"), *ResolvedModelDirectory);
@@ -124,12 +137,18 @@ USherpaVoiceRecognitionComponent::~USherpaVoiceRecognitionComponent()
 
 TArray<FString> USherpaVoiceRecognitionComponent::GetRequiredModelFiles() const
 {
-	TArray<FString> Files = { EncoderFile, DecoderFile, JoinerFile, TokensFile };
+	return { EncoderFile, DecoderFile, JoinerFile, TokensFile };
+}
+
+TArray<FString> USherpaVoiceRecognitionComponent::GetOptionalModelFiles() const
+{
+	// Deliberately not required: a checkout that has not re-run the download script still has a
+	// working recognizer, just without hotword biasing.
 	if (bUseHotwords && !BpeVocabFile.IsEmpty())
 	{
-		Files.Add(BpeVocabFile);
+		return { BpeVocabFile };
 	}
-	return Files;
+	return {};
 }
 
 void USherpaVoiceRecognitionComponent::BeginPlay()
@@ -200,8 +219,8 @@ bool USherpaVoiceRecognitionComponent::BeginInitialization()
 void USherpaVoiceRecognitionComponent::InitializeRecognizerOnWorkerThread()
 {
 #if SUWON_WITH_SHERPA
-	const FString ModelDirectory =
-		UVoiceModelLibrary::ResolveNativeModelDirectory(ModelName, GetRequiredModelFiles());
+	const FString ModelDirectory = UVoiceModelLibrary::ResolveNativeModelDirectory(
+		ModelName, GetRequiredModelFiles(), GetOptionalModelFiles());
 	if (ModelDirectory.IsEmpty())
 	{
 		FailInitialization(ESherpaRecognizerStatus::ModelMissing,
@@ -213,14 +232,47 @@ void USherpaVoiceRecognitionComponent::InitializeRecognizerOnWorkerThread()
 	const FString DecoderPath = FPaths::Combine(ModelDirectory, DecoderFile);
 	const FString JoinerPath = FPaths::Combine(ModelDirectory, JoinerFile);
 	const FString TokensPath = FPaths::Combine(ModelDirectory, TokensFile);
-	const FString BpeVocabPath = bUseHotwords ? FPaths::Combine(ModelDirectory, BpeVocabFile) : FString();
+	const FString BpeVocabPath = bUseHotwords && !BpeVocabFile.IsEmpty()
+		? FPaths::Combine(ModelDirectory, BpeVocabFile)
+		: FString();
+
+	// Hotwords need both the vocabulary and modified_beam_search; without either one the recognizer
+	// still has to come up, so degrade to the plain greedy configuration instead of failing.
+	bool bHotwordsResolved = !BpeVocabPath.IsEmpty();
+	if (bUseHotwords && !bHotwordsResolved)
+	{
+		UE_LOG(LogSherpaVoice, Warning,
+			TEXT("Hotwords are enabled but no BPE vocabulary is configured; decoding without them."));
+	}
+	else if (bHotwordsResolved && !IFileManager::Get().FileExists(*BpeVocabPath))
+	{
+		UE_LOG(LogSherpaVoice, Warning,
+			TEXT("Hotwords are enabled but %s is missing. Re-run Scripts/DownloadKoreanVoiceModel.py "
+				 "to derive it from bpe.model. Decoding without hotwords for now."),
+			*BpeVocabPath);
+		bHotwordsResolved = false;
+	}
+
+	static const FString ModifiedBeamSearch(TEXT("modified_beam_search"));
+	FString EffectiveDecodingMethod = DecodingMethod;
+	if (bHotwordsResolved && EffectiveDecodingMethod != ModifiedBeamSearch)
+	{
+		UE_LOG(LogSherpaVoice, Warning,
+			TEXT("Hotwords need modified_beam_search; overriding the configured %s."), *DecodingMethod);
+		EffectiveDecodingMethod = ModifiedBeamSearch;
+	}
+	else if (!bHotwordsResolved && bUseHotwords && EffectiveDecodingMethod == ModifiedBeamSearch)
+	{
+		// modified_beam_search only earns its cost through hotwords, so pay for neither.
+		EffectiveDecodingMethod = TEXT("greedy_search");
+	}
 
 	const FTCHARToUTF8 EncoderUtf8(*EncoderPath);
 	const FTCHARToUTF8 DecoderUtf8(*DecoderPath);
 	const FTCHARToUTF8 JoinerUtf8(*JoinerPath);
 	const FTCHARToUTF8 TokensUtf8(*TokensPath);
 	const FTCHARToUTF8 BpeVocabUtf8(*BpeVocabPath);
-	const FTCHARToUTF8 DecodingUtf8(*DecodingMethod);
+	const FTCHARToUTF8 DecodingUtf8(*EffectiveDecodingMethod);
 
 	SherpaOnnxOnlineRecognizerConfig Config;
 	FMemory::Memzero(&Config, sizeof(Config));
@@ -234,8 +286,10 @@ void USherpaVoiceRecognitionComponent::InitializeRecognizerOnWorkerThread()
 	Config.model_config.num_threads = FMath::Clamp(NumThreads, 1, 4);
 	Config.model_config.provider = "cpu";
 	Config.model_config.debug = bDebugLogging ? 1 : 0;
-	if (bUseHotwords)
+	if (bHotwordsResolved)
 	{
+		// sherpa-onnx maps raw hotword text onto BPE units with this vocabulary; without it the
+		// hotwords would have to be handed over already tokenised.
 		Config.model_config.modeling_unit = "bpe";
 		Config.model_config.bpe_vocab = BpeVocabUtf8.Get();
 		Config.hotwords_score = HotwordsScore;
@@ -273,12 +327,14 @@ void USherpaVoiceRecognitionComponent::InitializeRecognizerOnWorkerThread()
 	}
 
 	UE_LOG(LogSherpaVoice, Display,
-		TEXT("Korean speech recognizer loaded in %.2fs (%s, %s, %d threads)."),
-		FPlatformTime::Seconds() - StartTime, *ModelName, *DecodingMethod, Config.model_config.num_threads);
+		TEXT("Korean speech recognizer loaded in %.2fs (%s, %s, hotwords %s, %d threads)."),
+		FPlatformTime::Seconds() - StartTime, *ModelName, *EffectiveDecodingMethod,
+		bHotwordsResolved ? TEXT("on") : TEXT("off"), Config.model_config.num_threads);
 
 	// Publish on the game thread: status, error text and the handle are read from there.
 	TWeakObjectPtr<USherpaVoiceRecognitionComponent> WeakThis(this);
-	AsyncTask(ENamedThreads::GameThread, [WeakThis, Recognizer, ModelDirectory]()
+	AsyncTask(ENamedThreads::GameThread,
+		[WeakThis, Recognizer, ModelDirectory, EffectiveDecodingMethod, bHotwordsResolved]()
 	{
 		USherpaVoiceRecognitionComponent* Self = WeakThis.Get();
 		if (!Self || Self->Handles->bStopRequested)
@@ -289,6 +345,8 @@ void USherpaVoiceRecognitionComponent::InitializeRecognizerOnWorkerThread()
 		}
 		Self->Handles->Recognizer = Recognizer;
 		Self->ResolvedModelDirectory = ModelDirectory;
+		Self->ResolvedDecodingMethod = EffectiveDecodingMethod;
+		Self->bHotwordsActive = bHotwordsResolved;
 		Self->RecognizerStatus = ESherpaRecognizerStatus::Ready;
 	});
 #else
@@ -319,7 +377,10 @@ void USherpaVoiceRecognitionComponent::DestroyRecognizer()
 		return;
 	}
 
+	CancelCaptureIdleTimeout();
+
 	Handles->bStopRequested = true;
+	Handles->bAcceptSamples = false;
 	if (Handles->InitWorker.IsValid())
 	{
 		Handles->InitWorker.Wait();
@@ -380,14 +441,18 @@ bool USherpaVoiceRecognitionComponent::BeginBackendListening_Implementation(
 		return false;
 	}
 
+	CancelCaptureIdleTimeout();
+
 	Handles->Keywords = Request.Keywords;
 	Handles->bStopRequested = false;
 	{
+		// Anything captured before this request belongs to the previous utterance. Feeding it in
+		// would re-report the word that just ended the last request.
 		FScopeLock Lock(&Handles->AudioLock);
 		Handles->PendingSamples.Reset();
 	}
 
-	if (bUseHotwords && Request.Keywords.Num() > 0)
+	if (bHotwordsActive && Request.Keywords.Num() > 0)
 	{
 		const FString Hotwords = FString::Join(Request.Keywords, TEXT("\n"));
 		const FTCHARToUTF8 HotwordsUtf8(*Hotwords);
@@ -432,25 +497,63 @@ void USherpaVoiceRecognitionComponent::EndBackendListening_Implementation()
 {
 #if SUWON_WITH_SHERPA
 	Handles->bStopRequested = true;
+	Handles->bAcceptSamples = false;
 	if (Handles->DecodeWorker.IsValid())
 	{
 		Handles->DecodeWorker.Wait();
 		Handles->DecodeWorker.Reset();
 	}
 
-	StopCapture();
-
 	if (Handles->Stream)
 	{
 		SherpaOnnxDestroyOnlineStream(Handles->Stream);
 		Handles->Stream = nullptr;
 	}
+
+	// The decoder state is gone, so nothing is being recorded either way. Holding the device open
+	// for a moment is purely so a caller that listens continuously does not reopen it every
+	// utterance and lose the start of the next one.
+	UWorld* World = GetWorld();
+	if (CaptureIdleTimeout > 0.0f && World && !World->bIsTearingDown)
+	{
+		World->GetTimerManager().SetTimer(CaptureIdleHandle, this,
+			&USherpaVoiceRecognitionComponent::HandleCaptureIdleTimeout, CaptureIdleTimeout, false);
+	}
+	else
+	{
+		StopCapture();
+	}
 #endif
+}
+
+void USherpaVoiceRecognitionComponent::HandleCaptureIdleTimeout()
+{
+	StopCapture();
+}
+
+void USherpaVoiceRecognitionComponent::CancelCaptureIdleTimeout()
+{
+	if (!CaptureIdleHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(CaptureIdleHandle);
+	}
+	CaptureIdleHandle.Invalidate();
 }
 
 bool USherpaVoiceRecognitionComponent::StartCapture()
 {
 #if SUWON_WITH_SHERPA
+	// Still open from the previous request: reopening is exactly what CaptureIdleTimeout avoids.
+	if (Handles->AudioCapture.IsStreamOpen())
+	{
+		Handles->bAcceptSamples = true;
+		return true;
+	}
+
 	Audio::FAudioCaptureDeviceParams Params;
 	Params.NumInputChannels = 1;
 
@@ -471,7 +574,8 @@ bool USherpaVoiceRecognitionComponent::StartCapture()
 	Audio::FOnAudioCaptureFunction OnCapture =
 		[LocalHandles](const void* InAudio, int32 NumFrames, int32 NumChannels, int32 SampleRate, double, bool)
 	{
-		if (!InAudio || NumFrames <= 0 || NumChannels <= 0)
+		// The device can be open between requests; discard rather than record during that window.
+		if (!InAudio || NumFrames <= 0 || NumChannels <= 0 || !LocalHandles->bAcceptSamples)
 		{
 			return;
 		}
@@ -503,6 +607,8 @@ bool USherpaVoiceRecognitionComponent::StartCapture()
 		Handles->AudioCapture.CloseStream();
 		return false;
 	}
+
+	Handles->bAcceptSamples = true;
 	return true;
 #else
 	return false;
@@ -512,6 +618,7 @@ bool USherpaVoiceRecognitionComponent::StartCapture()
 void USherpaVoiceRecognitionComponent::StopCapture()
 {
 #if SUWON_WITH_SHERPA
+	Handles->bAcceptSamples = false;
 	if (Handles->AudioCapture.IsStreamOpen())
 	{
 		Handles->AudioCapture.StopStream();

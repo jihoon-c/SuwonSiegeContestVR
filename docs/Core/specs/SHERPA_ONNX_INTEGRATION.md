@@ -201,9 +201,8 @@ test_wavs/1.wav -> "지하철에서다리를벌리고하진마라." (0.17s)   �
 ## 8. 남은 문제
 
 * **Android 빌드·기기 검증 미실시** (NDK 미설치). 6절 절차 필요
-* hotwords(정답 부스팅) 미사용 — `bpe.vocab` 생성이 필요하다.
-  인식률이 부족하면 `sherpa-onnx` 저장소의 `text2token` 계열 도구로 만들어
-  `bUseHotwords=true`, `DecodingMethod=modified_beam_search`로 전환한다
+* **hotwords 전환 후 실제 마이크 인식률 미측정** — 9절 참조. PC에서 모델이 새 설정으로
+  로드되고 test_wavs 디코딩이 유지되는 것까지만 확인했다
 * 잡음 환경(전투 효과음·나레이션과 겹칠 때) 인식률 미측정.
   현재는 퀴즈 구간에 전투가 시작되지 않도록 시나리오로 막아 두었다
 * 화자 연령대(초·중등) 인식률 미측정

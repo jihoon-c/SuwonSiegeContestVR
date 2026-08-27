@@ -52,9 +52,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Voice|Sherpa")
 	FString GetInitializationError() const { return InitializationError; }
 
-	/** Model files this component needs, relative to the model directory. */
+	/** Model files this component cannot start without, relative to the model directory. */
 	UFUNCTION(BlueprintPure, Category = "Voice|Sherpa")
 	TArray<FString> GetRequiredModelFiles() const;
+
+	/**
+	 * Model files that improve recognition but are not fatal when missing, relative to the model
+	 * directory. Today that is the BPE vocabulary hotwords need.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Voice|Sherpa")
+	TArray<FString> GetOptionalModelFiles() const;
 
 	/**
 	 * Decodes a 16-bit PCM wave file through the same recognizer. Used by the automation test and
@@ -89,16 +96,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Decoding", meta = (ClampMin = "1", ClampMax = "4"))
 	int32 NumThreads = 2;
 
-	/** "greedy_search" or "modified_beam_search". Hotwords require modified_beam_search. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Decoding")
-	FString DecodingMethod = TEXT("greedy_search");
-
 	/**
-	 * Biases decoding towards the expected answers. Needs modified_beam_search and a BPE vocab
-	 * file next to the model, so it stays off until that file is provisioned.
+	 * "greedy_search" or "modified_beam_search". Hotwords require modified_beam_search, so this is
+	 * forced to it while they are active and falls back to greedy_search when they cannot be used.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Decoding")
-	bool bUseHotwords = false;
+	FString DecodingMethod = TEXT("modified_beam_search");
+
+	/**
+	 * Biases decoding towards the expected answers. Greedy decoding drops multi-syllable answers
+	 * such as "신기전" far more often than two-syllable ones, and keyword matching compares exact
+	 * strings, so a single wrong syllable loses the answer.
+	 *
+	 * Needs BpeVocabFile beside the model. Scripts/DownloadKoreanVoiceModel.py derives it from
+	 * bpe.model; when it is absent the component logs a warning and decodes without hotwords.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Decoding")
+	bool bUseHotwords = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Decoding",
 		meta = (EditCondition = "bUseHotwords"))
@@ -124,6 +138,18 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Endpoint", meta = (ClampMin = "1.0", Units = "s"))
 	float Rule3MinUtteranceLength = 15.0f;
+
+	/**
+	 * How long the microphone device stays open after a request ends, so back-to-back requests do
+	 * not pay for closing and reopening it. Callers that listen continuously restart within the
+	 * same frame, and reopening the device there costs enough audio to swallow the first syllable
+	 * of whatever is being said.
+	 *
+	 * No audio is buffered or decoded while idle: the capture callback discards it until the next
+	 * StartListening. Set to 0 to close the device the moment a request ends.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa|Capture", meta = (ClampMin = "0.0", Units = "s"))
+	float CaptureIdleTimeout = 2.0f;
 
 	/** Prints the resolved model paths and lets sherpa-onnx log its own configuration. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voice|Sherpa")
@@ -157,6 +183,13 @@ private:
 	bool StartCapture();
 	void StopCapture();
 
+	/** Closes the microphone once CaptureIdleTimeout has passed with no new request. */
+	UFUNCTION()
+	void HandleCaptureIdleTimeout();
+
+	/** Cancels a pending idle close, either because a new request arrived or the component is going away. */
+	void CancelCaptureIdleTimeout();
+
 	/** Worker-thread entry point: consumes captured audio, decodes, reports on the game thread. */
 	void ProcessCapturedAudio();
 	void ReportFromWorker(const FString& RecognizedText);
@@ -170,4 +203,10 @@ private:
 
 	FString InitializationError;
 	FString ResolvedModelDirectory;
+
+	/** What the recognizer was actually built with, which is not always what was asked for. */
+	FString ResolvedDecodingMethod;
+	bool bHotwordsActive = false;
+
+	FTimerHandle CaptureIdleHandle;
 };
