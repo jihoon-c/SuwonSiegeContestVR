@@ -4,14 +4,29 @@
 #include "Core/Experience/ExperienceSubsystem.h"
 #include "Core/Scenario/ScenarioExperienceBridgeComponent.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/Pawn.h"
 #include "Gameplay/UI/VRHUDComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Main/Education/MainEducationScenarioDefinition.h"
+#include "Main/Education/MainEducationPresentationWidget.h"
+#include "Main/Education/MainEducationWidgetComponent.h"
 
 AMainEducationScenarioManagerActor::AMainEducationScenarioManagerActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	PresentationWidgetComponent = CreateDefaultSubobject<UMainEducationWidgetComponent>(TEXT("EducationPresentationPanel"));
+	PresentationWidgetComponent->SetupAttachment(GetRootComponent());
+	PresentationWidgetComponent->SetWidgetSpace(EWidgetSpace::World);
+	PresentationWidgetComponent->SetDrawSize(PresentationPanelDrawSize);
+	PresentationWidgetComponent->SetPivot(FVector2D(0.5f, 0.5f));
+	PresentationWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+	PresentationWidgetComponent->SetTwoSided(true);
+	PresentationWidgetComponent->SetTranslucentSortPriority(9999);
+	PresentationWidgetComponent->SetWidgetClass(UMainEducationPresentationWidget::StaticClass());
+	PresentationWidgetComponent->SetVisibility(false);
+	PresentationWidgetComponent->SetHiddenInGame(true);
 }
 
 void AMainEducationScenarioManagerActor::BeginPlay()
@@ -22,6 +37,19 @@ void AMainEducationScenarioManagerActor::BeginPlay()
 		Manager->OnInteractionRequested.AddDynamic(this, &ThisClass::HandleInteractionRequested);
 	}
 	Super::BeginPlay();
+	HidePresentationPanel();
+	if (APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0))
+	{
+		if (UCameraComponent* Camera = Pawn->FindComponentByClass<UCameraComponent>())
+		{
+			PresentationWidgetComponent->AttachToComponent(Camera, FAttachmentTransformRules::KeepRelativeTransform);
+			PresentationWidgetComponent->SetRelativeLocation(PresentationPanelOffset);
+			PresentationWidgetComponent->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+			PresentationWidgetComponent->SetRelativeScale3D(FVector(PresentationPanelWorldScale));
+			PresentationWidgetComponent->SetDrawSize(PresentationPanelDrawSize);
+			PresentationWidgetComponent->InitWidget();
+		}
+	}
 
 	if (UMainEducationScenarioDefinition* Definition = GetEducationDefinition())
 	{
@@ -50,6 +78,7 @@ bool AMainEducationScenarioManagerActor::ContinuePresentation()
 	}
 
 	CurrentContent = FMainEducationContent();
+	HidePresentationPanel();
 	if (UVRHUDComponent* HUD = ResolveVRHUD())
 	{
 		HUD->ClearPrompt();
@@ -136,6 +165,10 @@ bool AMainEducationScenarioManagerActor::StartEducationAfterIntro()
 			Bridge->RestoreScenarioCheckpoint();
 		}
 	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Main education failed to start after intro on %s."), *GetName());
+	}
 	return bStarted;
 }
 
@@ -174,6 +207,14 @@ void AMainEducationScenarioManagerActor::HandleInteractionRequested(FScenarioInt
 	}
 
 	OnEducationContentRequested.Broadcast(CurrentContent);
+	if (Interaction.InteractionType == EScenarioInteractionType::Narration)
+	{
+		HidePresentationPanel();
+	}
+	else
+	{
+		ShowPresentationPanel(CurrentContent);
+	}
 	if (bMirrorTextToVRHUD)
 	{
 		if (UVRHUDComponent* HUD = ResolveVRHUD())
@@ -261,4 +302,29 @@ UVRHUDComponent* AMainEducationScenarioManagerActor::ResolveVRHUD() const
 {
 	const APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	return Pawn ? Pawn->FindComponentByClass<UVRHUDComponent>() : nullptr;
+}
+
+void AMainEducationScenarioManagerActor::ShowPresentationPanel(const FMainEducationContent& Content)
+{
+	if (!PresentationWidgetComponent)
+	{
+		return;
+	}
+	PresentationWidgetComponent->InitWidget();
+	if (UMainEducationPresentationWidget* Widget =
+		Cast<UMainEducationPresentationWidget>(PresentationWidgetComponent->GetUserWidgetObject()))
+	{
+		Widget->Configure(this, Content);
+	}
+	PresentationWidgetComponent->SetHiddenInGame(false, true);
+	PresentationWidgetComponent->SetVisibility(true, true);
+}
+
+void AMainEducationScenarioManagerActor::HidePresentationPanel()
+{
+	if (PresentationWidgetComponent)
+	{
+		PresentationWidgetComponent->SetHiddenInGame(true, true);
+		PresentationWidgetComponent->SetVisibility(false, true);
+	}
 }

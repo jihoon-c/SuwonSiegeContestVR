@@ -57,6 +57,10 @@ Plugins/**/Binaries/*
 # Builds
 Build/*
 
+# Unreal packaged builds are distributable artifacts, not source assets.
+# Keep APK/EXE/Pak/UCAS/PDB outputs out of Git history.
+Packaged/
+
 # Whitelist PakBlacklist-<BuildConfiguration>.txt files
 !Build/*/
 Build/*/**

@@ -20,15 +20,16 @@ actors = list(unreal.get_editor_subsystem(
     unreal.EditorActorSubsystem).get_all_level_actors())
 waves = [actor for actor in actors
          if isinstance(actor, unreal.SingijeonEnemyWaveActor)]
-check(len(waves) == 1, "Level contains exactly one Enemy Wave")
-if waves:
-    wave = waves[0]
+check(len(waves) >= 1, "Level contains at least one Enemy Wave")
+check(sum(wave.get_editor_property("enemy_count") for wave in waves) == 45 * len(waves),
+      "Each copied Wave adds 45 logical enemies")
+for wave in waves:
     check(wave.get_editor_property("enemy_count") == 45,
           "Wave contains 45 logical enemies")
     check(wave.get_editor_property("max_interactive_enemies") == 3,
           "Only three enemies use full Actors")
-    check(abs(wave.get_editor_property("proxy_update_interval") - 0.1) < 0.001,
-          "Proxy transforms update at the VR-safe 10 Hz rate")
+    check(abs(wave.get_editor_property("proxy_update_interval") - 0.125) < 0.001,
+          "Proxy transforms update at the VR-safe 8 Hz rate")
     check(wave.get_editor_property("proxy_start_cull_distance") == 5000 and
           wave.get_editor_property("proxy_end_cull_distance") == 12000,
           "Proxy culling is constrained for VR")
@@ -59,6 +60,14 @@ if waves:
           "Wave waits for gameplay instead of racing narration")
     check(wave.get_editor_property("show_enemies_while_ready"),
           "Staged enemies remain visible while waiting for the first loaded arrow")
+    check(wave.get_editor_property("shared_pose_leader_count") == 6,
+          "Single-Wave pose evaluation budget is six leaders")
+    check(wave.get_editor_property("auto_scale_budgets_for_multiple_waves") and
+          wave.get_editor_property("minimum_interactive_enemies_per_wave") == 1 and
+          wave.get_editor_property("minimum_pose_leaders_per_wave") == 2,
+          "Copied Waves automatically share expensive VR budgets")
+    check(wave.get_editor_property("mix_actor_location_into_formation_seed"),
+          "Copied Waves derive distinct deterministic formations from placement")
     check(wave.get_editor_property("limit_approach_by_hwacha_procedure"),
           "Hwacha procedure limits enemy approach distance")
     limits = (
@@ -70,6 +79,13 @@ if waves:
     check(all(abs(actual - expected) < 0.001 for actual, expected in zip(
         limits, (0.35, 0.60, 0.82, 0.95))),
         "Procedure gates are configured at 35, 60, 82, and 95 percent")
+    check(abs(wave.get_editor_property("volley_casualty_fraction") - 0.35) < 0.001,
+          "Volley leaves survivors for the retreat sequence")
+    check(wave.get_editor_property("retreat_after_volley") and
+          abs(wave.get_editor_property("retreat_duration") - 6.0) < 0.001 and
+          abs(wave.get_editor_property("retreat_distance") - 3500.0) < 0.001 and
+          wave.get_editor_property("hide_after_retreat"),
+          "Survivors retreat and stop rendering after completion")
 
 if errors:
     raise RuntimeError("Singijeon Enemy Wave verification failed: " + "; ".join(errors))

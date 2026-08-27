@@ -151,7 +151,13 @@ void ASingijeonProjectileActor::OnLaunched_Implementation(const FVector Directio
     ApplyProjectileMaterial();
     ApplyFlightTrailSettings();
     const FVector TipDirection = GetArrowTipDirection();
-    const FVector LaunchDirection = TipDirection.IsNearlyZero() ? Direction.GetSafeNormal() : TipDirection;
+    const FVector RequestedDirection = Direction.GetSafeNormal();
+    const FVector LaunchDirection = RequestedDirection.IsNearlyZero() ? TipDirection : RequestedDirection;
+    if (!TipDirection.IsNearlyZero() && !LaunchDirection.IsNearlyZero())
+    {
+        const FQuat TipAlignment = FQuat::FindBetweenNormals(TipDirection, LaunchDirection);
+        SetActorRotation(TipAlignment * GetActorQuat(), ETeleportType::TeleportPhysics);
+    }
     ProjectileMovement->bRotationFollowsVelocity = false;
     ProjectileMovement->Velocity = LaunchDirection * Speed;
     ProjectileMovement->Activate(true);

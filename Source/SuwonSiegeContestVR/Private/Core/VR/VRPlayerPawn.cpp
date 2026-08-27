@@ -406,24 +406,48 @@ void AVRPlayerPawn::HandleSmoothMoveTriggered(const FInputActionValue& Value)
 void AVRPlayerPawn::HandleGrabLeft(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(LeftHandMesh, 1.0f);
+	if (WidgetInteractionLeft && WidgetInteractionLeft->IsOverHitTestVisibleWidget())
+	{
+		WidgetInteractionLeft->PressPointerKey(EKeys::LeftMouseButton);
+		bWidgetPressLeft = true;
+		return;
+	}
 	TryGrab(MotionControllerLeftGrip, HeldComponentLeft);
 }
 
 void AVRPlayerPawn::HandleGrabRight(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(RightHandMesh, 1.0f);
+	if (WidgetInteractionRight && WidgetInteractionRight->IsOverHitTestVisibleWidget())
+	{
+		WidgetInteractionRight->PressPointerKey(EKeys::LeftMouseButton);
+		bWidgetPressRight = true;
+		return;
+	}
 	TryGrab(MotionControllerRightGrip, HeldComponentRight);
 }
 
 void AVRPlayerPawn::HandleReleaseLeft(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(LeftHandMesh, 0.0f);
+	if (bWidgetPressLeft && WidgetInteractionLeft)
+	{
+		WidgetInteractionLeft->ReleasePointerKey(EKeys::LeftMouseButton);
+		bWidgetPressLeft = false;
+		return;
+	}
 	TryRelease(HeldComponentLeft);
 }
 
 void AVRPlayerPawn::HandleReleaseRight(const FInputActionValue& Value)
 {
 	SetHandGraspAlpha(RightHandMesh, 0.0f);
+	if (bWidgetPressRight && WidgetInteractionRight)
+	{
+		WidgetInteractionRight->ReleasePointerKey(EKeys::LeftMouseButton);
+		bWidgetPressRight = false;
+		return;
+	}
 	TryRelease(HeldComponentRight);
 }
 

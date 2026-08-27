@@ -24,9 +24,9 @@ bool FMainEducationDefaultFlowTest::RunTest(const FString& Parameters)
 	{
 		AddError(ValidationError);
 	}
-	TestEqual(TEXT("Intro, four subjects, and summary stages"), Definition->Stages.Num(), 6);
+	TestEqual(TEXT("Gate and five presentation stages"), Definition->Stages.Num(), 6);
 	TestEqual(TEXT("Editor Flow mirrors the six runtime stages"), Definition->EditorFlow.Num(), 6);
-	TestEqual(TEXT("Five experience route slots"), Definition->ExperienceRoutes.Num(), 5);
+	TestEqual(TEXT("Main presentation flow has no experience routes"), Definition->ExperienceRoutes.Num(), 0);
 
 	for (int32 StageIndex = 0; StageIndex < Definition->EditorFlow.Num(); ++StageIndex)
 	{
@@ -49,39 +49,31 @@ bool FMainEducationDefaultFlowTest::RunTest(const FString& Parameters)
 		}
 	}
 
-	TMap<FName, FName> NarrationStarts;
+	TArray<FName> TravelRouteIDs;
+	TArray<FName> NarrationIDs;
 	for (const FScenarioStageDefinition& Stage : Definition->Stages)
 	{
 		for (const FScenarioInteraction& Interaction : Stage.Interactions)
 		{
 			if (Interaction.InteractionType == EScenarioInteractionType::Narration)
 			{
-				NarrationStarts.Add(Interaction.InteractionID, Interaction.NarrationID);
+				NarrationIDs.Add(Interaction.NarrationID);
+			}
+			if (Interaction.TargetID.ToString().StartsWith(TEXT("Travel_")))
+			{
+				TravelRouteIDs.Add(Interaction.TargetID);
 			}
 		}
 	}
-	TestEqual(TEXT("Fourteen education narration segments"), NarrationStarts.Num(), 14);
-	TestEqual(TEXT("Intro starts at Main narration row 01"),
-		NarrationStarts.FindRef(TEXT("INTRO_01")), FName(TEXT("MAIN_NA_01")));
-	TestEqual(TEXT("Nokro explanation ends with row 33 segment"),
-		NarrationStarts.FindRef(TEXT("NOKRO_IMAGE_02")), FName(TEXT("MAIN_NA_33")));
-
-	FMainEducationContent Quiz;
-	TestTrue(TEXT("Gongsimdon quiz exists"), Definition->FindEducationContent(TEXT("QUIZ_GONGSIMDON"), Quiz));
-	TestEqual(TEXT("Gongsimdon initial consonants"), Quiz.InitialConsonants.ToString(), FString(TEXT("ㄱ ㅅ ㄷ")));
-	TestTrue(TEXT("Canonical answer is accepted"),
-		Definition->IsAcceptedQuizAnswer(TEXT("QUIZ_GONGSIMDON"), TEXT("공심돈")));
-	TestTrue(TEXT("Whitespace around answer is ignored"),
-		Definition->IsAcceptedQuizAnswer(TEXT("QUIZ_GONGSIMDON"), TEXT(" 공 심 돈 ")));
-	TestFalse(TEXT("Wrong answer is rejected"),
-		Definition->IsAcceptedQuizAnswer(TEXT("QUIZ_GONGSIMDON"), TEXT("옹성")));
-
-	TestTrue(TEXT("Ongseong answer is accepted"),
-		Definition->IsAcceptedQuizAnswer(TEXT("QUIZ_ONGSEONG"), TEXT("옹성")));
-	TestTrue(TEXT("Nokro answer is accepted"),
-		Definition->IsAcceptedQuizAnswer(TEXT("QUIZ_NOKRO"), TEXT("녹로")));
-	TestTrue(TEXT("Geojunggi answer is accepted"),
-		Definition->IsAcceptedQuizAnswer(TEXT("QUIZ_GEOJUNGGI"), TEXT("거중기")));
+	TestEqual(TEXT("No travel routes remain"), TravelRouteIDs.Num(), 0);
+	TestEqual(TEXT("Only one opening narration remains"), NarrationIDs.Num(), 1);
+	if (NarrationIDs.Num() == 1)
+	{
+		TestEqual(TEXT("Opening narration starts at row 01"), NarrationIDs[0], FName(TEXT("MAIN_NA_01")));
+	}
+	FMainEducationContent RemovedContent;
+	TestFalse(TEXT("Gongsimdon content is absent"), Definition->FindEducationContent(TEXT("QUIZ_GONGSIMDON"), RemovedContent));
+	TestFalse(TEXT("Nokro content is absent"), Definition->FindEducationContent(TEXT("QUIZ_NOKRO"), RemovedContent));
 	return true;
 }
 

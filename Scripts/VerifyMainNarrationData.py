@@ -6,20 +6,7 @@ import unreal
 NARRATION_TABLE_PATH = "/Game/Audio/Narration/DT_Narration_Main"
 SCENARIO_PATH = "/Game/Data/DA_Scenario_MainEducation"
 EXPECTED_START_ROWS = {
-    "INTRO_01": "MAIN_NA_01",
-    "DEFENSE_01": "MAIN_NA_04",
-    "SINGIJEON_BRIEF": "MAIN_NA_08",
-    "GONG_SITUATION": "MAIN_NA_09",
-    "GONG_ANSWER": "MAIN_NA_12",
-    "GONG_IMAGE_01": "MAIN_NA_14",
-    "GONG_TRAVEL_BRIEF": "MAIN_NA_15",
-    "ONG_SITUATION": "MAIN_NA_17",
-    "ONG_ANSWER": "MAIN_NA_21",
-    "ONG_IMAGE_02": "MAIN_NA_23",
-    "ONG_TRAVEL_BRIEF": "MAIN_NA_25",
-    "NOKRO_SITUATION": "MAIN_NA_27",
-    "NOKRO_ANSWER": "MAIN_NA_31",
-    "NOKRO_IMAGE_02": "MAIN_NA_33",
+    "GATE_GREETING": "MAIN_NA_01",
 }
 
 table = unreal.load_asset(NARRATION_TABLE_PATH)
@@ -62,4 +49,3 @@ unreal.log(
     "MAIN_NARRATION VERIFY SUCCESS: 33 rows, 33 SoundWaves, "
     f"{len(actual_starts)} scenario narration segments"
 )
-

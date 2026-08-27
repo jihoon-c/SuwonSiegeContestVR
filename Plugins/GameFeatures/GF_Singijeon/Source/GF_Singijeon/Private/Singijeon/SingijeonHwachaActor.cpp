@@ -19,6 +19,8 @@
 #include "Singijeon/FuseIgnitionComponent.h"
 #include "Singijeon/SingijeonAmmunitionInterface.h"
 #include "Singijeon/SingijeonAmmoSlotComponent.h"
+#include "Singijeon/SingijeonLaunchSpread.h"
+#include "Singijeon/SingijeonProjectileActor.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -635,6 +637,7 @@ void ASingijeonHwachaActor::LaunchVolley()
     CurrentLaunchInterval = TotalAmmunition > 1
         ? FMath::Max(0.0f, VolleyDuration) / static_cast<float>(TotalAmmunition - 1)
         : 0.0f;
+    VolleyRandomStream.Initialize(FMath::Rand());
     LaunchNextAmmunition();
 }
 
@@ -650,7 +653,7 @@ void ASingijeonHwachaActor::LaunchNextAmmunition()
         return;
     }
 
-    const int32 RandomIndex = FMath::RandRange(0, TotalRemaining - 1);
+    const int32 RandomIndex = VolleyRandomStream.RandRange(0, TotalRemaining - 1);
     if (RandomIndex < PendingLaunchSlots.Num())
     {
         USingijeonAmmoSlotComponent* Slot = PendingLaunchSlots[RandomIndex];
@@ -661,8 +664,18 @@ void ASingijeonHwachaActor::LaunchNextAmmunition()
             const FVector LaunchLocation = IsValid(Ammunition)
                 ? Ammunition->GetActorLocation()
                 : Slot->GetComponentLocation();
+            FVector BaseDirection = Slot->GetForwardVector();
+            if (const ASingijeonProjectileActor* Projectile = Cast<ASingijeonProjectileActor>(Ammunition))
+            {
+                BaseDirection = Projectile->GetArrowTipDirection();
+            }
+            const FVector LaunchDirection = SingijeonLaunchSpread::Apply(
+                BaseDirection,
+                VolleyRandomStream,
+                VolleyHorizontalSpreadHalfAngle,
+                VolleyVerticalSpreadHalfAngle);
             ConfigureLaunchedAmmunitionCollision(Ammunition);
-            if (Slot->LaunchLoadedAmmunition(Slot->GetForwardVector(), LaunchSpeed))
+            if (Slot->LaunchLoadedAmmunition(LaunchDirection, LaunchSpeed))
             {
                 PlayArrowLaunchSound(LaunchLocation);
             }
@@ -870,9 +883,16 @@ bool ASingijeonHwachaActor::LaunchNextAutoFilledAmmunition(const int32 InstanceI
         SpawnedAmmunition->GetClass()->ImplementsInterface(USingijeonAmmunitionInterface::StaticClass()))
     {
         ConfigureLaunchedAmmunitionCollision(SpawnedAmmunition);
+        const FVector BaseDirection = LaunchTransform.TransformVectorNoScale(
+            -FVector::ForwardVector).GetSafeNormal();
+        const FVector LaunchDirection = SingijeonLaunchSpread::Apply(
+            BaseDirection,
+            VolleyRandomStream,
+            VolleyHorizontalSpreadHalfAngle,
+            VolleyVerticalSpreadHalfAngle);
         ISingijeonAmmunitionInterface::Execute_OnLaunched(
             SpawnedAmmunition,
-            DefaultAmmoSlot ? DefaultAmmoSlot->GetForwardVector() : GetActorForwardVector(),
+            LaunchDirection,
             LaunchSpeed);
         PlayArrowLaunchSound(LaunchTransform.GetLocation());
     }
