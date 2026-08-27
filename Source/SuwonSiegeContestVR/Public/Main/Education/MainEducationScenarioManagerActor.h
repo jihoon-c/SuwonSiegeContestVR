@@ -6,6 +6,7 @@
 
 class UMainEducationScenarioDefinition;
 class UVRHUDComponent;
+class UWidgetComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMainEducationContentRequested, FMainEducationContent, Content);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMainEducationQuizFeedback, bool, bCorrect, FText, Feedback);
@@ -68,6 +69,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Education|Presentation")
 	bool bMirrorTextToVRHUD = true;
 
+	/** Camera-relative position of the clickable image panel. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Education|Presentation")
+	FVector PresentationPanelOffset = FVector(165.0f, 0.0f, -5.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Education|Presentation", meta = (ClampMin = "0.01", ClampMax = "1.0"))
+	float PresentationPanelWorldScale = 0.075f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Education|Presentation")
+	FVector2D PresentationPanelDrawSize = FVector2D(1100.0f, 850.0f);
+
 	/** Enable only when a MainLevelIntroActor in this level is responsible for calling StartEducationAfterIntro. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Main Education|Intro")
 	bool bWaitForIntroSequence = false;
@@ -83,6 +94,11 @@ private:
 	bool BeginExperienceTravel(const FScenarioInteraction& Interaction);
 	UMainEducationScenarioDefinition* GetEducationDefinition() const;
 	UVRHUDComponent* ResolveVRHUD() const;
+	void ShowPresentationPanel(const FMainEducationContent& Content);
+	void HidePresentationPanel();
+
+	UPROPERTY(VisibleAnywhere, Category = "Main Education|Presentation")
+	TObjectPtr<UWidgetComponent> PresentationWidgetComponent;
 
 	UPROPERTY(Transient)
 	FMainEducationContent CurrentContent;

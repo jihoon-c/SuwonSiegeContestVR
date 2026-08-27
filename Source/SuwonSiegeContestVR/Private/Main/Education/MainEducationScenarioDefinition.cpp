@@ -117,6 +117,24 @@ void UMainEducationScenarioDefinition::RebuildScenarioFromEditorFlow()
 #endif
 }
 
+void UMainEducationScenarioDefinition::ResetToSingijeonAndOngseongFlow()
+{
+ 	ResetToMainGatePresentationFlow();
+}
+
+void UMainEducationScenarioDefinition::ResetToMainGatePresentationFlow()
+{
+#if WITH_EDITOR
+	Modify();
+#endif
+	BuildDefaultContent();
+	BuildEditorFlowFromRuntime();
+	RebuildRuntimeFromEditorFlow();
+#if WITH_EDITOR
+	MarkPackageDirty();
+#endif
+}
+
 void UMainEducationScenarioDefinition::BuildEditorFlowFromRuntime()
 {
 	EditorFlow.Reset();
@@ -440,8 +458,59 @@ void UMainEducationScenarioDefinition::BuildDefaultContent()
 
 	ScenarioID = TEXT("SCENARIO_MainEducation");
 	ScenarioName = FText::FromString(TEXT("수원화성 신임 지휘관 교육"));
-	StartStageID = TEXT("MAIN_INTRO");
+	StartStageID = TEXT("MAIN_GATE");
 
+	Stages = {
+		MakeStage(TEXT("MAIN_GATE"), TEXT("성문 앞 안내"), TEXT("GEO_NOKRO"), {
+			MakeNarrationStep(TEXT("GATE_GREETING"), TEXT("GATE_GREETING"), TEXT("MAIN_NA_01"))
+		}),
+		MakeStage(TEXT("GEO_NOKRO"), TEXT("거중기와 녹로"), TEXT("GONGSIMDON"), {
+			MakeStep(TEXT("GEO_NOKRO_IMAGE"), EScenarioInteractionType::Custom, TEXT("GEO_NOKRO_IMAGE"))
+		}),
+		MakeStage(TEXT("GONGSIMDON"), TEXT("공심돈"), TEXT("SINGIJEON"), {
+			MakeStep(TEXT("GONGSIMDON_IMAGE"), EScenarioInteractionType::Custom, TEXT("GONGSIMDON_IMAGE"))
+		}),
+		MakeStage(TEXT("SINGIJEON"), TEXT("신기전"), TEXT("ONGSEONG"), {
+			MakeStep(TEXT("SINGIJEON_IMAGE"), EScenarioInteractionType::Custom, TEXT("SINGIJEON_IMAGE"))
+		}),
+		MakeStage(TEXT("ONGSEONG"), TEXT("옹성"), TEXT("SUMMARY"), {
+			MakeStep(TEXT("ONGSEONG_IMAGE"), EScenarioInteractionType::Custom, TEXT("ONGSEONG_IMAGE"))
+		}),
+		MakeStage(TEXT("SUMMARY"), TEXT("교육 마무리"), TEXT(""), {
+			MakeStep(TEXT("SUMMARY_01"), EScenarioInteractionType::Custom, TEXT("SUMMARY_01"))
+		})
+	};
+
+	EducationContent = {
+		MakeContent(TEXT("GATE_GREETING"), EMainEducationContentType::Instructor, TEXT("수원화성 성문 앞"), TEXT("신임 지휘관님, 수원화성에 오신 것을 환영합니다. 이곳에서 주요 시설과 장치를 하나씩 살펴보겠습니다."), TEXT("성문 앞 교육 시작")),
+		MakeContent(TEXT("GEO_NOKRO_IMAGE"), EMainEducationContentType::Image, TEXT("거중기와 녹로"), TEXT("거중기와 녹로는 도르래와 줄의 원리를 이용해 무거운 돌과 물자를 옮기는 데 활용한 장치입니다."), TEXT("축성과 물자 운반 기술"), {TEXT("거중기"), TEXT("녹로"), TEXT("도르래")} ),
+		MakeContent(TEXT("GONGSIMDON_IMAGE"), EMainEducationContentType::Image, TEXT("공심돈"), TEXT("공심돈은 내부가 빈 높은 방어시설로, 병사들이 성 밖을 관찰하고 적을 공격할 수 있도록 만들었습니다."), TEXT("관찰과 방어"), {TEXT("높은 관찰 위치"), TEXT("내부 공간"), TEXT("방어 구멍")} ),
+		MakeContent(TEXT("SINGIJEON_IMAGE"), EMainEducationContentType::Image, TEXT("신기전"), TEXT("신기전은 화약의 힘으로 화살을 멀리 보내는 무기로, 성벽 방어 상황에서 적의 접근을 막는 데 활용할 수 있습니다."), TEXT("화약 무기"), {TEXT("화약"), TEXT("화살"), TEXT("성벽 방어")} ),
+		MakeContent(TEXT("ONGSEONG_IMAGE"), EMainEducationContentType::Image, TEXT("옹성"), TEXT("옹성은 성문 바깥을 다시 둘러싼 방어시설입니다. 적이 성문으로 곧바로 접근하기 어렵게 만들어 방어에 유리했습니다."), TEXT("성문 보호"), {TEXT("옹성"), TEXT("성문"), TEXT("접근 지연")} ),
+		MakeContent(TEXT("SUMMARY_01"), EMainEducationContentType::Summary, TEXT("교육 마무리"), TEXT("성문 앞에서 수원화성의 주요 방어시설과 기술을 살펴보았습니다. 거중기와 녹로의 축성 기술, 공심돈의 관찰과 방어, 신기전의 화약무기, 옹성의 성문 보호 역할을 기억해 두십시오."), TEXT("수원화성 방어 체계"), {TEXT("거중기·녹로"), TEXT("공심돈"), TEXT("신기전"), TEXT("옹성")} )
+	};
+	auto AssignImage = [this](const FName ContentID, const TCHAR* AssetPath)
+	{
+		for (FMainEducationContent& Content : EducationContent)
+		{
+			if (Content.ContentID == ContentID)
+			{
+				Content.Image = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(AssetPath));
+				break;
+			}
+		}
+	};
+	AssignImage(TEXT("GEO_NOKRO_IMAGE"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_PulleyComparison_Example.T_MainEdu_PulleyComparison_Example"));
+	AssignImage(TEXT("GONGSIMDON_IMAGE"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_GongsimdonCutaway_Example.T_MainEdu_GongsimdonCutaway_Example"));
+	AssignImage(TEXT("SINGIJEON_IMAGE"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_WallDefense_Example.T_MainEdu_WallDefense_Example"));
+	AssignImage(TEXT("ONGSEONG_IMAGE"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_OngseongPlan_Example.T_MainEdu_OngseongPlan_Example"));
+	AssignImage(TEXT("SUMMARY_01"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_Overview_Example.T_MainEdu_Overview_Example"));
+
+	ExperienceRoutes.Reset();
+}
+
+/* Legacy full-course data kept in source history only. */
+#if 0
 	Stages = {
 		MakeStage(TEXT("MAIN_INTRO"), TEXT("부임과 성벽 방어"), TEXT("GONGSIMDON"), {
 			MakeNarrationStep(TEXT("INTRO_01"), TEXT("INTRO_01"), TEXT("MAIN_NA_01"), TEXT("INTRO_OVERVIEW")),
@@ -561,6 +630,7 @@ void UMainEducationScenarioDefinition::BuildDefaultContent()
 	AddRoute(TEXT("Travel_Nokro"), TEXT(""));
 	AddRoute(TEXT("Travel_Geojunggi"), TEXT("/Game/Core/Experience/Definitions/DA_Experience_Geojunggi.DA_Experience_Geojunggi"));
 }
+#endif
 
 FString UMainEducationScenarioDefinition::NormalizeAnswer(const FString& Answer)
 {

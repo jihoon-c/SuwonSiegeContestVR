@@ -93,6 +93,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Singijeon|Launch")
     float GetCurrentLaunchInterval() const { return CurrentLaunchInterval; }
 
+    UFUNCTION(BlueprintPure, Category = "Singijeon|Launch|Spread")
+    float GetVolleyHorizontalSpreadHalfAngle() const { return VolleyHorizontalSpreadHalfAngle; }
+
+    UFUNCTION(BlueprintPure, Category = "Singijeon|Launch|Spread")
+    float GetVolleyVerticalSpreadHalfAngle() const { return VolleyVerticalSpreadHalfAngle; }
+
     /** Optional one-shot played after each arrow successfully leaves the Hwacha. */
     UFUNCTION(BlueprintPure, Category = "Singijeon|Launch|Audio")
     USoundBase* GetArrowLaunchSound() const { return ArrowLaunchSound; }
@@ -233,6 +239,16 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Launch", meta = (ClampMin = "0.0", Units = "s"))
     float VolleyDuration = 10.0f;
 
+    /** Left/right fan half-angle around each arrowhead's authored direction. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Launch|Spread",
+        meta = (ClampMin = "0.0", ClampMax = "45.0", Units = "deg"))
+    float VolleyHorizontalSpreadHalfAngle = 14.0f;
+
+    /** Up/down fan half-angle. Keep lower than horizontal spread for a broad, shallow volley. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Launch|Spread",
+        meta = (ClampMin = "0.0", ClampMax = "30.0", Units = "deg"))
+    float VolleyVerticalSpreadHalfAngle = 6.0f;
+
     /** Assign a Sound Wave or Sound Cue here in BP_SingijeonHwacha or on a placed Hwacha actor. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Launch|Audio")
     TObjectPtr<USoundBase> ArrowLaunchSound;
@@ -337,6 +353,7 @@ protected:
     FTimerHandle LaunchTimerHandle;
     FTimerHandle PendingVolleyTimerHandle;
     bool bPendingLaunchAfterFuse = false;
+    FRandomStream VolleyRandomStream;
 
     /** Prevents volley arrows from colliding with the rack or one another at spawn. */
     TArray<TWeakObjectPtr<AActor>> ActiveLaunchedAmmunition;
