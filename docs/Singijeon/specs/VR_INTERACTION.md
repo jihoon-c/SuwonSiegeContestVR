@@ -132,10 +132,12 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
 ```text
 화차 첫 장전
   → Enemy Wave 자동 시작
+  → 돌진 중 `Troop_march_2` 반복 재생
   → SpawnVolume에서 화차까지 Nav 경로 1회 계산
   → 45명 / 3개 소대 돌진
   → 화차 OnVolleyLaunched
   → 3초간 우왕좌왕
+  → 행군 소리 즉시 정지
   → 논리 피격 판정
   → 생존자 후퇴 → Retreated
 ```
@@ -151,7 +153,7 @@ Grab은 `BP_VRPlayerPawn`이 대상 Actor의 `ScenarioInteractableComponent`에 
 - `Use GPU Instanced Crowd`는 기본 `false`다. 플랫폼 검증 후 켜면 기존 GPU Animation Provider 경로를 선택적으로 사용할 수 있다.
 - 위치·진행 간격·회전·크기·속도는 충돌 없는 셀 범위에서 Seed 기반으로 랜덤화된다.
 - 일반 프록시는 보이지 않을 때 Pose Tick을 중지하며, Wave 이동 Transform은 10Hz로 갱신한다.
-- Samurai 원본 메시의 임포트 높이와 무관하게 `Desired Enemy Height`(기본 175cm)로 정규화한다. `Proxy Scale`은 이 정규화 결과에 추가로 곱하는 스타일 배율이다.
+- Samurai 원본 메시의 임포트 높이와 무관하게 `Desired Enemy Height`(175cm)로 정규화한다. `Proxy Scale`은 이 정규화 결과에 추가로 곱하는 스타일 배율이며, 현재 배치 Wave는 기존 0.9의 1.5배인 1.35를 사용한다.
 - Wave 활성화 시 Actor/Root 숨김을 명시적으로 해제하고 Reliable Proxy는 거리 컬링과 작은 Animation Bounds로 사라지지 않게 보강한다.
 - 실제 Shared Enemy Actor는 동적 그림자를 사용하지 않는다.
 - `Target Actor`: Level의 `BP_SingijeonHwacha`, 비어 있으면 자동 탐색

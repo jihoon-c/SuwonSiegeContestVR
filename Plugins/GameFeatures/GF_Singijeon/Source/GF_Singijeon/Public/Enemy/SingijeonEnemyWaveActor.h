@@ -8,12 +8,14 @@
 class AEnemySoldierActor;
 class UAnimationAsset;
 class UAnimSequenceTransformProviderData;
+class UAudioComponent;
 class UBoxComponent;
 class UHierarchicalInstancedStaticMeshComponent;
 class UInstancedSkinnedMeshComponent;
 class USceneComponent;
 class USkeletalMeshComponent;
 class USkeletalMesh;
+class USoundBase;
 class UStaticMesh;
 
 UENUM(BlueprintType)
@@ -24,9 +26,7 @@ enum class ESingijeonEnemyWaveState : uint8
     Charging,
     ReachedTarget,
     Defeated,
-    Panicking,
-    Retreating,
-    Retreated
+    Panicking
 };
 
 UENUM(BlueprintType)
@@ -123,18 +123,8 @@ public:
     UFUNCTION(BlueprintPure, Category = "Singijeon|Enemy Wave")
     bool IsPanicking() const { return WaveState == ESingijeonEnemyWaveState::Panicking; }
 
-    UFUNCTION(BlueprintPure, Category = "Singijeon|Enemy Wave")
-    bool IsRetreating() const { return WaveState == ESingijeonEnemyWaveState::Retreating; }
-
-    /** Runtime budget after sharing expensive actors/poses across every Wave in the level. */
-    UFUNCTION(BlueprintPure, Category = "Singijeon|Performance")
-    int32 GetRuntimeInteractiveEnemyBudget() const { return RuntimeInteractiveEnemyCount; }
-
-    UFUNCTION(BlueprintPure, Category = "Singijeon|Performance")
-    int32 GetRuntimePoseLeaderBudget() const { return RuntimePoseLeaderCount; }
-
-    UFUNCTION(BlueprintPure, Category = "Singijeon|Formation Randomization")
-    int32 GetEffectiveFormationSeed() const { return EffectiveFormationSeed; }
+    UFUNCTION(BlueprintPure, Category = "Singijeon|Audio")
+    bool IsMarchAudioRequested() const { return bMarchAudioRequested; }
 
     UFUNCTION(BlueprintPure, Category = "Singijeon|Destination")
     FVector GetDestinationLocation() const;
@@ -177,7 +167,7 @@ public:
 
     /** GPU-skinned crowd transforms update less often than foreground soldiers. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance", meta = (ClampMin = "0.016", ClampMax = "0.5"))
-    float ProxyUpdateInterval = 0.125f;
+    float ProxyUpdateInterval = 0.1f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance", meta = (ClampMin = "0"))
     int32 ProxyStartCullDistance = 5000;
@@ -247,19 +237,7 @@ public:
     /** Number of animated pose leaders shared by the reliable skeletal proxy crowd. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance",
         meta = (EditCondition = "!bUseGpuInstancedCrowd", ClampMin = "1", ClampMax = "16"))
-    int32 SharedPoseLeaderCount = 6;
-
-    /** Splits expensive foreground Actor and animation-leader budgets across copied Waves. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance")
-    bool bAutoScaleBudgetsForMultipleWaves = true;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance",
-        meta = (EditCondition = "bAutoScaleBudgetsForMultipleWaves", ClampMin = "0", ClampMax = "16"))
-    int32 MinimumInteractiveEnemiesPerWave = 1;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Performance",
-        meta = (EditCondition = "bAutoScaleBudgetsForMultipleWaves && !bUseGpuInstancedCrowd", ClampMin = "1", ClampMax = "16"))
-    int32 MinimumPoseLeadersPerWave = 2;
+    int32 SharedPoseLeaderCount = 8;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Visual", meta = (ClampMin = "0.1", ClampMax = "3.0"))
     float MinRunAnimationRate = 0.86f;
@@ -281,9 +259,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Integration")
     bool bShowEnemiesWhileReady = true;
 
-    /** Gives copied Waves different deterministic formations without manual Seed editing. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Formation Randomization")
-    bool bMixActorLocationIntoFormationSeed = true;
+    /** Repeated while this Wave is charging. Stops during panic or after the charge. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Audio")
+    TObjectPtr<USoundBase> MarchSound;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Audio",
+        meta = (ClampMin = "0.0", ClampMax = "5.0"))
+    float MarchSoundVolume = 0.7f;
 
 #if WITH_EDITORONLY_DATA
     /** Displays the seeded formation before PIE so level placement can be authored visually. */
@@ -309,7 +291,7 @@ public:
 
     /** Fraction of remaining logical enemies defeated by one 90-arrow volley. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Combat", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-    float VolleyCasualtyFraction = 0.35f;
+    float VolleyCasualtyFraction = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Combat", meta = (ClampMin = "1.0", ClampMax = "90.0"))
     float VolleyHalfAngleDegrees = 35.0f;
@@ -334,22 +316,6 @@ public:
         meta = (ClampMin = "0.1", ClampMax = "3.0"))
     float PanicAnimationRateMultiplier = 1.35f;
 
-    /** Surviving soldiers retreat along the shared route after the panic resolves. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Retreat")
-    bool bRetreatAfterVolley = true;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Retreat",
-        meta = (EditCondition = "bRetreatAfterVolley", ClampMin = "0.0", ClampMax = "20.0", Units = "s"))
-    float RetreatDuration = 6.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Retreat",
-        meta = (EditCondition = "bRetreatAfterVolley", ClampMin = "0.0", Units = "cm"))
-    float RetreatDistance = 3500.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Singijeon|Retreat",
-        meta = (EditCondition = "bRetreatAfterVolley"))
-    bool bHideAfterRetreat = true;
-
     UPROPERTY(BlueprintAssignable, Category = "Singijeon|Enemy Wave")
     FOnSingijeonEnemyWaveStateChanged OnWaveStateChanged;
 
@@ -361,9 +327,6 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Singijeon|Enemy Wave")
     FOnSingijeonEnemyWaveEvent OnWaveReachedTarget;
-
-    UPROPERTY(BlueprintAssignable, Category = "Singijeon|Enemy Wave")
-    FOnSingijeonEnemyWaveEvent OnWaveRetreated;
 
 protected:
     virtual void BeginPlay() override;
@@ -384,8 +347,14 @@ protected:
     UFUNCTION()
     void HandleInteractiveEnemyDepleted(AActor* OwnerActor);
 
+    UFUNCTION()
+    void HandleMarchAudioFinished();
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<USceneComponent> SceneRoot;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    TObjectPtr<UAudioComponent> MarchAudioComponent;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     TObjectPtr<UBoxComponent> SpawnVolume;
@@ -436,12 +405,12 @@ private:
     UAnimationAsset* GetRunAnimation() const;
     void SetPanicAnimationRates(bool bPanic);
     void CompletePanicResolution();
-    void BeginRetreat();
-    void FinishRetreat();
-    void ResolveRuntimeBudgets();
     bool DefeatSlot(int32 SlotIndex);
     void SetWaveState(ESingijeonEnemyWaveState NewState);
     void SetVisualsActive(bool bActive);
+    void StartMarchAudio();
+    void StopMarchAudio();
+    bool IsPrimaryMarchAudioWave() const;
 #if WITH_EDITOR
     void RefreshEditorEnemyPreview();
     void DestroyEditorEnemyPreview();
@@ -463,6 +432,8 @@ private:
     UPROPERTY(Transient)
     TArray<TObjectPtr<AEnemySoldierActor>> ReliableProxyActors;
 
+    bool bMarchAudioRequested = false;
+
     UPROPERTY(Transient)
     TArray<TObjectPtr<USkeletalMeshComponent>> SharedPoseLeaders;
 
@@ -477,16 +448,10 @@ private:
     float ProxyUpdateAccumulator = 0.0f;
     float CurrentApproachLimitFraction = 1.0f;
     float PanicElapsed = 0.0f;
-    float RetreatElapsed = 0.0f;
-    float RetreatStartWaveDistance = 0.0f;
-    float RetreatTargetWaveDistance = 0.0f;
     FVector PendingVolleyOrigin = FVector::ZeroVector;
     FVector PendingVolleyDirection = FVector::ForwardVector;
     bool bVolleyResolutionPending = false;
     int32 AliveEnemyCount = 0;
-    int32 RuntimeInteractiveEnemyCount = 0;
-    int32 RuntimePoseLeaderCount = 0;
-    int32 EffectiveFormationSeed = 741953;
     ESingijeonEnemyWaveState WaveState = ESingijeonEnemyWaveState::Hidden;
     ESingijeonEnemyApproachPhase ApproachPhase = ESingijeonEnemyApproachPhase::Unrestricted;
 };

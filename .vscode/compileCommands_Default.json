@@ -1,0 +1,1058 @@
+[
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\GF_Geojunggi.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\Nokro\\NokroControlGripComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\Nokro\\NokroCraneActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\Nokro\\NokroNarrationComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\Nokro\\NokroRepairTargetActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\Nokro\\NokroScenarioManager.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Geojunggi\\Source\\GF_Geojunggi\\Private\\Tests\\NokroScenarioTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Geojunggi.3.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Enemy\\GongsimdonEnemyGroupActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\GF_Gongsimdon.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Interaction\\GongsimdonCombatTargetActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Interaction\\GongsimdonDefenseWeaponActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Interaction\\GongsimdonObservationTargetActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Interaction\\GongsimdonReportActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Scenario\\GongsimdonScenarioDirectorActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Gongsimdon\\Source\\GF_Gongsimdon\\Private\\Tests\\GongsimdonInteractionTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Gongsimdon.1.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\GF_OngseongCrossbow.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\BTTask_OngseongFireArrow.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\ChongtongAimGripComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\ChongtongAutomaticFireComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\ChongtongCannonActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\ChongtongLoadingItemActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\ChongtongProjectileActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongArcherCombatComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongBoltProjectileActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongDefenseScenarioManager.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongEnemyWaveManager.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongGateActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongNarrationComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Ongseong\\OngseongRamActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Tests\\ChongtongLoadingTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Tests\\OngseongDefenseTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Tests\\OngseongEnemyWaveManagerTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Tests\\OngseongInteractionPromptTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_OngseongCrossbow\\Source\\GF_OngseongCrossbow\\Private\\Tests\\OngseongRangedCombatTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_OngseongCrossbow.5.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Enemy\\SingijeonEnemyWaveActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\GF_Singijeon.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Interaction\\FirePitActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Interaction\\IgnitionSourceActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Interaction\\TwoHandCarryComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Singijeon\\FuseIgnitionComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Singijeon\\SingijeonAmmoSlotComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Singijeon\\SingijeonArrowBoxActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Singijeon\\SingijeonHwachaActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Singijeon\\SingijeonHwachaBatteryActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Singijeon\\SingijeonProjectileActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Tests\\SingijeonEnemyWaveTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\GameFeatures\\GF_Singijeon\\Source\\GF_Singijeon\\Private\\Tests\\SingijeonHwachaTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\GF_Singijeon.2.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\CallChainDefinitions.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\FunctionCallChainTracer.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\SCallChainViewer.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\SGraphAnnotationOverlay.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\SInstanceReferenceTracker.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\SVisualRefNode.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMAssetUsageLocator.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMAudioPlaybackTrace.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMBlueprintRuntimeErrorTrace.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMClassFavorites.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMClickDiagnostics.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMCollisionPairAnalyzer.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMContextShortcutHelper.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMDockTabHelper.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMEnhancedOutlinerSearch.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMGlobalSpeedControl.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMGraphNodeUtils.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMInstanceTraceFormat.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMInstanceTraceGlobalManager.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMLocTextKeys.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMPIEErrorLogAnalyzer.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMPackageProgress.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMPluginGuide.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMReportFormatter.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMStyle.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMToolLauncher.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMVariableValueTrace.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMVisualRefReport.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMWidgetClickFlowTrace.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TMWidgetLifecycleTrace.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\Tests\\TMTraceSessionTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\TraceMotive.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\VisualRefGraphDefinition.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Plugins\\TraceMotive-1.0.0-UE5.8-Win64\\Source\\TraceMotive\\Private\\VisualRefSearcher.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\TraceMotive.4.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVREditor\\Private\\ScenarioGuideComponentVisualizer.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVREditor.6.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVREditor\\Private\\SuwonSiegeContestVREditor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVREditor.6.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\MyClass.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Debug\\DebugFreeCameraGameMode.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Debug\\DebugFreeCameraPawn.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Experience\\ExperienceDefinition.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Experience\\ExperienceSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Experience\\ExperienceTravelTriggerActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Experience\\LevelFadeSubsystem.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Narration\\NarrationSequenceComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Narration\\SubtitleWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioDefinition.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioExperienceBridgeComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioInteractableComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioInteractionGuideComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioInteractionGuideWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioManagerActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioManagerComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioNarrationBridgeComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioObservationComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\Scenario\\ScenarioSceneData.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\VR\\InteractionHighlightComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Core\\VR\\VRPlayerPawn.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\AI\\CombatAIController.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Characters\\AllyCombatCharacter.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Characters\\CombatCharacter.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Characters\\EnemyCombatCharacter.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\CombatAttackComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\CombatDamageLibrary.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\CombatFXLibrary.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\CombatFactionComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\CombatTargetingComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\CombatThreatComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\GameplayProjectileActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Combat\\HealthComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\Pooling\\ActorPool.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\UI\\VRHUDComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Gameplay\\UI\\VRHUDWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Main\\Audio\\MainLevelBGMPlayerActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Main\\Education\\MainEducationPresentationWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Main\\Education\\MainEducationScenarioDefinition.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Main\\Education\\MainEducationScenarioManagerActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Main\\Education\\MainLevelIntroActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Main\\Education\\MainLevelTitleWidget.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Shared\\Characters\\EnemySoldierActor.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Shared\\Combat\\FactionComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Shared\\Combat\\LegacyHealthComponent.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Tests\\MainEducationFlowTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Tests\\ScenarioFrameworkTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\Private\\Tests\\SharedGameplayTests.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	},
+	{
+		"file": "F:\\GitHubRep\\SuwonSiegeContestVR\\Source\\SuwonSiegeContestVR\\SuwonSiegeContestVR.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe",
+			"@F:\\GitHubRep\\SuwonSiegeContestVR\\.vscode\\compileCommands_Default\\SuwonSiegeContestVR.0.rsp"
+		],
+		"directory": "F:\\UE_5.8\\Engine\\Source"
+	}
+]
