@@ -5,6 +5,9 @@
 #include "Components/SceneComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/WidgetComponent.h"
+#include "Core/Experience/ExperienceSubsystem.h"
+#include "Core/Scenario/ScenarioDefinition.h"
+#include "Engine/GameInstance.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -106,7 +109,33 @@ void AMainLevelIntroActor::BeginPlay()
 
 void AMainLevelIntroActor::BeginIntroWhenReady()
 {
+	if (bSkipIntroOnExperienceReturn && HasPendingExperienceReturn())
+	{
+		// Returning from an experience: hand straight to the education flow so it resumes at its
+		// checkpoint instead of flying the camera through the castle intro a second time.
+		UE_LOG(LogTemp, Display, TEXT("MainLevelIntroActor %s skipped the intro for an experience return."),
+			*GetName());
+		FinishIntro();
+		return;
+	}
 	PlayIntro();
+}
+
+bool AMainLevelIntroActor::HasPendingExperienceReturn() const
+{
+	const AMainEducationScenarioManagerActor* Manager = ResolveEducationManager();
+	const UScenarioDefinition* Definition = Manager ? Manager->ScenarioDefinition : nullptr;
+	if (!Definition || Definition->ScenarioID.IsNone())
+	{
+		return false;
+	}
+
+	const UGameInstance* GameInstance = GetGameInstance();
+	const UExperienceSubsystem* ExperienceSubsystem = GameInstance
+		? GameInstance->GetSubsystem<UExperienceSubsystem>() : nullptr;
+	FScenarioResumeCheckpoint Checkpoint;
+	return ExperienceSubsystem &&
+		ExperienceSubsystem->GetScenarioResumeCheckpoint(Definition->ScenarioID, Checkpoint);
 }
 
 void AMainLevelIntroActor::PlayIntro()

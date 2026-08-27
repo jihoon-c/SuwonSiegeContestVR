@@ -21,7 +21,6 @@ namespace OngseongNarrationEvents
 	const FName EnemyAssault(TEXT("EnemyAssault"));
 	const FName PowderLoaded(TEXT("PowderLoaded"));
 	const FName RammingCompleted(TEXT("RammingCompleted"));
-	const FName ReadyToAim(TEXT("ReadyToAim"));
 	const FName ReloadRequired(TEXT("ReloadRequired"));
 	const FName TrainingCompleted(TEXT("TrainingCompleted"));
 	const FName AlliesUnderAttack(TEXT("AlliesUnderAttack"));
@@ -47,7 +46,6 @@ UOngseongNarrationComponent::UOngseongNarrationComponent()
 	AddBinding(OngseongNarrationEvents::EnemyAssault, TEXT("ON_19"));
 	AddBinding(OngseongNarrationEvents::PowderLoaded, TEXT("ON_14"), false);
 	AddBinding(OngseongNarrationEvents::RammingCompleted, TEXT("ON_15"), false);
-	AddBinding(OngseongNarrationEvents::ReadyToAim, TEXT("ON_16"), false);
 	AddBinding(OngseongNarrationEvents::ReloadRequired, TEXT("ON_18"), false);
 	AddBinding(OngseongNarrationEvents::TrainingCompleted, TEXT("ON_08"));
 	AddBinding(OngseongNarrationEvents::AlliesUnderAttack, TEXT("ON_20"));
@@ -259,9 +257,6 @@ void UOngseongNarrationComponent::HandleLoadingStateChanged(const EChongtongLoad
 		break;
 	case EChongtongLoadingState::NeedsCannonball:
 		ReportScenarioEvent(OngseongNarrationEvents::RammingCompleted, Cannon);
-		break;
-	case EChongtongLoadingState::ReadyToAim:
-		ReportScenarioEvent(OngseongNarrationEvents::ReadyToAim, Cannon);
 		break;
 	case EChongtongLoadingState::NeedsPowder:
 		if (CompletedShots > 0)

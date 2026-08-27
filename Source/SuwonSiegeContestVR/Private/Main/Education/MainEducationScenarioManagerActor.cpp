@@ -2,6 +2,7 @@
 
 #include "Core/Experience/ExperienceDefinition.h"
 #include "Core/Experience/ExperienceSubsystem.h"
+#include "Core/Quiz/InitialConsonantQuizComponent.h"
 #include "Core/Scenario/ScenarioExperienceBridgeComponent.h"
 #include "Core/Scenario/ScenarioManagerComponent.h"
 #include "Camera/CameraComponent.h"
@@ -27,6 +28,9 @@ AMainEducationScenarioManagerActor::AMainEducationScenarioManagerActor()
 	PresentationWidgetComponent->SetWidgetClass(UMainEducationPresentationWidget::StaticClass());
 	PresentationWidgetComponent->SetVisibility(false);
 	PresentationWidgetComponent->SetHiddenInGame(true);
+
+	// The quiz runtime is Core. Main only supplies the question, taken from the current step's content.
+	EducationQuiz = CreateDefaultSubobject<UInitialConsonantQuizComponent>(TEXT("EducationQuiz"));
 }
 
 void AMainEducationScenarioManagerActor::BeginPlay()
@@ -59,6 +63,17 @@ void AMainEducationScenarioManagerActor::BeginPlay()
 			UE_LOG(LogTemp, Error, TEXT("Main education definition is invalid: %s"), *Error);
 		}
 	}
+}
+
+void AMainEducationScenarioManagerActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (IsValid(EducationQuiz))
+	{
+		EducationQuiz->OnQuizFinished.RemoveDynamic(this, &ThisClass::HandleEducationQuizFinished);
+		// A quiz never outlives the level that asked it, and neither does the microphone.
+		EducationQuiz->CancelQuiz();
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 bool AMainEducationScenarioManagerActor::ContinuePresentation()
@@ -124,10 +139,31 @@ bool AMainEducationScenarioManagerActor::SubmitQuizAnswer(const FString& Answer)
 	if (UVRHUDComponent* HUD = ResolveVRHUD())
 	{
 		HUD->ShowNotification(Feedback, EVRHUDNotificationType::Success);
-		HUD->ClearPrompt();
 	}
 	CancelVoiceRecognition();
+	return CompleteQuizInteraction();
+}
+
+bool AMainEducationScenarioManagerActor::CompleteQuizInteraction()
+{
+	UScenarioManagerComponent* Manager = GetScenarioManager();
+	if (!Manager || CurrentContent.ContentID.IsNone())
+	{
+		return false;
+	}
+
+	const FScenarioInteraction Interaction = Manager->GetCurrentInteraction();
+	if (Interaction.InteractionType != EScenarioInteractionType::Quiz ||
+		Interaction.TargetID != CurrentContent.ContentID)
+	{
+		return false;
+	}
+
 	CurrentContent = FMainEducationContent();
+	if (UVRHUDComponent* HUD = ResolveVRHUD())
+	{
+		HUD->ClearPrompt();
+	}
 	return Manager->CompleteInteraction(Interaction.InteractionID);
 }
 
@@ -177,14 +213,105 @@ bool AMainEducationScenarioManagerActor::ShouldAutoStartScenario() const
 	return !bWaitForIntroSequence;
 }
 
-void AMainEducationScenarioManagerActor::RequestVoiceRecognition_Implementation(FName QuizID)
+void AMainEducationScenarioManagerActor::RequestVoiceRecognition_Implementation(const FName QuizID)
 {
-	// Intentionally empty. The voice-recognition owner implements capture/STT and calls SubmitQuizAnswer.
+	if (!bUseVoiceQuiz || !IsValid(EducationQuiz))
+	{
+		return;
+	}
+	if (CurrentContent.ContentID != QuizID || CurrentContent.ContentType != EMainEducationContentType::Quiz)
+	{
+		return;
+	}
+
+	const FInitialConsonantQuizDefinition Quiz = BuildQuizFromContent(CurrentContent);
+	EducationQuiz->OnQuizFinished.AddUniqueDynamic(this, &ThisClass::HandleEducationQuizFinished);
+	if (EducationQuiz->StartQuizDefinition(Quiz))
+	{
+		return;
+	}
+
+	// Malformed quiz data must not strand the course in front of a panel nobody can dismiss.
+	EducationQuiz->OnQuizFinished.RemoveDynamic(this, &ThisClass::HandleEducationQuizFinished);
+	UE_LOG(LogTemp, Warning, TEXT("Main education quiz %s could not start; continuing the flow."),
+		*QuizID.ToString());
+	CompleteQuizInteraction();
 }
 
 void AMainEducationScenarioManagerActor::CancelVoiceRecognition_Implementation()
 {
-	// Intentionally empty. Kept as the matching teardown port for the future implementation.
+	if (IsValid(EducationQuiz))
+	{
+		// Ends the quiz on any path, which is also what releases the microphone.
+		EducationQuiz->CancelQuiz();
+	}
+}
+
+FInitialConsonantQuizDefinition AMainEducationScenarioManagerActor::BuildQuizFromContent(
+	const FMainEducationContent& Content) const
+{
+	FInitialConsonantQuizDefinition Quiz;
+	Quiz.QuizID = Content.ContentID;
+	if (!Content.Title.IsEmpty())
+	{
+		Quiz.PromptTitle = Content.Title;
+	}
+	Quiz.QuestionText = Content.Body;
+	// Left empty, the Core library derives the consonants from the answer.
+	Quiz.InitialConsonants = Content.InitialConsonants;
+	if (!Content.AcceptedAnswers.IsEmpty())
+	{
+		Quiz.Answer = Content.AcceptedAnswers[0];
+		for (int32 Index = 1; Index < Content.AcceptedAnswers.Num(); ++Index)
+		{
+			Quiz.AcceptedAnswers.Add(Content.AcceptedAnswers[Index]);
+		}
+	}
+	Quiz.HintText = Content.HighlightText;
+	Quiz.ListenDuration = QuizListenDuration;
+	Quiz.MaxAttempts = QuizMaxAttempts;
+	// Education content: a wrong answer reveals the answer instead of blocking the course.
+	Quiz.bRevealAnswerOnFail = true;
+	return Quiz;
+}
+
+void AMainEducationScenarioManagerActor::HandleEducationQuizFinished(
+	const FName QuizID, const bool bCorrect, const EInitialConsonantQuizOutcome Outcome)
+{
+	if (IsValid(EducationQuiz))
+	{
+		EducationQuiz->OnQuizFinished.RemoveDynamic(this, &ThisClass::HandleEducationQuizFinished);
+	}
+	// A cancel comes from a teardown, a restart, or an answer submitted elsewhere. Neither of those
+	// should advance the Scenario from here.
+	if (Outcome == EInitialConsonantQuizOutcome::Canceled)
+	{
+		return;
+	}
+	if (CurrentContent.ContentID != QuizID)
+	{
+		return;
+	}
+
+	if (bCorrect)
+	{
+		// Routed through the shared ingress so speech, a button and the console all report the same way.
+		const FText CanonicalAnswer = CurrentContent.AcceptedAnswers.IsEmpty()
+			? FText::GetEmpty() : CurrentContent.AcceptedAnswers[0];
+		SubmitQuizAnswer(CanonicalAnswer.ToString());
+		return;
+	}
+
+	++QuizAttemptCount;
+	const FText Feedback = FText::Format(
+		FText::FromString(TEXT("정답은 {0} 입니다.")),
+		CurrentContent.AcceptedAnswers.IsEmpty() ? FText::GetEmpty() : CurrentContent.AcceptedAnswers[0]);
+	OnQuizFeedback.Broadcast(false, Feedback);
+	if (UVRHUDComponent* HUD = ResolveVRHUD())
+	{
+		HUD->ShowNotification(Feedback, EVRHUDNotificationType::Warning);
+	}
+	CompleteQuizInteraction();
 }
 
 void AMainEducationScenarioManagerActor::HandleInteractionRequested(FScenarioInteraction Interaction)
@@ -207,7 +334,9 @@ void AMainEducationScenarioManagerActor::HandleInteractionRequested(FScenarioInt
 	}
 
 	OnEducationContentRequested.Broadcast(CurrentContent);
-	if (Interaction.InteractionType == EScenarioInteractionType::Narration)
+	// Narration plays without a panel, and a quiz gets the Core quiz panel instead of this one.
+	if (Interaction.InteractionType == EScenarioInteractionType::Narration ||
+		Interaction.InteractionType == EScenarioInteractionType::Quiz)
 	{
 		HidePresentationPanel();
 	}

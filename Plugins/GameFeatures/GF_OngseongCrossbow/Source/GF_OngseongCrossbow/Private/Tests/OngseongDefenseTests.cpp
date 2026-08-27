@@ -146,6 +146,10 @@ bool FOngseongGatedAssaultStartTest::RunTest(const FString& Parameters)
 	Scenario->SetTrainingCannon(Cannon);
 	Scenario->SetStartAfterChongtongLoaded(true);
 
+	// Main asks the 옹성 quiz before travelling here, so the in-level quiz ships off. The mechanism
+	// still has to work for a standalone run of this level, which is what this section covers.
+	Scenario->SetRunIntroQuiz(true);
+
 	// The intro quiz holds the result on a world timer this bare world never advances, so the test
 	// reads the answer straight through.
 	UInitialConsonantQuizComponent* IntroQuiz = Scenario->GetIntroQuiz();
@@ -206,6 +210,15 @@ bool FOngseongGatedAssaultStartTest::RunTest(const FString& Parameters)
 
 	Scenario->BeginAssault();
 	TestEqual(TEXT("A second assault call cannot restart a running defense"), Scenario->GetDefenseState(), EOngseongDefenseState::Defending);
+
+	// The battle is timeboxed. The cap runs on a world timer this bare world does not advance, so
+	// the test calls the same handoff the timer calls and checks what it leaves behind. There is no
+	// Experience subsystem in a bare world, so the level travel itself is not exercised here.
+	TestTrue(TEXT("The assault starts the battle time cap"), Scenario->GetRemainingBattleTime() > 0.0f);
+	Scenario->FinishExperienceNow();
+	TestFalse(TEXT("The handoff stops the enemy wave"), Wave->IsSpawningActive());
+	TestEqual(TEXT("The handoff clears the battle cap"), Scenario->GetRemainingBattleTime(), 0.0f);
+	TestFalse(TEXT("The experience is handed over only once"), Scenario->FinishExperienceNow());
 
 	World->DestroyWorld(false);
 	GEngine->DestroyWorldContext(World);

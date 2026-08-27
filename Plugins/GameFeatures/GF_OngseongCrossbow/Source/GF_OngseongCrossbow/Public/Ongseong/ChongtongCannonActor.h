@@ -74,6 +74,9 @@ public:
 	void BeginPlayerAim();
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
 	void EndPlayerAim();
+	/** Bypasses the physical loading drill for the player emplacement and enables aiming/firing. */
+	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Player")
+	void PrepareForImmediatePlayerFire();
 
 	UFUNCTION(BlueprintCallable, Category = "Ongseong|Chongtong|Loading")
 	bool TryLoadItem(EChongtongLoadingItemType ItemType);
@@ -115,8 +118,6 @@ protected:
 	void UpdateInteractionPrompts();
 	bool IsItemRequiredNow(EChongtongLoadingItemType ItemType) const;
 	void SetLoadingState(EChongtongLoadingState NewState);
-	void EnterReadyStation();
-	void ExitReadyStation();
 	void SpawnPlaceholderLoadingItems();
 	void BeginAutomatedRamming(AChongtongLoadingItemActor* Rammer);
 	void UpdateAutomatedRamming(float DeltaSeconds);
@@ -298,8 +299,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
 	TSubclassOf<AChongtongLoadingItemActor> CannonballItemClass;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Feedback")
-	TObjectPtr<UParticleSystem> LoadSuccessEffect;
 	/** Muzzle flash used by both allied and player cannon Blueprint variants. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Feedback")
 	TObjectPtr<UParticleSystem> MuzzleEffect;

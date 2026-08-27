@@ -27,10 +27,10 @@ Main은 Game Feature가 아니라 **Core에 속한다.** 다른 네 체험 전�
 |---|---|---|
 | `L_Main` Level | `Implemented` | `/Game/Maps/Main/L_Main`. Main Manager, PlayerStart, 공심돈·신기전 순차 이동 Trigger 배치. `/Game/Maps/Main/L_NamhansanseongLandscape`를 Always Loaded 지형 서브레벨로 연결 |
 | Main Landscape | `Implemented` | `Demo_Namhansanseong`의 Landscape 1개 + Streaming Proxy 121개와 `MI_Landscape`를 지형 전용 서브레벨로 분리 이식. 기존 평면 Landscape 제거, Demo PlayerStart 안전 지점으로 Main 시작 위치·체험 Trigger 정렬 |
-| Tutorial Flow | `Partial` | `DA_Scenario_MainEducation.01 Editor Flow`의 6 Stage/42 Step 트리에서 순서·화면·행동·완료 조건·가이드를 편집하고 Runtime 흐름을 자동 생성. 미구현 체험 Level 연결은 남음 |
+| Tutorial Flow | `Partial` | `DA_Scenario_MainEducation.01 Editor Flow`에서 순서·화면·행동·완료 조건·가이드를 편집하고 Runtime 흐름을 자동 생성. 2026-08-27 기준 4 Stage — 인사 → 신기전(설명·퀴즈·체험) → 옹성(설명·퀴즈·체험) → 마무리. 거중기·녹로·공심돈 구간은 흐름에서 제외 |
 | NPC | `Partial` | NPC Actor/애니메이션은 없으나 DT 기반 음성·자막 진행 구조 구현 |
-| 초성 퀴즈 | `Partial` | 네 개 초성/정답 데이터, 공백 정규화, 정답/재시도 흐름 및 UI 이벤트 구현. 최종 Quiz Widget은 남음 |
-| 음성 인식 | `Planned` | 외부 담당자용 `RequestVoiceRecognition`/`CancelVoiceRecognition`/`SubmitQuizAnswer` 포트만 제공. 캡처·SDK·STT는 의도적으로 미구현 |
+| 초성 퀴즈 | `Implemented` | `QUIZ_HWACHA`("ㅎ ㅊ"/화차), `QUIZ_ONGSEONG`("ㅇ ㅅ"/옹성)을 각 체험 이동 직전에 출제. Core `UInitialConsonantQuizComponent`가 패널·시도·마이크를 담당하고 Main은 질문 데이터만 소유. 최종 Quiz Widget 아트는 남음 |
+| 음성 인식 | `Implemented` | sherpa-onnx 온디바이스 한국어 인식. `RequestVoiceRecognition`/`CancelVoiceRecognition`이 Core 퀴즈 런타임에 연결되어 있고 `SubmitQuizAnswer` 수동 경로도 유지. Android `RECORD_AUDIO` 권한 흐름은 남음 |
 | Experience 전환 | `Implemented` | `UExperienceSubsystem`의 Soft Level `OpenLevel`, 상태 전이, Scenario 완료 Bridge 구현 |
 | 진행도 관리 | `Partial` | Experience 완료 목록과 Main Scenario 복귀 체크포인트를 세션 동안 복원. SaveGame 영속화는 없음 |
 | 공통 UI (진행도/안내) | `Partial` | VR 자막 HUD와 `UVRHUDComponent` 채널 구현. Main Step별 Interaction Guide Text를 HUD에 반영하며 최종 교육 Widget은 남음 |
@@ -99,7 +99,13 @@ stateDiagram-v2
 
 ## 4. 설계 결정 필요 사항 (TODO)
 
-### 4.1 음성 인식 — **최우선 기술 검증 대상**
+### 4.1 음성 인식 — **해결됨 (2026-08-27)**
+
+sherpa-onnx 온디바이스 한국어 Zipformer로 구현되어 Main 퀴즈에 연결되었다.
+상세는 `docs/Core/specs/SHERPA_ONNX_INTEGRATION.md`,
+`docs/Main/completed/2026-08-27_MAIN_VOICE_QUIZ_EXPERIENCE_FLOW.md`.
+남은 것은 **Android `RECORD_AUDIO` 권한 흐름과 arm64 실기 검증**뿐이다.
+아래 내용은 선정 당시의 판단 근거로 남겨 둔다.
 
 **확정된 방침 (2026-08-12)**
 
@@ -127,12 +133,16 @@ stateDiagram-v2
 **권장**: 다른 기능보다 먼저 최소 Spike를 만들어 **실제 Android 기기에서** 한국어 인식이 되는지 확인한다.
 PC에서만 검증하면 arm64 빌드 단계에서 문제가 드러날 수 있다.
 
-### 4.2 초성 퀴즈
+### 4.2 초성 퀴즈 — **해결됨 (2026-08-27)**
 
-* 한글 음절 → 초성 분해 로직 필요 (유니코드 `0xAC00` 기반 계산). C++ Blueprint Function Library 권장
-* 정답 판정: 인식 텍스트 완전 일치 / 초성 일치 / 유사도 임계값 중 무엇을 쓸지
-* 퀴즈 데이터 형식: Data Table vs Data Asset
-* 오답 허용 횟수, 힌트 단계
+| 결정 사항 | 결과 |
+|---|---|
+| 초성 분해 | `UHangulTextLibrary` (유니코드 `0xAC00` 기반 C++ Function Library) |
+| 정답 판정 | 공백·문장부호 제거 후 **완전 일치**. 부분 일치는 인정하지 않는다 |
+| 데이터 형식 | 공용은 `UInitialConsonantQuizSet` Data Asset, Main은 자기 Content에서 런타임 생성 |
+| 오답 허용 | 기본 3회. 소진하면 정답을 공개하고 진행한다 (`QuizMaxAttempts`) |
+
+남은 것은 최종 Quiz Widget 아트와 정답/오답 사운드다.
 
 ### 4.3 Experience 전환
 
@@ -171,8 +181,10 @@ Main의 다음 요소는 **네 체험 전부가 의존**하므로 우선 확정�
 ## 6. 다음 단계 제안
 
 1. ~~`Content/Core/` 골격 디렉토리 생성 및 커밋~~ → **완료 (2026-08-12)**
-2. 음성 인식 **서드파티 모듈 선정 + Android 실기 Spike** (**최우선**)
+2. ~~음성 인식 서드파티 모듈 선정~~ → **완료 (2026-08-27, sherpa-onnx)**.
+   남은 것은 **Android 실기(arm64) Spike + `RECORD_AUDIO` 권한 흐름** (**최우선**)
 3. ~~`L_Main` + Main→공심돈→Main→신기전→Main 왕복 + 기본 Map 교체~~ → **완료 (2026-08-19)**
 4. ~~`ExperienceSubsystem` 인터페이스 및 신기전 연결~~ → **완료 (2026-08-15)**
-5. 초성 분해 Function Library 구현 (**서드파티 선정과 무관하게 지금 착수 가능**)
-6. PlayerPhone 역할 정의 및 기본 구조 설계
+5. ~~초성 분해 Function Library 구현~~ → **완료 (2026-08-27, `UHangulTextLibrary`)**
+6. Main 전체 흐름 HMD 실기 플레이 검증 (나레이션 → 퀴즈 → 이동 → 복귀)
+7. PlayerPhone 역할 정의 및 기본 구조 설계

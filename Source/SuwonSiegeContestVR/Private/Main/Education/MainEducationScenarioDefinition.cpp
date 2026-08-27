@@ -257,7 +257,14 @@ void UMainEducationScenarioDefinition::RebuildRuntimeFromEditorFlow()
 					Content.ContentID = SourceStep.StepID;
 				}
 				Interaction.TargetID = Content.ContentID;
-				EducationContent.Add(Content);
+				// Neighbouring steps intentionally share one screen (an image and its narration),
+				// so the same ContentID arrives more than once. Lookups already resolve to the
+				// first entry; keeping only that one also keeps ValidateEducationScenario honest.
+				if (!EducationContent.ContainsByPredicate(
+					[&Content](const FMainEducationContent& Existing) { return Existing.ContentID == Content.ContentID; }))
+				{
+					EducationContent.Add(Content);
+				}
 
 				switch (SourceStep.StepType)
 				{
@@ -460,27 +467,26 @@ void UMainEducationScenarioDefinition::BuildDefaultContent()
 	ScenarioName = FText::FromString(TEXT("수원화성 신임 지휘관 교육"));
 	StartStageID = TEXT("MAIN_GATE");
 
+	// Each experience is reached the same way: explain it, ask its initial-consonant quiz by voice,
+	// then travel. A Travel step is never last in its Stage - BeginExperienceTravel stores the
+	// following step as the return checkpoint, so AFTER_* is what the player comes back to.
 	Stages = {
-		MakeStage(TEXT("MAIN_GATE"), TEXT("성문 앞 안내"), TEXT("GEO_NOKRO"), {
+		MakeStage(TEXT("MAIN_GATE"), TEXT("성문 앞 안내"), TEXT("SINGIJEON"), {
 			MakeNarrationStep(TEXT("GATE_GREETING"), TEXT("GATE_GREETING"), TEXT("MAIN_NA_01"))
 		}),
-		MakeStage(TEXT("GEO_NOKRO"), TEXT("거중기와 녹로"), TEXT("GONGSIMDON"), {
-			MakeStep(TEXT("GEOJUNGGI_IMAGE"), EScenarioInteractionType::Custom, TEXT("GEOJUNGGI_IMAGE"), TEXT("GEOJUNGGI_NARRATION")),
-			MakeNarrationStep(TEXT("GEOJUNGGI_NARRATION"), TEXT("GEOJUNGGI_IMAGE"), TEXT("MAIN_NA_02"), TEXT("NOKRO_IMAGE")),
-			MakeStep(TEXT("NOKRO_IMAGE"), EScenarioInteractionType::Custom, TEXT("NOKRO_IMAGE"), TEXT("NOKRO_NARRATION")),
-			MakeNarrationStep(TEXT("NOKRO_NARRATION"), TEXT("NOKRO_IMAGE"), TEXT("MAIN_NA_05"))
-		}),
-		MakeStage(TEXT("GONGSIMDON"), TEXT("공심돈"), TEXT("SINGIJEON"), {
-			MakeStep(TEXT("GONGSIMDON_IMAGE"), EScenarioInteractionType::Custom, TEXT("GONGSIMDON_IMAGE"), TEXT("GONGSIMDON_NARRATION")),
-			MakeNarrationStep(TEXT("GONGSIMDON_NARRATION"), TEXT("GONGSIMDON_IMAGE"), TEXT("MAIN_NA_08"))
-		}),
-		MakeStage(TEXT("SINGIJEON"), TEXT("신기전"), TEXT("ONGSEONG"), {
+		MakeStage(TEXT("SINGIJEON"), TEXT("신기전과 화차"), TEXT("ONGSEONG"), {
 			MakeStep(TEXT("SINGIJEON_IMAGE"), EScenarioInteractionType::Custom, TEXT("SINGIJEON_IMAGE"), TEXT("SINGIJEON_NARRATION")),
-			MakeNarrationStep(TEXT("SINGIJEON_NARRATION"), TEXT("SINGIJEON_IMAGE"), TEXT("MAIN_NA_13"))
+			MakeNarrationStep(TEXT("SINGIJEON_NARRATION"), TEXT("SINGIJEON_IMAGE"), TEXT("MAIN_NA_13"), TEXT("SINGIJEON_QUIZ")),
+			MakeStep(TEXT("SINGIJEON_QUIZ"), EScenarioInteractionType::Quiz, TEXT("QUIZ_HWACHA"), TEXT("TRAVEL_SINGIJEON")),
+			MakeStep(TEXT("TRAVEL_SINGIJEON"), EScenarioInteractionType::Custom, TEXT("Travel_Singijeon"), TEXT("AFTER_SINGIJEON")),
+			MakeStep(TEXT("AFTER_SINGIJEON"), EScenarioInteractionType::Custom, TEXT("AFTER_SINGIJEON"))
 		}),
 		MakeStage(TEXT("ONGSEONG"), TEXT("옹성"), TEXT("SUMMARY"), {
 			MakeStep(TEXT("ONGSEONG_IMAGE"), EScenarioInteractionType::Custom, TEXT("ONGSEONG_IMAGE"), TEXT("ONGSEONG_NARRATION")),
-			MakeNarrationStep(TEXT("ONGSEONG_NARRATION"), TEXT("ONGSEONG_IMAGE"), TEXT("MAIN_NA_18"))
+			MakeNarrationStep(TEXT("ONGSEONG_NARRATION"), TEXT("ONGSEONG_IMAGE"), TEXT("MAIN_NA_18"), TEXT("ONGSEONG_QUIZ")),
+			MakeStep(TEXT("ONGSEONG_QUIZ"), EScenarioInteractionType::Quiz, TEXT("QUIZ_ONGSEONG"), TEXT("TRAVEL_ONGSEONG")),
+			MakeStep(TEXT("TRAVEL_ONGSEONG"), EScenarioInteractionType::Custom, TEXT("Travel_Ongseong"), TEXT("AFTER_ONGSEONG")),
+			MakeStep(TEXT("AFTER_ONGSEONG"), EScenarioInteractionType::Custom, TEXT("AFTER_ONGSEONG"))
 		}),
 		MakeStage(TEXT("SUMMARY"), TEXT("교육 마무리"), TEXT(""), {
 			MakeStep(TEXT("SUMMARY_01"), EScenarioInteractionType::Custom, TEXT("SUMMARY_01"), TEXT("SUMMARY_NARRATION")),
@@ -490,12 +496,14 @@ void UMainEducationScenarioDefinition::BuildDefaultContent()
 
 	EducationContent = {
 		MakeContent(TEXT("GATE_GREETING"), EMainEducationContentType::Instructor, TEXT("수원화성 성문 앞"), TEXT("신임 지휘관님, 수원화성에 오신 것을 환영합니다. 이곳에서 주요 시설과 장치를 하나씩 살펴보겠습니다."), TEXT("성문 앞 교육 시작")),
-		MakeContent(TEXT("GEOJUNGGI_IMAGE"), EMainEducationContentType::Image, TEXT("거중기"), TEXT("거중기는 여러 도르래의 원리를 활용해 무거운 돌과 건축 자재를 적은 힘으로 들어 올린 축성 장치입니다."), TEXT("수원화성 축성 기술"), {TEXT("여러 도르래"), TEXT("무거운 돌"), TEXT("축성 작업")} ),
-		MakeContent(TEXT("NOKRO_IMAGE"), EMainEducationContentType::Image, TEXT("녹로"), TEXT("녹로는 긴 장대와 도르래, 밧줄을 이용해 무거운 돌을 성벽 위로 들어 올리는 데 활용한 장치입니다."), TEXT("높은 곳까지 인양"), {TEXT("긴 장대"), TEXT("도르래와 밧줄"), TEXT("성벽 위 인양")} ),
-		MakeContent(TEXT("GONGSIMDON_IMAGE"), EMainEducationContentType::Image, TEXT("공심돈"), TEXT("공심돈은 내부가 빈 높은 방어시설로, 병사들이 성 밖을 관찰하고 적을 공격할 수 있도록 만들었습니다."), TEXT("관찰과 방어"), {TEXT("높은 관찰 위치"), TEXT("내부 공간"), TEXT("방어 구멍")} ),
 		MakeContent(TEXT("SINGIJEON_IMAGE"), EMainEducationContentType::Image, TEXT("신기전"), TEXT("신기전은 화약의 힘으로 화살을 멀리 보내는 무기로, 성벽 방어 상황에서 적의 접근을 막는 데 활용할 수 있습니다."), TEXT("화약 무기"), {TEXT("화약"), TEXT("화살"), TEXT("성벽 방어")} ),
+		// The narration right before this quiz ends on the very sentence that names 화차 (row 16).
+		MakeQuiz(TEXT("QUIZ_HWACHA"), TEXT("여러 발의 신기전을 한꺼번에 발사하기 위해 만든 이동식 발사대의 이름은?"), TEXT("ㅎ ㅊ"), TEXT("화차")),
+		MakeContent(TEXT("AFTER_SINGIJEON"), EMainEducationContentType::Instructor, TEXT("신기전 체험 완료"), TEXT("화차에 장착한 신기전으로 성벽을 방어해 보았습니다. 이제 성문을 지키는 방어시설을 살펴보겠습니다."), TEXT("화약 무기 체험 완료")),
 		MakeContent(TEXT("ONGSEONG_IMAGE"), EMainEducationContentType::Image, TEXT("옹성"), TEXT("옹성은 성문 바깥을 다시 둘러싼 방어시설입니다. 적이 성문으로 곧바로 접근하기 어렵게 만들어 방어에 유리했습니다."), TEXT("성문 보호"), {TEXT("옹성"), TEXT("성문"), TEXT("접근 지연")} ),
-		MakeContent(TEXT("SUMMARY_01"), EMainEducationContentType::Summary, TEXT("교육 마무리"), TEXT("성문 앞에서 수원화성의 주요 방어시설과 기술을 살펴보았습니다. 거중기와 녹로의 축성 기술, 공심돈의 관찰과 방어, 신기전의 화약무기, 옹성의 성문 보호 역할을 기억해 두십시오."), TEXT("수원화성 방어 체계"), {TEXT("거중기·녹로"), TEXT("공심돈"), TEXT("신기전"), TEXT("옹성")} )
+		MakeQuiz(TEXT("QUIZ_ONGSEONG"), TEXT("성문 바깥을 한 겹 더 둘러싸 지키는 이 방어시설의 이름은?"), TEXT("ㅇ ㅅ"), TEXT("옹성")),
+		MakeContent(TEXT("AFTER_ONGSEONG"), EMainEducationContentType::Instructor, TEXT("옹성 체험 완료"), TEXT("옹성이 성문으로 향하는 적의 진입을 어떻게 지연시키는지 직접 확인했습니다."), TEXT("성문 방어 체험 완료")),
+		MakeContent(TEXT("SUMMARY_01"), EMainEducationContentType::Summary, TEXT("교육 마무리"), TEXT("성문 앞에서 수원화성의 방어를 살펴보았습니다. 화차에 장착한 신기전으로 접근하는 적을 막고, 옹성으로 성문을 한 번 더 보호했던 방식을 기억해 두십시오."), TEXT("수원화성 방어 체계"), {TEXT("신기전과 화차"), TEXT("옹성")} )
 	};
 	auto AssignImage = [this](const FName ContentID, const TCHAR* AssetPath)
 	{
@@ -509,15 +517,21 @@ void UMainEducationScenarioDefinition::BuildDefaultContent()
 		}
 	};
 	// The uploaded study artwork is used directly for the matching presentation beats.
-	// No separate Geojunggi study texture exists yet, so its existing pulley illustration remains.
-	AssignImage(TEXT("GEOJUNGGI_IMAGE"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_PulleyComparison_Example.T_MainEdu_PulleyComparison_Example"));
-	AssignImage(TEXT("NOKRO_IMAGE"), TEXT("/Game/Art/MainEducation/study/study_nokro.study_nokro"));
-	AssignImage(TEXT("GONGSIMDON_IMAGE"), TEXT("/Game/Art/MainEducation/study/study_gongsimdon.study_gongsimdon"));
 	AssignImage(TEXT("SINGIJEON_IMAGE"), TEXT("/Game/Art/MainEducation/study/study_singijeon.study_singijeon"));
 	AssignImage(TEXT("ONGSEONG_IMAGE"), TEXT("/Game/Art/MainEducation/study/study_ongsung.study_ongsung"));
 	AssignImage(TEXT("SUMMARY_01"), TEXT("/Game/Art/MainEducation/Examples/T_MainEdu_Overview_Example.T_MainEdu_Overview_Example"));
 
+	// Main reaches an experience through its Core Experience asset only; no Game Feature is named here.
 	ExperienceRoutes.Reset();
+	auto AddRoute = [this](const TCHAR* RouteID, const TCHAR* AssetPath)
+	{
+		FMainEducationExperienceRoute Route;
+		Route.RouteID = FName(RouteID);
+		Route.Experience = TSoftObjectPtr<UExperienceDefinition>(FSoftObjectPath(AssetPath));
+		ExperienceRoutes.Add(Route);
+	};
+	AddRoute(TEXT("Travel_Singijeon"), TEXT("/Game/Core/Experience/Definitions/DA_Experience_Singijeon.DA_Experience_Singijeon"));
+	AddRoute(TEXT("Travel_Ongseong"), TEXT("/Game/Core/Experience/Definitions/DA_Experience_Ongseong.DA_Experience_Ongseong"));
 }
 
 /* Legacy full-course data kept in source history only. */
