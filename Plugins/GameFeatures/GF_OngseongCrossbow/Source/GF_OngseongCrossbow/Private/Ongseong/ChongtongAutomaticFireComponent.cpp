@@ -53,9 +53,8 @@ void UChongtongAutomaticFireComponent::StartAutomaticFire()
 		FireTimerHandle,
 		this,
 		&UChongtongAutomaticFireComponent::FireScheduledShot,
-		FireInterval,
-		true,
-		FireInterval);
+		FMath::Max(0.1f, FireInterval + FMath::FRandRange(-FireIntervalJitter, FireIntervalJitter)),
+		false);
 }
 
 void UChongtongAutomaticFireComponent::StopAutomaticFire()
@@ -72,5 +71,14 @@ void UChongtongAutomaticFireComponent::FireScheduledShot()
 	if (AChongtongCannonActor* Cannon = Cast<AChongtongCannonActor>(GetOwner()))
 	{
 		Cannon->TryFire();
+	}
+	if (bAutomaticFireEnabled && GetWorld())
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			FireTimerHandle,
+			this,
+			&UChongtongAutomaticFireComponent::FireScheduledShot,
+			FMath::Max(0.1f, FireInterval + FMath::FRandRange(-FireIntervalJitter, FireIntervalJitter)),
+			false);
 	}
 }

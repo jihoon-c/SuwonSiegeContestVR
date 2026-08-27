@@ -210,17 +210,21 @@ void AVRPlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	if (TriggerGrabLeftAction)
 	{
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabLeft);
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseLeft);
-		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseLeft);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTriggerPressedLeft);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTriggerReleasedLeft);
+		EnhancedInput->BindAction(TriggerGrabLeftAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTriggerReleasedLeft);
 	}
 	if (TriggerGrabRightAction)
 	{
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleGrabRight);
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleReleaseRight);
-		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleReleaseRight);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Started, this, &AVRPlayerPawn::HandleTriggerPressedRight);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Completed, this, &AVRPlayerPawn::HandleTriggerReleasedRight);
+		EnhancedInput->BindAction(TriggerGrabRightAction, ETriggerEvent::Canceled, this, &AVRPlayerPawn::HandleTriggerReleasedRight);
 	}
-
+	// Grip owns grabbing; index triggers remain available to held two-hand mechanisms.
+	if (GrabLeftAction) EnhancedInput->BindAction(GrabLeftAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleGrabLeft);
+	if (GrabRightAction) EnhancedInput->BindAction(GrabRightAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleGrabRight);
+	if (ReleaseLeftAction) EnhancedInput->BindAction(ReleaseLeftAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleReleaseLeft);
+	if (ReleaseRightAction) EnhancedInput->BindAction(ReleaseRightAction, ETriggerEvent::Triggered, this, &AVRPlayerPawn::HandleReleaseRight);
 	ConfigureLocomotionInput();
 }
 
@@ -253,6 +257,11 @@ void AVRPlayerPawn::EnterMountedInteraction(USceneComponent* CameraAnchor)
 	bEnableMove = false;
 	SetActorTickEnabled(true);
 	Tick(0.0f);
+}
+
+FVector AVRPlayerPawn::GetPhoneAnchorLocation() const
+{
+	return MotionControllerLeftGrip ? MotionControllerLeftGrip->GetComponentLocation() : GetActorLocation();
 }
 
 void AVRPlayerPawn::ExitMountedInteraction(USceneComponent* CameraAnchor)
@@ -436,7 +445,7 @@ void AVRPlayerPawn::HandleReleaseLeft(const FInputActionValue& Value)
 		bWidgetPressLeft = false;
 		return;
 	}
-	TryRelease(HeldComponentLeft);
+	TryRelease(HeldComponentLeft, MotionControllerLeftGrip);
 }
 
 void AVRPlayerPawn::HandleReleaseRight(const FInputActionValue& Value)
@@ -448,8 +457,31 @@ void AVRPlayerPawn::HandleReleaseRight(const FInputActionValue& Value)
 		bWidgetPressRight = false;
 		return;
 	}
-	TryRelease(HeldComponentRight);
+	TryRelease(HeldComponentRight, MotionControllerRightGrip);
 }
+
+void AVRPlayerPawn::HandleTriggerPressedLeft(const FInputActionValue& Value)
+{
+	if (HeldComponentLeft && HeldComponentLeft->FindFunction(TEXT("TriggerPressed")))
+		InvokeGrabFunction(HeldComponentLeft, TEXT("TriggerPressed"), MotionControllerLeftGrip);
+}
+
+void AVRPlayerPawn::HandleTriggerPressedRight(const FInputActionValue& Value)
+{
+	if (HeldComponentRight && HeldComponentRight->FindFunction(TEXT("TriggerPressed")))
+		InvokeGrabFunction(HeldComponentRight, TEXT("TriggerPressed"), MotionControllerRightGrip);
+}
+
+void AVRPlayerPawn::HandleTriggerReleasedLeft(const FInputActionValue& Value)
+{
+	if (HeldComponentLeft && HeldComponentLeft->FindFunction(TEXT("TriggerReleased")))
+		InvokeGrabFunction(HeldComponentLeft, TEXT("TriggerReleased"), MotionControllerLeftGrip);
+}
+
+void AVRPlayerPawn::HandleTriggerReleasedRight(const FInputActionValue& Value)
+{
+	if (HeldComponentRight && HeldComponentRight->FindFunction(TEXT("TriggerReleased")))
+		InvokeGrabFunction(HeldComponentRight, TEXT("TriggerReleased"), MotionControllerRightGrip);
 
 void AVRPlayerPawn::ConfigureLocomotionInput()
 {
@@ -691,7 +723,7 @@ void AVRPlayerPawn::TryGrab(UMotionControllerComponent* MotionController, TObjec
 	}
 }
 
-void AVRPlayerPawn::TryRelease(TObjectPtr<USceneComponent>& HeldComponent)
+void AVRPlayerPawn::TryRelease(TObjectPtr<USceneComponent>& HeldComponent, UMotionControllerComponent* MotionController)
 {
 	if (!HeldComponent)
 	{
@@ -701,9 +733,9 @@ void AVRPlayerPawn::TryRelease(TObjectPtr<USceneComponent>& HeldComponent)
 	USceneComponent* ReleasedComponent = HeldComponent.Get();
 	if (ReleasedComponent->FindFunction(TEXT("TryRelease")))
 	{
-		InvokeGrabFunction(ReleasedComponent, TEXT("TryRelease"), nullptr);
+		InvokeGrabFunction(ReleasedComponent, TEXT("TryRelease"), MotionController);
 	}
-	InvokeGrabOwnerFunction(ReleasedComponent, TEXT("HandleVRReleased"), nullptr, true);
+	InvokeGrabOwnerFunction(ReleasedComponent, TEXT("HandleVRReleased"), MotionController, true);
 	HeldComponent = nullptr;
 }
 
@@ -717,15 +749,26 @@ USceneComponent* AVRPlayerPawn::FindNearestGrabComponent(const UMotionController
 	USceneComponent* NearestComponent = nullptr;
 	float NearestDistanceSquared = FMath::Square(GrabRadiusFromGripPosition);
 	const FVector GripLocation = MotionController->GetComponentLocation();
+	const bool bLeftHand = MotionController->GetTrackingSource() == EControllerHand::Left;
+	const USceneComponent* OwnHeldComponent = bLeftHand ? HeldComponentLeft.Get() : HeldComponentRight.Get();
 
 	for (TActorIterator<AActor> ActorIterator(GetWorld()); ActorIterator; ++ActorIterator)
 	{
 		TInlineComponentArray<USceneComponent*> SceneComponents(*ActorIterator);
 		for (USceneComponent* SceneComponent : SceneComponents)
 		{
-			if (!SceneComponent || SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
+			if (!SceneComponent || SceneComponent == OwnHeldComponent)
 			{
 				continue;
+			}
+			if (SceneComponent == HeldComponentLeft || SceneComponent == HeldComponentRight)
+			{
+				const FBoolProperty* AllowTwoHandedProperty = FindFProperty<FBoolProperty>(
+					SceneComponent->GetClass(), TEXT("bAllowTwoHandedGrab"));
+				if (!AllowTwoHandedProperty || !AllowTwoHandedProperty->GetPropertyValue_InContainer(SceneComponent))
+				{
+					continue;
+				}
 			}
 			const bool bIsConfiguredGrabComponent = GrabComponentClass && SceneComponent->IsA(GrabComponentClass);
 			if (!bIsConfiguredGrabComponent && !SceneComponent->ComponentHasTag(TEXT("VRGrab")))

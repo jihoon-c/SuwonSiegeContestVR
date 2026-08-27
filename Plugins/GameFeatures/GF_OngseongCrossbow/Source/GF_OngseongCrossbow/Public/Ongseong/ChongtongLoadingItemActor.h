@@ -9,7 +9,7 @@ class UInteractionHighlightComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 
-/** Placeholder loading prop. Meshes are Engine primitives and can be replaced in a Blueprint child. */
+/** Loading prop whose Blueprint-authored mesh and component transform are preserved. */
 UCLASS(Blueprintable)
 class GF_ONGSEONGCROSSBOW_API AChongtongLoadingItemActor : public AActor
 {
@@ -26,6 +26,8 @@ public:
 	EChongtongLoadingItemType GetItemType() const { return ItemType; }
 	UFUNCTION(BlueprintPure, Category="Ongseong|Chongtong|Loading")
 	float GetDistanceToPoint(FVector WorldPoint) const;
+	/** Releases the prop from the hand and makes it kinematic for the cannon-driven ram animation. */
+	void BeginAutomatedUse();
 
 	/** Glows while this is the item the loading sequence is waiting for. */
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Chongtong|Loading")
@@ -34,10 +36,14 @@ public:
 	bool IsLoadingPromptActive() const;
 
 protected:
-	void ApplyPlaceholderAppearance();
+	void ApplyNativePlaceholderAppearance();
 	void RespawnAtHome();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	/**
+	 * Edit this inherited component directly in a Blueprint child. Native placeholder
+	 * appearance is only applied to instances of this exact C++ class, never Blueprint children.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category="Ongseong|Chongtong|Loading|Appearance")
 	TObjectPtr<UStaticMeshComponent> Mesh;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
 	TObjectPtr<UInteractionHighlightComponent> LoadingPrompt;
@@ -50,4 +56,5 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ongseong|Chongtong|Loading")
 	EChongtongLoadingItemType ItemType = EChongtongLoadingItemType::Powder;
 	FTransform HomeTransform;
+	bool bHomeSimulatingPhysics = false;
 };

@@ -16,6 +16,32 @@
 컴파일된 Sequence Player가 모두 루프임을 검증했다. 아군 총통 조준은 포신 단독 3축 회전에서
 **포신+화차 전체 어셈블리의 Yaw 전용 회전**으로 교체했다.
 
+**2026-08-26 보병 이동 후속 개정**: 검병은 충차의 고정 슬롯을 계속 유지하지 않고,
+700cm 밖에서 따라잡은 뒤 450cm 안에서는 정지·랜덤 배회를 반복한다. 궁병은 성벽 위 총통을
+Nav 목표로 쓰지 않고 성벽 안쪽 NavMesh의 `TargetPoint` 공격 포지션 8개를 예약한다.
+아군 총통 자동 사격은 궁병뿐 아니라 적 검병도 포함한다.
+
+**2026-08-26 2차 개정**: 본편 `LV_Ongseong`의 배치를 `LV_Ongseong_CombatTest`와 동일하게 맞추고
+(공용 남한산성 지형 연결, Transform 이관, Spawn Point 3종 배치·연결, 잔여 Actor 정리),
+본편 진행을 **총통 장전 완료 → 체험 시작 나레이션 → 2초 뒤 나팔·BGM·적 웨이브 → 충차 파괴 시
+미션 클리어·체험 종료**로 게이트했다. 나팔과 BGM은 `BP_OngseongDefenseScenarioManager`의
+Class Defaults `Ongseong|Scenario|Audio`에서 Sound Cue로 교체한다.
+본편의 VR GameMode와 디버그 전용 PlayerStart는 가져오지 않았다.
+`docs/OngseongCrossbow/completed/2026-08-26_MAIN_LEVEL_PARITY_AND_GATED_ASSAULT.md` 참조.
+
+**2026-08-27 초성 퀴즈 개정**: 본편 진행에 **초성 퀴즈 단계**를 추가했다.
+총통 장전 완료 → 교관 체험 시작 나레이션 → **초성 퀴즈 "ㅇ ㅅ"(정답 옹성)** → 나팔·BGM·적 웨이브 순이다.
+퀴즈 런타임은 Core(`UInitialConsonantQuizComponent`)이고 옹성은 질문 데이터와 시작 시점만 갖는다.
+음성 인식은 **sherpa-onnx 온디바이스 한국어 모델**로 동작한다
+(`Scripts/DownloadKoreanVoiceModel.py`로 모델을 먼저 받아야 한다).
+마이크 없이 테스트하려면 콘솔 `ssv.voice.submit 옹성`, 상태 확인은 `ssv.voice.status`.
+`BP_OngseongDefenseScenarioManager`의 `Ongseong|Scenario|Quiz`에서 끄거나 다른 퀴즈로 교체할 수 있다.
+`docs/OngseongCrossbow/completed/2026-08-27_ONGSEONG_INTRO_QUIZ.md` 참조.
+
+**2026-08-26 개정**: `BP_OngseongSpawnPoint`를 추가해 적 초기 스폰, 병사 리스폰, 충차 스폰을
+역할별 레벨 인스턴스로 분리했다. 총통의 포구 화염·포격음과 공통 포탄의 폭발 이펙트·폭발음을
+Blueprint Class Defaults 및 그래프에서 교체할 수 있게 했다.
+
 ---
 
 ## 1. 담당 범위
@@ -49,12 +75,12 @@
 | 웅성 구조물 | `Implemented (runtime + placed)` | `BP_OngseongGate`/`AOngseongGateActor`; 기존 지화문 메시, Shared Health 1000/Faction/Damage, Health 비율·파괴 이벤트, 재시도 Reset. `LV_Ongseong`의 임시 성문 Actor 교체 완료 |
 | 쇠뇌 Actor | `Removed (2026-08-24)` | 총통으로 대체된 레거시. `AOngseongCrossbowActor`·`UOngseongCrossbowGripComponent`·`BP_OngseongCrossbow`·배치 인스턴스·볼트 Pool 삭제. 물리 화살 클래스는 적 궁병용으로 유지 |
 | 충차 Actor | `Implemented (runtime; placeholder art)` | `AOngseongRamActor`; 완성 상태로 병력과 동시 전진, 성문 앞 대기 지점 도착 후 돌진·충돌 피해·복귀 반복, 파괴 시 정지. 임시 Cube 표현 |
-| 적 스폰 시스템 | `Implemented (상시 유지 — 7절)` | 동시 15명(검병 8·궁병 7) 상시 유지, 처치 시 5초 ± 1.5초 후 같은 유형 리스폰, 궁병 총통 우선 표적/보조 목표, 65% 명중·시각적 빗나감, 물리 화살 Pool, 사망/퇴각 시 반환 |
+| 적 스폰 시스템 | `Implemented (상시 유지 — 7절)` | 동시 15명(검병 8·궁병 7) 상시 유지, 처치 시 5초 ± 1.5초 후 같은 유형 리스폰, `BP_OngseongSpawnPoint`로 초기/리스폰 지점 분리, 궁병 총통 우선 표적/보조 목표, 65% 명중·시각적 빗나감, 물리 화살 Pool, 사망/퇴각 시 반환 |
 | 방어 Scenario Manager | `Implemented (runtime + placed)` | `BP_OngseongDefenseScenarioManager`; 충차 파괴 = 성공, 성문 파괴 = 실패, 선택적 시간 제한, 충차 Pool 획득/반환, 실패 6초 자동 재시도, 적 퇴각 후 Experience 완료 |
 | 검병·궁병 | `Implemented (placeholder art)` | `BP_OngseongSwordsman`/`BP_OngseongArcher`; 공용 병사 부모, 유형별 Pool/상태, 궁병 `ArcherAdvance/ArcherFiring` 원거리 전투 구현 |
 | Health / Damage / Faction (Shared) | `Implemented` | 공통 Component/Interface 기반 |
 | AI (BT / Blackboard / AIController) | `Implemented (base)` | 원거리 단순 이동 + 근거리 선택형 BT Controller. Feature BT/Spawner는 없음 |
-| Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, 임시 폭발 FX/사운드 |
+| Projectile (전투용) | `Implemented (runtime)` | `AChongtongProjectileActor`; 중력 곡사, 직접 피해, 350cm 범위 피해, Blueprint 교체 가능한 폭발 FX/사운드 |
 | 총통 플레이어 조작 | `Implemented (runtime + BP)` | `BP_PlayableChongtong`; 자동 사격 비활성, 기본 메시 장전물, 화약 → 쑤시개 3회 → 대포알 상태 머신, 준비 신호, 조종 시점 고정, 양손 조준/트리거 발사, 5발 완료 이벤트 |
 | 총통 Ally AI | `Implemented (runtime + BP)` | `BP_AllyChongtong`; `UChongtongAutomaticFireComponent` 조립, 우선순위 표적 자동 사격, 쿨타임 5초, 아군 조작병 자동 배치 |
 | 교관 나레이션 | `Implemented (recording pending)` | 이미지 대본 23행 DataTable, 진행/상황 이벤트 큐, 총통·Wave·아군/성문 Health 델리게이트 연결. 실제 녹음 SoundWave 연결은 대기 |
@@ -292,8 +318,9 @@ Actor `BeginPlay` 순서는 보장되지 않으므로 `AActorPool::AcquireActor`
 |---|---|---|
 | 쇠뇌 폐지 | `Removed` | 클래스 2종·Blueprint·배치 인스턴스 삭제. 화살 클래스는 적 궁병용으로 유지 |
 | 여분 충차 제거 | `Removed` | 성 안쪽 (810,2210)의 비목표 충차. 아군 사격 17%를 낭비하고 있었다 |
-| 아군 총통 표적 제한 | `Implemented` | `bEngageEnemyArchersOnly`(기본 true). 105발 전수 궁병 조준 확인 |
-| 어택 슬롯 | `Implemented` | 총통당 2명, 가득 차면 다음 총통, 전부 차면 충차 호위 |
+| 아군 총통 보병 표적 | `Implemented` | `bEngageEnemyInfantryOnly`(기본 true). 적 궁병과 검병을 포함하고 충차는 제외 |
+| 궁병 공격 포지션 | `Implemented` | 성벽 안쪽 NavMesh의 태그된 `TargetPoint` 8개를 1명씩 예약. 가장 가까운 생존 총통을 사격 표적으로 연결 |
+| 검병 충차 호위 | `Implemented` | 700cm 이탈 시 180cm/s 추종, 450cm 이내 정착, 2.5~5초 간격으로 주변 랜덤 배회(90cm/s) |
 | 충차 회전 | `Implemented (육안 확인 대기)` | `MeshYawOffset = -90` |
 | 포탄 탄도 | `Implemented` | 중력 0.7, 플레이어 2800cm/s, AI는 `SuggestProjectileVelocity_CustomArc` 곡사 |
 | 총통 어셈블리 조준 회전 | `Implemented (육안 확인 대기)` | 블루프린트 상대 배치를 유지한 포신+화차 전체를 표적 방향으로 Yaw만 회전 |

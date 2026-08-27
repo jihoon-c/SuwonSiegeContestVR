@@ -23,6 +23,7 @@ namespace OngseongNarrationEvents
 	const FName RammingCompleted(TEXT("RammingCompleted"));
 	const FName ReadyToAim(TEXT("ReadyToAim"));
 	const FName ReloadRequired(TEXT("ReloadRequired"));
+	const FName TrainingCompleted(TEXT("TrainingCompleted"));
 	const FName AlliesUnderAttack(TEXT("AlliesUnderAttack"));
 	const FName GateUnderAttack(TEXT("GateUnderAttack"));
 	const FName DefenseSucceeded(TEXT("DefenseSucceeded"));
@@ -48,6 +49,7 @@ UOngseongNarrationComponent::UOngseongNarrationComponent()
 	AddBinding(OngseongNarrationEvents::RammingCompleted, TEXT("ON_15"), false);
 	AddBinding(OngseongNarrationEvents::ReadyToAim, TEXT("ON_16"), false);
 	AddBinding(OngseongNarrationEvents::ReloadRequired, TEXT("ON_18"), false);
+	AddBinding(OngseongNarrationEvents::TrainingCompleted, TEXT("ON_08"));
 	AddBinding(OngseongNarrationEvents::AlliesUnderAttack, TEXT("ON_20"));
 	AddBinding(OngseongNarrationEvents::GateUnderAttack, TEXT("ON_21"));
 	AddBinding(OngseongNarrationEvents::DefenseSucceeded, TEXT("ON_22"));
@@ -195,10 +197,15 @@ void UOngseongNarrationComponent::TryPlayNextNarration()
 
 void UOngseongNarrationComponent::HandleNarrationFinished()
 {
-	if (bOwnsCurrentNarration)
+	if (!bOwnsCurrentNarration)
 	{
-		bOwnsCurrentNarration = false;
-		TryPlayNextNarration();
+		return;
+	}
+	bOwnsCurrentNarration = false;
+	TryPlayNextNarration();
+	if (!IsNarrationBusy())
+	{
+		OnNarrationIdle.Broadcast();
 	}
 }
 

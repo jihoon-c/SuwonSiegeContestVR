@@ -48,6 +48,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Narration")
 	UNarrationSequenceComponent* GetNarrationSequence() const { return NarrationSequence; }
 
+	/**
+	 * World location where PlayerPhone is expected to be held (left hand grip).
+	 * PlayerPhone itself is not implemented yet (docs/ARCHITECTURE.md 3.4, Status: Planned) —
+	 * this is a stand-in anchor point for systems (e.g. enemy archer aim) that need to target
+	 * "the phone" ahead of that Core feature landing. Update this once PlayerPhone exists.
+	 */
+	UFUNCTION(BlueprintPure, Category = "VR|Phone")
+	FVector GetPhoneAnchorLocation() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -63,6 +72,10 @@ protected:
 	void HandleGrabRight(const struct FInputActionValue& Value);
 	void HandleReleaseLeft(const struct FInputActionValue& Value);
 	void HandleReleaseRight(const struct FInputActionValue& Value);
+	void HandleTriggerPressedLeft(const struct FInputActionValue& Value);
+	void HandleTriggerPressedRight(const struct FInputActionValue& Value);
+	void HandleTriggerReleasedLeft(const struct FInputActionValue& Value);
+	void HandleTriggerReleasedRight(const struct FInputActionValue& Value);
 
 	void StartTeleportTrace();
 	void UpdateTeleportTrace(const FVector2D& InputAxis);
@@ -73,7 +86,7 @@ protected:
 	void RemoveLocomotionInput();
 	void SetHandGraspAlpha(USkeletalMeshComponent* HandMesh, float Alpha) const;
 	void TryGrab(UMotionControllerComponent* MotionController, TObjectPtr<USceneComponent>& HeldComponent);
-	void TryRelease(TObjectPtr<USceneComponent>& HeldComponent);
+	void TryRelease(TObjectPtr<USceneComponent>& HeldComponent, UMotionControllerComponent* MotionController = nullptr);
 	USceneComponent* FindNearestGrabComponent(const UMotionControllerComponent* MotionController) const;
 	bool InvokeGrabFunction(USceneComponent* GrabComponent, FName FunctionName, UMotionControllerComponent* MotionController) const;
 	bool InvokeGrabOwnerFunction(USceneComponent* GrabComponent, FName FunctionName,

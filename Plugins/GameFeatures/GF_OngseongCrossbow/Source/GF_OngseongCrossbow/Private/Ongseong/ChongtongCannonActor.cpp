@@ -2,8 +2,8 @@
 
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/TextRenderComponent.h"
-#include "Components/PointLightComponent.h"
+#include "Components/ArrowComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Core/VR/InteractionHighlightComponent.h"
 #include "Core/VR/VRPlayerPawn.h"
 #include "Gameplay/Characters/AllyCombatCharacter.h"
@@ -18,16 +18,17 @@
 #include "Ongseong/ChongtongAimGripComponent.h"
 #include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
-#include "Ongseong/OngseongArcherCombatComponent.h"
+#include "Ongseong/ChongtongChargeWidget.h"
 #include "Ongseong/OngseongNarrationComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GF_OngseongCrossbow.h"
 #include "Gameplay/Combat/CombatFXLibrary.h"
-#include "NiagaraFunctionLibrary.h"
-#include "NiagaraSystem.h"
+#include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -49,15 +50,43 @@ AChongtongCannonActor::AChongtongCannonActor()
 	Muzzle = CreateDefaultSubobject<USceneComponent>(TEXT("Muzzle"));
 	Muzzle->SetupAttachment(BarrelPivot);
 	Muzzle->SetRelativeLocation(FVector(0.0f, 1345.0f, 0.0f));
+	FireDirection = CreateDefaultSubobject<UArrowComponent>(TEXT("FireDirection"));
+	FireDirection->SetupAttachment(Muzzle);
+	// Existing art points down local +Y. Arrow +X is the explicit, editor-tunable contract.
+	FireDirection->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	FireDirection->ArrowSize = 2.0f;
 	LoadingSocket = CreateDefaultSubobject<USceneComponent>(TEXT("LoadingSocket"));
 	LoadingSocket->SetupAttachment(Muzzle);
 	PlayerCameraAnchor = CreateDefaultSubobject<USceneComponent>(TEXT("PlayerCameraAnchor"));
 	PlayerCameraAnchor->SetupAttachment(HwachaBaseMesh);
 	PlayerCameraAnchor->SetRelativeLocation(FVector(-115.0f, -45.0f, 165.0f));
 	PlayerCameraAnchor->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	ChargeDisplay = CreateDefaultSubobject<UWidgetComponent>(TEXT("ChargeDisplay"));
+	ChargeDisplay->SetupAttachment(HwachaBaseMesh);
+	ChargeDisplay->SetRelativeLocation(FVector(-115.0f, -70.0f, 145.0f));
+	ChargeDisplay->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
+	ChargeDisplay->SetRelativeScale3D(FVector(0.12f));
+	ChargeDisplay->SetWidgetSpace(EWidgetSpace::World);
+	ChargeDisplay->SetDrawSize(FVector2D(480.0f, 110.0f));
+	ChargeDisplay->SetPivot(FVector2D(0.5f, 0.5f));
+	ChargeDisplay->SetBlendMode(EWidgetBlendMode::Transparent);
+	ChargeDisplay->SetTwoSided(true);
+	ChargeDisplay->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ChargeDisplay->SetWidgetClass(UChongtongChargeWidget::StaticClass());
+	ChargeDisplay->SetVisibility(false);
+	PowderSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("PowderSpawnPoint"));
+	PowderSpawnPoint->SetupAttachment(PlayerCameraAnchor);
+	PowderSpawnPoint->SetRelativeLocation(FVector(65.0f, -38.0f, -65.0f));
+	RammerSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("RammerSpawnPoint"));
+	RammerSpawnPoint->SetupAttachment(PlayerCameraAnchor);
+	RammerSpawnPoint->SetRelativeLocation(FVector(65.0f, 0.0f, -65.0f));
+	CannonballSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("CannonballSpawnPoint"));
+	CannonballSpawnPoint->SetupAttachment(PlayerCameraAnchor);
+	CannonballSpawnPoint->SetRelativeLocation(FVector(65.0f, 38.0f, -65.0f));
 	AimGrip = CreateDefaultSubobject<UChongtongAimGripComponent>(TEXT("AimGrip"));
 	AimGrip->SetupAttachment(HwachaBaseMesh);
 	AimGrip->SetRelativeLocation(FVector(-40.0f, 0.0f, 120.0f));
+	AimGrip->ComponentTags.Add(TEXT("VRGrab"));
 	AimGrip->SetAimTarget(BarrelPivot);
 	AimPrompt = CreateDefaultSubobject<UInteractionHighlightComponent>(TEXT("AimPrompt"));
 	AimPrompt->SetupAttachment(AimGrip);
@@ -65,15 +94,6 @@ AChongtongCannonActor::AChongtongCannonActor()
 	AimPrompt->ConfigureHighlight(false, FLinearColor(1.0f, 0.55f, 0.05f));
 	AutomaticFire = CreateDefaultSubobject<UChongtongAutomaticFireComponent>(TEXT("AutomaticFire"));
 	Narration = CreateDefaultSubobject<UOngseongNarrationComponent>(TEXT("OngseongNarration"));
-	StatusText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("StatusText"));
-	StatusText->SetupAttachment(HwachaBaseMesh);
-	StatusText->SetRelativeLocation(FVector(-25.0f, -10.0f, 205.0f));
-	StatusText->SetWorldSize(18.0f);
-	StatusText->SetHorizontalAlignment(EHTA_Center);
-	StatusLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("StatusLight"));
-	StatusLight->SetupAttachment(StatusText);
-	StatusLight->SetIntensity(1500.0f);
-	StatusLight->SetAttenuationRadius(120.0f);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> HwachaBaseAsset(TEXT("/GF_OngseongCrossbow/Art/Namhansanseong/Chongtong/Hwacha/SM_Chongtong_Hwacha.SM_Chongtong_Hwacha"));
 	if (HwachaBaseAsset.Succeeded())
@@ -97,12 +117,17 @@ AChongtongCannonActor::AChongtongCannonActor()
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 	ThreatComponent = CreateDefaultSubobject<UCombatThreatComponent>(TEXT("ThreatComponent"));
 	TargetingComponent = CreateDefaultSubobject<UCombatTargetingComponent>(TEXT("TargetingComponent"));
+	CombatSoundAttenuation = CreateDefaultSubobject<USoundAttenuation>(TEXT("CombatSoundAttenuation"));
+	CombatSoundAttenuation->Attenuation.bAttenuate = true;
+	CombatSoundAttenuation->Attenuation.AttenuationShape = EAttenuationShape::Sphere;
+	CombatSoundAttenuation->Attenuation.AttenuationShapeExtents = FVector(400.0f);
+	CombatSoundAttenuation->Attenuation.FalloffDistance = 12000.0f;
 	ProjectileClass = AChongtongProjectileActor::StaticClass();
 	bSpawnOperatorOnBeginPlay = false;
 
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> LoadFX(TEXT("/Game/NiagaraExamples/FX_PickUp/NS_Pickup_Success.NS_Pickup_Success"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> LoadFX(TEXT("/Game/StarterContent/Particles/P_Sparks.P_Sparks"));
 	// A muzzle flash, not a generic explosion: the shell is what explodes, at the far end.
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> FireFX(TEXT("/Game/NiagaraExamples/FX_Weapons/MuzzleFlashes/NS_MuzzleFlash.NS_MuzzleFlash"));
+	static ConstructorHelpers::FObjectFinder<UParticleSystem> FireFX(TEXT("/Game/StarterContent/Particles/P_Explosion.P_Explosion"));
 	static ConstructorHelpers::FObjectFinder<USoundBase> TempFireSound(TEXT("/Game/XRFramework/Audio/Fire_Cue.Fire_Cue"));
 	LoadSuccessEffect = LoadFX.Object;
 	MuzzleEffect = FireFX.Object;
@@ -126,12 +151,12 @@ void AChongtongCannonActor::BeginPlay()
 	{
 		SpawnPlaceholderLoadingItems();
 	}
-	UpdateStatusSignal();
 }
 
 void AChongtongCannonActor::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UpdateAutomatedRamming(DeltaSeconds);
 	UpdateLoadingInteractions();
 }
 
@@ -198,7 +223,7 @@ bool AChongtongCannonActor::TryFire()
 	{
 		return false;
 	}
-	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation());
+	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation(), 1.0f, FVector(MuzzleEffectScale));
 	OnFired.Broadcast(Target, Projectile);
 	return true;
 }
@@ -221,7 +246,7 @@ void AChongtongCannonActor::AimAssemblyYawAtDirection(const FVector& WorldDirect
 
 	const float DeltaYaw = FMath::FindDeltaAngleDegrees(
 		CurrentHorizontal.Rotation().Yaw,
-		DesiredHorizontal.Rotation().Yaw);
+		DesiredHorizontal.Rotation().Yaw - 90.0f);
 	FRotator AssemblyRotation = HwachaBaseMesh->GetComponentRotation();
 	AssemblyRotation.Yaw += DeltaYaw;
 	HwachaBaseMesh->SetWorldRotation(AssemblyRotation);
@@ -245,65 +270,6 @@ bool AChongtongCannonActor::SolveFiringArc(const FVector& TargetLocation, FVecto
 	const float GravityZ = GetWorld()->GetGravityZ() * GravityScale;
 	return UGameplayStatics::SuggestProjectileVelocity_CustomArc(
 		this, OutLaunchVelocity, Muzzle->GetComponentLocation(), TargetLocation, GravityZ, FiringArc);
-}
-
-bool AChongtongCannonActor::TryReserveAttackerSlot(AActor* Attacker)
-{
-	if (!IsValid(Attacker))
-	{
-		return false;
-	}
-	PruneAttackerSlots();
-	if (AttackerSlots.Contains(Attacker))
-	{
-		return true;
-	}
-	if (AttackerSlots.Num() >= MaxAttackerSlots)
-	{
-		return false;
-	}
-	AttackerSlots.Add(Attacker);
-	UE_LOG(LogOngseong, Verbose, TEXT("%s attack slot taken by %s (%d/%d)."),
-		*GetName(), *Attacker->GetName(), AttackerSlots.Num(), MaxAttackerSlots);
-	return true;
-}
-
-void AChongtongCannonActor::ReleaseAttackerSlot(AActor* Attacker)
-{
-	if (AttackerSlots.Remove(Attacker) > 0)
-	{
-		UE_LOG(LogOngseong, Verbose, TEXT("%s attack slot freed by %s (%d/%d)."),
-			*GetName(), *GetNameSafe(Attacker), AttackerSlots.Num(), MaxAttackerSlots);
-	}
-	PruneAttackerSlots();
-}
-
-bool AChongtongCannonActor::HasFreeAttackerSlot() const
-{
-	PruneAttackerSlots();
-	return AttackerSlots.Num() < MaxAttackerSlots;
-}
-
-int32 AChongtongCannonActor::GetReservedAttackerCount() const
-{
-	PruneAttackerSlots();
-	return AttackerSlots.Num();
-}
-
-void AChongtongCannonActor::PruneAttackerSlots() const
-{
-	// Pooled attackers are recycled rather than destroyed, so a dead or hidden holder must not
-	// keep its slot: the population manager releases it, and this is the safety net.
-	AttackerSlots.RemoveAll([](const TWeakObjectPtr<AActor>& Slot)
-	{
-		const AActor* Attacker = Slot.Get();
-		if (!IsValid(Attacker) || Attacker->IsHidden())
-		{
-			return true;
-		}
-		const UHealthComponent* Health = Attacker->FindComponentByClass<UHealthComponent>();
-		return Health && Health->IsDead();
-	});
 }
 
 AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& Direction, const float Speed)
@@ -330,18 +296,32 @@ AGameplayProjectileActor* AChongtongCannonActor::SpawnProjectile(const FVector& 
 	Spec.InstigatorActor = this;
 	Spec.DamageCauser = Projectile;
 	Projectile->LaunchProjectile(Direction, Speed, Spec);
+	if (ProjectileFlightSound)
+	{
+		UGameplayStatics::SpawnSoundAttached(ProjectileFlightSound, Projectile->GetRootComponent(), NAME_None,
+			FVector::ZeroVector, FRotator::ZeroRotator, EAttachLocation::KeepRelativeOffset,
+			true, 1.0f, 1.0f, 0.0f, CombatSoundAttenuation, CombatSoundConcurrency, true);
+	}
 	return Projectile;
 }
 
 bool AChongtongCannonActor::TryFirePlayer()
 {
+	return TryFirePlayerCharged(1.0f);
+}
+
+bool AChongtongCannonActor::TryFirePlayerCharged(const float ChargeAlpha)
+{
 	if (LoadingState != EChongtongLoadingState::ReadyToAim || !AimGrip->IsTwoHandAiming()) return false;
-	const FVector Direction = Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
-	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction, ProjectileSpeed);
+	const FVector Direction = FireDirection ? FireDirection->GetForwardVector().GetSafeNormal()
+		: Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
+	const float Speed = FMath::Lerp(MinimumPlayerProjectileSpeed, ProjectileSpeed,
+		FMath::Clamp(ChargeAlpha, 0.0f, 1.0f));
+	AGameplayProjectileActor* Projectile = SpawnProjectile(Direction, Speed);
 	if (!Projectile) return false;
 
 	++CompletedShots;
-	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation());
+	PlayFeedback(MuzzleEffect, FireSound, Muzzle->GetComponentLocation(), 1.0f, FVector(MuzzleEffectScale));
 	OnFired.Broadcast(nullptr, Projectile);
 	ExitReadyStation();
 	if (CompletedShots >= RequiredShotsToComplete)
@@ -358,6 +338,28 @@ bool AChongtongCannonActor::TryFirePlayer()
 	return true;
 }
 
+void AChongtongCannonActor::SetPlayerChargeVisible(const bool bVisible)
+{
+	if (ChargeDisplay)
+	{
+		ChargeDisplay->SetVisibility(bVisible);
+		ChargeDisplay->SetHiddenInGame(!bVisible);
+	}
+}
+
+void AChongtongCannonActor::SetPlayerChargePercent(const float ChargeAlpha)
+{
+	if (!ChargeDisplay)
+	{
+		return;
+	}
+	ChargeDisplay->InitWidget();
+	if (UChongtongChargeWidget* Widget = Cast<UChongtongChargeWidget>(ChargeDisplay->GetUserWidgetObject()))
+	{
+		Widget->SetChargePercent(ChargeAlpha);
+	}
+}
+
 void AChongtongCannonActor::BeginPlayerAim()
 {
 	if (LoadingState == EChongtongLoadingState::ReadyToAim) EnterReadyStation();
@@ -365,6 +367,8 @@ void AChongtongCannonActor::BeginPlayerAim()
 
 void AChongtongCannonActor::EndPlayerAim()
 {
+	SetPlayerChargeVisible(false);
+	SetPlayerChargePercent(0.0f);
 }
 
 bool AChongtongCannonActor::TryLoadItem(const EChongtongLoadingItemType ItemType)
@@ -392,7 +396,6 @@ bool AChongtongCannonActor::RegisterRammerStroke()
 	OnRammingProgress.Broadcast(CompletedRammerStrokes, RequiredRammerStrokes);
 	PlayFeedback(LoadSuccessEffect, InteractionSound, LoadingSocket->GetComponentLocation(), 0.8f + CompletedRammerStrokes * 0.1f);
 	if (CompletedRammerStrokes >= RequiredRammerStrokes) SetLoadingState(EChongtongLoadingState::NeedsCannonball);
-	else UpdateStatusSignal();
 	return true;
 }
 
@@ -406,16 +409,64 @@ void AChongtongCannonActor::UpdateLoadingInteractions()
 		const float Distance = Item->GetDistanceToPoint(LoadingSocket->GetComponentLocation());
 		if (Item->GetItemType() == EChongtongLoadingItemType::Rammer)
 		{
-			if (LoadingState == EChongtongLoadingState::NeedsRamming && Distance <= LoadingAcceptanceRadius && !bRammerInserted)
+			if (LoadingState == EChongtongLoadingState::NeedsRamming && Distance <= LoadingAcceptanceRadius && !AnimatedRammer)
 			{
-				bRammerInserted = RegisterRammerStroke();
+				BeginAutomatedRamming(Item);
 			}
-			else if (Distance >= RammerWithdrawRadius) bRammerInserted = false;
 		}
 		else if (Distance <= LoadingAcceptanceRadius && TryLoadItem(Item->GetItemType()))
 		{
 			Item->ConsumeAndRespawn();
 		}
+	}
+}
+
+void AChongtongCannonActor::BeginAutomatedRamming(AChongtongLoadingItemActor* Rammer)
+{
+	if (!IsValid(Rammer) || AnimatedRammer || LoadingState != EChongtongLoadingState::NeedsRamming)
+	{
+		return;
+	}
+	AnimatedRammer = Rammer;
+	RammerAnimationElapsed = 0.0f;
+	AnimatedRammerCompletedStrokes = 0;
+	Rammer->SetLoadingPromptActive(false);
+	Rammer->BeginAutomatedUse();
+	UpdateAutomatedRamming(0.0f);
+}
+
+void AChongtongCannonActor::UpdateAutomatedRamming(const float DeltaSeconds)
+{
+	if (!IsValid(AnimatedRammer) || !LoadingSocket)
+	{
+		AnimatedRammer = nullptr;
+		return;
+	}
+
+	const float StrokeDuration = FMath::Max(0.1f, RammerStrokeDuration);
+	RammerAnimationElapsed += FMath::Max(0.0f, DeltaSeconds);
+	const int32 FinishedStrokes = FMath::Min(FMath::FloorToInt(RammerAnimationElapsed / StrokeDuration), RequiredRammerStrokes);
+	while (AnimatedRammerCompletedStrokes < FinishedStrokes)
+	{
+		++AnimatedRammerCompletedStrokes;
+		RegisterRammerStroke();
+	}
+
+	const FVector Forward = FireDirection ? FireDirection->GetForwardVector().GetSafeNormal()
+		: Muzzle->GetComponentTransform().GetUnitAxis(EAxis::Y).GetSafeNormal();
+	const FVector OuterLocation = LoadingSocket->GetComponentLocation() + Forward * RammerStrokeWithdrawDistance;
+	const FVector InnerLocation = LoadingSocket->GetComponentLocation() - Forward * RammerStrokeInsertDepth;
+	const float StrokePhase = FMath::Fmod(RammerAnimationElapsed, StrokeDuration) / StrokeDuration;
+	const float LinearInsert = StrokePhase < 0.5f ? StrokePhase * 2.0f : (1.0f - StrokePhase) * 2.0f;
+	const float SmoothInsert = FMath::SmoothStep(0.0f, 1.0f, LinearInsert);
+	AnimatedRammer->SetActorLocationAndRotation(FMath::Lerp(OuterLocation, InnerLocation, SmoothInsert),
+		(Forward.Rotation() + RammerRotationOffset), false, nullptr, ETeleportType::TeleportPhysics);
+
+	if (FinishedStrokes >= RequiredRammerStrokes)
+	{
+		AChongtongLoadingItemActor* FinishedRammer = AnimatedRammer;
+		AnimatedRammer = nullptr;
+		FinishedRammer->ConsumeAndRespawn();
 	}
 }
 
@@ -449,30 +500,12 @@ void AChongtongCannonActor::UpdateInteractionPrompts()
 void AChongtongCannonActor::SetLoadingState(const EChongtongLoadingState NewState)
 {
 	LoadingState = NewState;
-	UpdateStatusSignal();
 	OnLoadingStateChanged.Broadcast(LoadingState, CompletedShots);
-}
-
-void AChongtongCannonActor::UpdateStatusSignal()
-{
-	if (!StatusText || !StatusLight) return;
-	FText Text;
-	FLinearColor Color = FLinearColor::Yellow;
-	switch (LoadingState)
-	{
-	case EChongtongLoadingState::NeedsPowder: Text = FText::FromString(TEXT("1. LOAD POWDER")); Color = FLinearColor::Red; break;
-	case EChongtongLoadingState::NeedsRamming: Text = FText::FromString(FString::Printf(TEXT("2. RAM %d / %d"), CompletedRammerStrokes, RequiredRammerStrokes)); Color = FLinearColor::Yellow; break;
-	case EChongtongLoadingState::NeedsCannonball: Text = FText::FromString(TEXT("3. LOAD CANNONBALL")); Color = FLinearColor(1.0f, 0.45f, 0.0f); break;
-	case EChongtongLoadingState::ReadyToAim: Text = FText::FromString(TEXT("READY - GRIP BOTH HANDS")); Color = FLinearColor::Green; break;
-	default: Text = FText::FromString(TEXT("ALL ENEMIES DEFEATED")); Color = FLinearColor::Blue; break;
-	}
-	StatusText->SetText(Text);
-	StatusText->SetTextRenderColor(Color.ToFColor(true));
-	StatusLight->SetLightColor(Color);
 }
 
 void AChongtongCannonActor::EnterReadyStation()
 {
+	SetPlayerChargePercent(0.0f);
 	for (TActorIterator<AVRPlayerPawn> It(GetWorld()); It; ++It)
 	{
 		It->EnterMountedInteraction(PlayerCameraAnchor);
@@ -482,22 +515,24 @@ void AChongtongCannonActor::EnterReadyStation()
 
 void AChongtongCannonActor::ExitReadyStation()
 {
+	SetPlayerChargeVisible(false);
+	SetPlayerChargePercent(0.0f);
 	for (TActorIterator<AVRPlayerPawn> It(GetWorld()); It; ++It) It->ExitMountedInteraction(PlayerCameraAnchor);
 }
 
 void AChongtongCannonActor::SpawnPlaceholderLoadingItems()
 {
-	const FVector Base = PlayerCameraAnchor->GetComponentLocation();
-	const FVector Right = PlayerCameraAnchor->GetRightVector();
-	const FVector Forward = PlayerCameraAnchor->GetForwardVector();
 	const EChongtongLoadingItemType Types[] = {EChongtongLoadingItemType::Powder, EChongtongLoadingItemType::Rammer, EChongtongLoadingItemType::Cannonball};
 	const TSubclassOf<AChongtongLoadingItemActor> Classes[] = {PowderItemClass, RammerItemClass, CannonballItemClass};
+	USceneComponent* SpawnPoints[] = {PowderSpawnPoint, RammerSpawnPoint, CannonballSpawnPoint};
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FVector Location = Base + Forward * 65.0f + Right * ((Index - 1) * 38.0f) - FVector::UpVector * 65.0f;
+		USceneComponent* SpawnPoint = SpawnPoints[Index];
+		if (!SpawnPoint) continue;
 		TSubclassOf<AChongtongLoadingItemActor> ItemClass = Classes[Index];
 		if (!ItemClass) ItemClass = AChongtongLoadingItemActor::StaticClass();
-		AChongtongLoadingItemActor* Item = GetWorld()->SpawnActor<AChongtongLoadingItemActor>(ItemClass, Location, GetActorRotation());
+		AChongtongLoadingItemActor* Item = GetWorld()->SpawnActor<AChongtongLoadingItemActor>(
+			ItemClass, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation());
 		if (Item)
 		{
 			Item->ConfigureItem(Types[Index]);
@@ -506,25 +541,25 @@ void AChongtongCannonActor::SpawnPlaceholderLoadingItems()
 	}
 }
 
-void AChongtongCannonActor::PlayFeedback(UNiagaraSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch)
+void AChongtongCannonActor::PlayFeedback(UParticleSystem* Effect, USoundBase* Sound, const FVector& Location, const float Pitch, const FVector EffectScale)
 {
-	UCombatFXLibrary::SpawnPooledSystemAtLocation(this, Effect, Location);
-	UCombatFXLibrary::PlayPooledSoundAtLocation(this, Sound, Location, 0.7f, Pitch, CombatSoundConcurrency);
+	UCombatFXLibrary::SpawnPooledEmitterAtLocation(this, Effect, Location, FRotator::ZeroRotator, EffectScale);
+	UCombatFXLibrary::PlayPooledSoundAtLocation(this, Sound, Location, 0.7f, Pitch, CombatSoundConcurrency, CombatSoundAttenuation);
 }
 
 AActor* AChongtongCannonActor::SelectTarget() const
 {
 	TArray<AActor*> Visible = TargetingComponent->FindVisibleHostileTargets(FireRange);
-	if (bEngageEnemyArchersOnly)
+	if (bEngageEnemyInfantryOnly)
 	{
 		const int32 BeforeFilter = Visible.Num();
 		Visible.RemoveAll([](const AActor* Candidate)
 		{
-			return !IsValid(Candidate) || !Candidate->FindComponentByClass<UOngseongArcherCombatComponent>();
+			return !IsValid(Candidate) || !Candidate->FindComponentByClass<UCharacterMovementComponent>();
 		});
 		if (BeforeFilter != Visible.Num())
 		{
-			UE_LOG(LogOngseong, VeryVerbose, TEXT("%s ignored %d non-archer target(s)."),
+			UE_LOG(LogOngseong, VeryVerbose, TEXT("%s ignored %d non-infantry target(s)."),
 				*GetName(), BeforeFilter - Visible.Num());
 		}
 	}

@@ -29,17 +29,46 @@ void AChongtongLoadingItemActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 	HomeTransform = Transform;
-	ApplyPlaceholderAppearance();
+	// Blueprint children own their visual component. Reapplying the native placeholder here
+	// used to overwrite every mesh and scale edit made in the Blueprint viewport.
+	if (GetClass() == StaticClass())
+	{
+		ApplyNativePlaceholderAppearance();
+	}
 }
 
 void AChongtongLoadingItemActor::ConfigureItem(EChongtongLoadingItemType NewType)
 {
 	ItemType = NewType;
-	ApplyPlaceholderAppearance();
+	if (GetClass() == StaticClass())
+	{
+		ApplyNativePlaceholderAppearance();
+	}
 	HomeTransform = GetActorTransform();
+	bHomeSimulatingPhysics = Mesh && Mesh->IsSimulatingPhysics();
 }
 
-void AChongtongLoadingItemActor::ApplyPlaceholderAppearance()
+void AChongtongLoadingItemActor::BeginAutomatedUse()
+{
+	TInlineComponentArray<USceneComponent*> SceneComponents(this);
+	for (USceneComponent* Component : SceneComponents)
+	{
+		if (UFunction* ReleaseFunction = Component ? Component->FindFunction(TEXT("TryRelease")) : nullptr)
+		{
+			FStructOnScope Parameters(ReleaseFunction);
+			Component->ProcessEvent(ReleaseFunction, Parameters.GetStructMemory());
+		}
+	}
+	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	if (Mesh)
+	{
+		Mesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		Mesh->SetSimulatePhysics(false);
+	}
+	SetActorEnableCollision(false);
+}
+
+void AChongtongLoadingItemActor::ApplyNativePlaceholderAppearance()
 {
 	if (ItemType == EChongtongLoadingItemType::Cannonball)
 	{
@@ -100,4 +129,8 @@ void AChongtongLoadingItemActor::RespawnAtHome()
 	SetActorTransform(HomeTransform, false, nullptr, ETeleportType::TeleportPhysics);
 	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
+	if (Mesh)
+	{
+		Mesh->SetSimulatePhysics(bHomeSimulatingPhysics);
+	}
 }
