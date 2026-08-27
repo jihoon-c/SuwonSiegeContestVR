@@ -145,6 +145,18 @@ protected:
 	TObjectPtr<USceneComponent> LoadingSocket;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USceneComponent> PlayerCameraAnchor;
+	/**
+	 * Viewport-editable anchors for the VR loading props.  Move these components in a playable
+	 * chongtong Blueprint's viewport; the corresponding prop spawns at its world transform.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Loading Placement")
+	TObjectPtr<USceneComponent> PowderSpawnPoint;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Loading Placement")
+	TObjectPtr<USceneComponent> RammerSpawnPoint;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components|Loading Placement")
+	TObjectPtr<USceneComponent> CannonballSpawnPoint;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UChongtongAimGripComponent> AimGrip;
 	/** Shows the player where to put both hands once the cannon is loaded. */

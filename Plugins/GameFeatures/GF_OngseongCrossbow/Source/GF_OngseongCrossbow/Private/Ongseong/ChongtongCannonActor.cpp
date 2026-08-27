@@ -53,6 +53,15 @@ AChongtongCannonActor::AChongtongCannonActor()
 	PlayerCameraAnchor->SetupAttachment(HwachaBaseMesh);
 	PlayerCameraAnchor->SetRelativeLocation(FVector(-115.0f, -45.0f, 165.0f));
 	PlayerCameraAnchor->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
+	PowderSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("PowderSpawnPoint"));
+	PowderSpawnPoint->SetupAttachment(PlayerCameraAnchor);
+	PowderSpawnPoint->SetRelativeLocation(FVector(65.0f, -38.0f, -65.0f));
+	RammerSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("RammerSpawnPoint"));
+	RammerSpawnPoint->SetupAttachment(PlayerCameraAnchor);
+	RammerSpawnPoint->SetRelativeLocation(FVector(65.0f, 0.0f, -65.0f));
+	CannonballSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("CannonballSpawnPoint"));
+	CannonballSpawnPoint->SetupAttachment(PlayerCameraAnchor);
+	CannonballSpawnPoint->SetRelativeLocation(FVector(65.0f, 38.0f, -65.0f));
 	AimGrip = CreateDefaultSubobject<UChongtongAimGripComponent>(TEXT("AimGrip"));
 	AimGrip->SetupAttachment(HwachaBaseMesh);
 	AimGrip->SetRelativeLocation(FVector(-40.0f, 0.0f, 120.0f));
@@ -401,17 +410,17 @@ void AChongtongCannonActor::ExitReadyStation()
 
 void AChongtongCannonActor::SpawnPlaceholderLoadingItems()
 {
-	const FVector Base = PlayerCameraAnchor->GetComponentLocation();
-	const FVector Right = PlayerCameraAnchor->GetRightVector();
-	const FVector Forward = PlayerCameraAnchor->GetForwardVector();
 	const EChongtongLoadingItemType Types[] = {EChongtongLoadingItemType::Powder, EChongtongLoadingItemType::Rammer, EChongtongLoadingItemType::Cannonball};
 	const TSubclassOf<AChongtongLoadingItemActor> Classes[] = {PowderItemClass, RammerItemClass, CannonballItemClass};
+	USceneComponent* SpawnPoints[] = {PowderSpawnPoint, RammerSpawnPoint, CannonballSpawnPoint};
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FVector Location = Base + Forward * 65.0f + Right * ((Index - 1) * 38.0f) - FVector::UpVector * 65.0f;
+		USceneComponent* SpawnPoint = SpawnPoints[Index];
+		if (!SpawnPoint) continue;
 		TSubclassOf<AChongtongLoadingItemActor> ItemClass = Classes[Index];
 		if (!ItemClass) ItemClass = AChongtongLoadingItemActor::StaticClass();
-		AChongtongLoadingItemActor* Item = GetWorld()->SpawnActor<AChongtongLoadingItemActor>(ItemClass, Location, GetActorRotation());
+		AChongtongLoadingItemActor* Item = GetWorld()->SpawnActor<AChongtongLoadingItemActor>(
+			ItemClass, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation());
 		if (Item)
 		{
 			Item->ConfigureItem(Types[Index]);

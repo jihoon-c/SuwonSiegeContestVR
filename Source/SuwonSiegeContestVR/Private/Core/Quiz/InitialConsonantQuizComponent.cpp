@@ -7,7 +7,7 @@
 #include "Core/Quiz/InitialConsonantQuizWidget.h"
 #include "Core/Scenario/ScenarioInteractionGuideComponent.h"
 #include "Core/Text/HangulTextLibrary.h"
-#include "Core/Voice/MockVoiceRecognitionComponent.h"
+#include "Core/Voice/SherpaVoiceRecognitionComponent.h"
 #include "Core/Voice/VoiceRecognitionComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -30,12 +30,21 @@ UInitialConsonantQuizComponent::UInitialConsonantQuizComponent()
 	PrimaryComponentTick.bStartWithTickEnabled = false;
 	// The panel only re-aims at the player; 30Hz is smooth in VR without a per-frame update.
 	PrimaryComponentTick.TickInterval = 1.0f / 30.0f;
+
+	// On-device speech by default. A level can swap this for the mock or clear it entirely.
+	FallbackVoiceRecognitionClass = USherpaVoiceRecognitionComponent::StaticClass();
 }
 
 void UInitialConsonantQuizComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	SetComponentTickEnabled(false);
+
+	// Resolving here gives the speech model the whole level start to load.
+	if (bUseVoiceRecognition && bPreloadVoiceRecognitionOnBeginPlay)
+	{
+		ResolveVoiceRecognition();
+	}
 }
 
 void UInitialConsonantQuizComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -43,6 +52,7 @@ void UInitialConsonantQuizComponent::EndPlay(const EEndPlayReason::Type EndPlayR
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(ResultHoldHandle);
+		World->GetTimerManager().ClearTimer(AttemptTimeoutHandle);
 	}
 
 	HidePanel();
@@ -119,25 +129,44 @@ void UInitialConsonantQuizComponent::BeginListeningAttempt()
 {
 	ApplyFooterToWidget(BuildAttemptFooter());
 
-	if (!bUseVoiceRecognition || !ResolveVoiceRecognition())
+	if (UWorld* World = GetWorld())
 	{
-		// Without a recognizer the quiz still runs; SubmitAnswer stays open for a button or console.
-		ApplyStatusToWidget(VoiceUnavailableStatusText, RetryColor);
+		World->GetTimerManager().ClearTimer(AttemptTimeoutHandle);
+	}
+
+	bool bListening = false;
+	if (bUseVoiceRecognition && ResolveVoiceRecognition())
+	{
+		FVoiceRecognitionRequest Request;
+		Request.RequestID = ActiveQuiz.QuizID;
+		Request.Keywords = ActiveQuiz.GetAcceptedAnswerStrings();
+		Request.ListenDuration = ActiveQuiz.ListenDuration;
+		bListening = VoiceRecognition->StartListening(Request);
+	}
+
+	if (bListening)
+	{
+		ApplyStatusToWidget(ListeningStatusText, ListeningColor);
 		return;
 	}
 
-	FVoiceRecognitionRequest Request;
-	Request.RequestID = ActiveQuiz.QuizID;
-	Request.Keywords = ActiveQuiz.GetAcceptedAnswerStrings();
-	Request.ListenDuration = ActiveQuiz.ListenDuration;
-
-	if (!VoiceRecognition->StartListening(Request))
+	// No recognizer for this attempt. SubmitAnswer stays open for a button or the console, and a
+	// timer spends the attempt so a missing or broken backend cannot strand the experience.
+	ApplyStatusToWidget(VoiceUnavailableStatusText, RetryColor);
+	if (UWorld* World = GetWorld())
 	{
-		ApplyStatusToWidget(VoiceUnavailableStatusText, RetryColor);
-		return;
+		World->GetTimerManager().SetTimer(AttemptTimeoutHandle, this,
+			&UInitialConsonantQuizComponent::HandleAttemptTimeout,
+			FMath::Max(ActiveQuiz.ListenDuration, 1.0f), false);
 	}
+}
 
-	ApplyStatusToWidget(ListeningStatusText, ListeningColor);
+void UInitialConsonantQuizComponent::HandleAttemptTimeout()
+{
+	if (QuizState == EInitialConsonantQuizState::Listening)
+	{
+		SubmitAnswer(FString());
+	}
 }
 
 void UInitialConsonantQuizComponent::HandleVoiceResult(FVoiceRecognitionResult Result)
@@ -160,6 +189,11 @@ bool UInitialConsonantQuizComponent::SubmitAnswer(const FString& Answer)
 	}
 
 	++AttemptCount;
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AttemptTimeoutHandle);
+	}
 
 	if (VoiceRecognition && VoiceRecognition->IsListening())
 	{
@@ -251,6 +285,7 @@ void UInitialConsonantQuizComponent::FinishQuiz(const bool bCorrect, const EInit
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(ResultHoldHandle);
+		World->GetTimerManager().ClearTimer(AttemptTimeoutHandle);
 	}
 
 	if (VoiceRecognition && VoiceRecognition->IsListening())
@@ -281,18 +316,22 @@ bool UInitialConsonantQuizComponent::ResolveVoiceRecognition()
 		? VoiceRecognitionOverride.Get()
 		: UVoiceRecognitionComponent::FindVoiceRecognition(this);
 
-	if (!VoiceRecognition && bSpawnMockVoiceRecognitionIfMissing)
+	// No game instance means no local player, i.e. an automation or commandlet world. Spinning up a
+	// speech model there would cost seconds and megabytes for nobody to talk to.
+	const bool bCanSpawnFallback = GetWorld() && GetWorld()->GetGameInstance();
+	if (!VoiceRecognition && FallbackVoiceRecognitionClass && bCanSpawnFallback)
 	{
 		if (AActor* Owner = GetOwner())
 		{
-			UMockVoiceRecognitionComponent* Mock = NewObject<UMockVoiceRecognitionComponent>(
-				Owner, TEXT("RuntimeMockVoiceRecognition"));
-			Mock->RegisterComponent();
-			Owner->AddInstanceComponent(Mock);
-			VoiceRecognition = Mock;
+			UVoiceRecognitionComponent* Fallback = NewObject<UVoiceRecognitionComponent>(
+				Owner, FallbackVoiceRecognitionClass, TEXT("RuntimeVoiceRecognition"));
+			Fallback->RegisterComponent();
+			Owner->AddInstanceComponent(Fallback);
+			VoiceRecognition = Fallback;
 			bOwnsVoiceRecognition = true;
 			UE_LOG(LogTemp, Log,
-				TEXT("InitialConsonantQuiz: no voice recognizer in the level, using the mock backend."));
+				TEXT("InitialConsonantQuiz: no recognizer in the level, added %s."),
+				*FallbackVoiceRecognitionClass->GetName());
 		}
 	}
 

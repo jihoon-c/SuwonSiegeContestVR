@@ -95,3 +95,11 @@ DerivedDataCache/*
 !**/ThirdParty/**/*.lib
 !**/ThirdParty/**/*.dll
 !**/ThirdParty/**/*.dylib
+###############################################################################
+# 음성 인식 모델
+#
+# 모델은 약 140MB라 저장소에 커밋하지 않는다.
+# Scripts/DownloadKoreanVoiceModel.py 로 각자 내려받는다.
+# 패키징 시에는 DefaultGame.ini의 NonUFS 스테이징 규칙이 이 폴더를 포함한다.
+###############################################################################
+/VoiceModels/

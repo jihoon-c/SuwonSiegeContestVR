@@ -6,8 +6,96 @@
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "UObject/UObjectIterator.h"
+
+FString UVoiceRecognitionComponent::GetBackendDescription() const
+{
+	static const UEnum* StateEnum = StaticEnum<EVoiceRecognitionState>();
+	return FString::Printf(TEXT("%s [%s]"), *GetClass()->GetName(),
+		*StateEnum->GetNameStringByValue(static_cast<int64>(State)));
+}
+
+#if !UE_BUILD_SHIPPING
+namespace
+{
+	void ForEachRecognizer(const UWorld* World, TFunctionRef<void(UVoiceRecognitionComponent&)> Visit)
+	{
+		for (TObjectIterator<UVoiceRecognitionComponent> It; It; ++It)
+		{
+			UVoiceRecognitionComponent* Recognizer = *It;
+			if (IsValid(Recognizer) && Recognizer->GetWorld() == World)
+			{
+				Visit(*Recognizer);
+			}
+		}
+	}
+
+	/** Answers a quiz without a microphone: `ssv.voice.submit 옹성`. */
+	void SubmitSpeechCommand(const TArray<FString>& Args, UWorld* World)
+	{
+		if (!World)
+		{
+			return;
+		}
+
+		const FString SpokenText = FString::Join(Args, TEXT(" ")).TrimStartAndEnd();
+		if (SpokenText.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Usage: ssv.voice.submit <spoken text>"));
+			return;
+		}
+
+		int32 Delivered = 0;
+		ForEachRecognizer(World, [&SpokenText, &Delivered](UVoiceRecognitionComponent& Recognizer)
+		{
+			if (Recognizer.IsListening())
+			{
+				Recognizer.ReportRecognizedText(SpokenText, 1.0f);
+				++Delivered;
+			}
+		});
+
+		if (Delivered == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ssv.voice.submit found no recognizer that is listening."));
+		}
+	}
+
+	void VoiceStatusCommand(const TArray<FString>&, UWorld* World)
+	{
+		if (!World)
+		{
+			return;
+		}
+
+		int32 Found = 0;
+		ForEachRecognizer(World, [&Found](const UVoiceRecognitionComponent& Recognizer)
+		{
+			++Found;
+			UE_LOG(LogTemp, Display, TEXT("Voice recognizer on %s: %s"),
+				*GetNameSafe(Recognizer.GetOwner()), *Recognizer.GetBackendDescription());
+		});
+
+		if (Found == 0)
+		{
+			UE_LOG(LogTemp, Display, TEXT("No voice recognizer exists in this world yet."));
+		}
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs GSubmitSpeechCommand(
+		TEXT("ssv.voice.submit"),
+		TEXT("Feeds text to every listening voice recognizer, e.g. ssv.voice.submit 옹성"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&SubmitSpeechCommand));
+
+	FAutoConsoleCommandWithWorldAndArgs GVoiceStatusCommand(
+		TEXT("ssv.voice.status"),
+		TEXT("Prints the speech-recognition backends in this world and whether they are ready"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&VoiceStatusCommand));
+}
+#endif
 
 UVoiceRecognitionComponent::UVoiceRecognitionComponent()
 {
@@ -26,11 +114,10 @@ bool UVoiceRecognitionComponent::StartListening(const FVoiceRecognitionRequest& 
 
 	if (!BeginBackendListening(ActiveRequest))
 	{
+		// No request ever started, so no result is broadcast: a listener that treated this as an
+		// answer would burn an attempt instantly and could spin. Callers see the false return.
+		ActiveRequest = FVoiceRecognitionRequest();
 		SetVoiceState(EVoiceRecognitionState::Unavailable);
-		FVoiceRecognitionResult Result;
-		Result.RequestID = ActiveRequest.RequestID;
-		Result.Outcome = EVoiceRecognitionOutcome::Failed;
-		OnRecognitionResult.Broadcast(Result);
 		return false;
 	}
 

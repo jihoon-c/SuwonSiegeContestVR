@@ -67,6 +67,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Voice", meta = (WorldContext = "WorldContextObject"))
 	static UVoiceRecognitionComponent* FindVoiceRecognition(const UObject* WorldContextObject);
 
+	/** One line describing the backend and its readiness. Printed by ssv.voice.status. */
+	UFUNCTION(BlueprintPure, Category = "Voice")
+	virtual FString GetBackendDescription() const;
+
 	UPROPERTY(BlueprintAssignable, Category = "Voice|Events")
 	FOnVoiceRecognitionResult OnRecognitionResult;
 

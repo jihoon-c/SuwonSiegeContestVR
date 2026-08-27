@@ -5,8 +5,9 @@
 **용도**: 초성 퀴즈 정답 발화 인식 — 어휘가 4~10개로 제한된 **키워드 감지** 문제
 **관련 결정**: `docs/ARCHITECTURE.md` — "음성 인식은 온디바이스에서 동작, 외부 서드파티 모듈 임포트"
 
-> 이 문서는 **조사 결과**다. 아직 어떤 백엔드도 프로젝트에 임포트하지 않았다.
-> 현재 런타임은 `UMockVoiceRecognitionComponent`를 사용한다.
+> **2026-08-27 갱신: 1순위 후보인 sherpa-onnx를 실제로 임포트해 연동을 마쳤다.**
+> 연동 내용·검증 결과·주의사항은 `docs/Core/specs/SHERPA_ONNX_INTEGRATION.md`를 참조한다.
+> 아래는 선정 근거로 남겨둔 조사 기록이다.
 
 ---
 
@@ -19,9 +20,10 @@
 | 3 | sherpa-onnx KWS (`KeywordSpotter`) 를 한국어로 재학습 | 3M 파라미터로 가장 가볍지만 **한국어 사전학습 모델이 없다.** icefall + KsponSpeech 학습 필요 |
 | 4 | Picovoice Porcupine / Rhino | 매우 가볍고 정확하나 **상용 라이선스**. 교육 콘텐츠 배포 조건 확인 필요 |
 
-**권장**: 1차로 sherpa-onnx 한국어 스트리밍 Zipformer를 붙이고,
-용량이 문제가 되면 Vosk small ko(49.7MB) + grammar로 교체한다.
-둘 다 `UVoiceRecognitionComponent` 하위 클래스로 교체 가능하므로 게임플레이 코드는 영향받지 않는다.
+**결정 (2026-08-27)**: sherpa-onnx v1.13.6 + 한국어 스트리밍 Zipformer를 채택해 연동을 완료했다.
+PC에서 모델 로드 1.6초, 발화 디코딩 RTF 0.06을 실측했다.
+용량(141MB)이 문제가 되면 Vosk small ko(49.7MB) + grammar로 교체할 수 있고,
+그때도 `UVoiceRecognitionComponent` 하위 클래스만 바꾸면 되므로 게임플레이 코드는 영향받지 않는다.
 
 ---
 

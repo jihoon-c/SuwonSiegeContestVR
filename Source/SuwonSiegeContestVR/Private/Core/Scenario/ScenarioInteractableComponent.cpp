@@ -20,10 +20,19 @@ namespace
 		TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents(Owner);
 		for (const UPrimitiveComponent* Primitive : PrimitiveComponents)
 		{
-			if (Primitive && Primitive->IsRegistered() && !Primitive->IsVisualizationComponent())
+			if (!Primitive || !Primitive->IsRegistered())
 			{
-				Bounds += Primitive->Bounds.GetBox();
+				continue;
 			}
+#if WITH_EDITORONLY_DATA
+			// Editor sprites and arrows would inflate the bounds. They do not exist in a cooked
+			// build, where the accessor is compiled out entirely.
+			if (Primitive->IsVisualizationComponent())
+			{
+				continue;
+			}
+#endif
+			Bounds += Primitive->Bounds.GetBox();
 		}
 		return Bounds.IsValid
 			? FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, Bounds.Max.Z)

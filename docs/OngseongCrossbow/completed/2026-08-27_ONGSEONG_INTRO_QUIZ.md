@@ -90,6 +90,9 @@ RangedCombat.Contracts, WaveManager.Configuration)도 회귀 없이 통과했다
 
 * **실기 확인 필요**: 본편 `LV_Ongseong`에서 교관 나레이션(`ON_08`) 종료 후 퀴즈가 뜨는지,
   패널 거리·크기가 총통 조작 시점의 시야에서 적절한지 HMD로 확인해야 한다.
-* 실제 음성 인식 백엔드는 아직 Mock이다. PC 테스트는 콘솔 `ssv.voice.submit 옹성`으로 한다.
-  Mock 기본값은 `ManualOnly`라 아무 입력이 없으면 8초 × 3회 후 정답을 공개하고 진행한다.
+* **2026-08-27 갱신: 음성 인식이 실제 백엔드(sherpa-onnx + 한국어 Zipformer)로 교체됐다.**
+  `Scripts/DownloadKoreanVoiceModel.py`로 모델을 받은 뒤 PIE에서 "옹성"이라고 말하면 인식된다.
+  마이크 없이 확인하려면 콘솔 `ssv.voice.submit 옹성`, 상태 확인은 `ssv.voice.status`.
+  모델이 없거나 마이크를 열 수 없으면 8초 × 3회 후 정답을 공개하고 체험이 계속된다.
+  상세는 `docs/Core/specs/SHERPA_ONNX_INTEGRATION.md` 참조.
 * 퀴즈 패널의 최종 아트(WBP)와 정답/오답 사운드는 미제작이다.

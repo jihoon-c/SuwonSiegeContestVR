@@ -32,7 +32,9 @@ Class Defaults `Ongseong|Scenario|Audio`에서 Sound Cue로 교체한다.
 **2026-08-27 초성 퀴즈 개정**: 본편 진행에 **초성 퀴즈 단계**를 추가했다.
 총통 장전 완료 → 교관 체험 시작 나레이션 → **초성 퀴즈 "ㅇ ㅅ"(정답 옹성)** → 나팔·BGM·적 웨이브 순이다.
 퀴즈 런타임은 Core(`UInitialConsonantQuizComponent`)이고 옹성은 질문 데이터와 시작 시점만 갖는다.
-음성 인식은 아직 Mock이며 PC에서는 콘솔 `ssv.voice.submit 옹성`으로 테스트한다.
+음성 인식은 **sherpa-onnx 온디바이스 한국어 모델**로 동작한다
+(`Scripts/DownloadKoreanVoiceModel.py`로 모델을 먼저 받아야 한다).
+마이크 없이 테스트하려면 콘솔 `ssv.voice.submit 옹성`, 상태 확인은 `ssv.voice.status`.
 `BP_OngseongDefenseScenarioManager`의 `Ongseong|Scenario|Quiz`에서 끄거나 다른 퀴즈로 교체할 수 있다.
 `docs/OngseongCrossbow/completed/2026-08-27_ONGSEONG_INTRO_QUIZ.md` 참조.
 

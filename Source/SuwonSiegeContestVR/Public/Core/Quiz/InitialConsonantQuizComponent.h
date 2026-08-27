@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Core/Quiz/InitialConsonantQuizTypes.h"
 #include "Core/Voice/VoiceRecognitionTypes.h"
+#include "Templates/SubclassOf.h"
 #include "InitialConsonantQuizComponent.generated.h"
 
 class UInitialConsonantQuizSet;
@@ -134,11 +135,19 @@ public:
 	TObjectPtr<UVoiceRecognitionComponent> VoiceRecognitionOverride;
 
 	/**
-	 * Adds a mock recognizer when the level has none, so a quiz never stalls a level that has not
-	 * placed a backend yet. Turn this off once a real recognizer ships.
+	 * Recognizer added to the owner when the level has none. Defaults to the on-device sherpa-onnx
+	 * backend; swap in UMockVoiceRecognitionComponent to run a level without speech input.
+	 * Clear it to leave the quiz on manual answers only.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quiz|Voice")
-	bool bSpawnMockVoiceRecognitionIfMissing = true;
+	TSubclassOf<UVoiceRecognitionComponent> FallbackVoiceRecognitionClass;
+
+	/**
+	 * Resolves the recognizer at level load instead of at the first quiz. The speech model takes
+	 * seconds to load, and this hides that behind the rest of the level start.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quiz|Voice")
+	bool bPreloadVoiceRecognitionOnBeginPlay = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Quiz|UI|Text")
 	FText ListeningStatusText = NSLOCTEXT("Quiz", "Listening", "정답을 말해보세요");
@@ -163,6 +172,8 @@ private:
 	void HandleVoiceResult(FVoiceRecognitionResult Result);
 
 	void BeginListeningAttempt();
+	/** Keeps a quiz moving when no recognizer can listen for this attempt. */
+	void HandleAttemptTimeout();
 	void FinishQuiz(bool bCorrect, EInitialConsonantQuizOutcome Outcome);
 	void HandleResultHoldElapsed();
 
@@ -198,5 +209,6 @@ private:
 	int32 AttemptCount = 0;
 	bool bPendingSuccess = false;
 	FTimerHandle ResultHoldHandle;
+	FTimerHandle AttemptTimeoutHandle;
 	FVector PanelLocation = FVector::ZeroVector;
 };

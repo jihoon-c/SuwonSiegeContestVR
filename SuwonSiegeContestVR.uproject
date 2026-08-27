@@ -70,6 +70,14 @@
 			"Enabled": false
 		},
 		{
+			"Name": "NNERuntimeORT",
+			"Enabled": false
+		},
+		{
+			"Name": "NNEDenoiser",
+			"Enabled": false
+		},
+		{
 			"Name": "InterchangeEditor",
 			"Enabled": false,
 			"SupportedTargetPlatforms": [

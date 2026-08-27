@@ -30,7 +30,7 @@ class SUWONSIEGECONTESTVR_API UMockVoiceRecognitionComponent : public UVoiceReco
 public:
 	UMockVoiceRecognitionComponent();
 
-	/** Manual ingress for a debug button, keyboard test input, or an editor utility. */
+	/** Manual ingress for a debug button or an editor utility. `ssv.voice.submit` works too. */
 	UFUNCTION(BlueprintCallable, Category = "Voice|Mock")
 	bool SubmitMockSpeech(const FString& SpokenText);
 
@@ -49,10 +49,6 @@ public:
 	/** Text reported in AutoNoMatch mode. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Mock")
 	FString MisrecognizedText = TEXT("모르겠어요");
-
-	/** Registers ssv.voice.submit while this component exists. Editor and development builds only. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice|Mock")
-	bool bEnableConsoleCommand = true;
 
 protected:
 	virtual bool BeginBackendListening_Implementation(const FVoiceRecognitionRequest& Request) override;
