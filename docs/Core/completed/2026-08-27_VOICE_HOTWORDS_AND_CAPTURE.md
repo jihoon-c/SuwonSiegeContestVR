@@ -105,8 +105,25 @@ Blueprint·레벨·에셋은 건드리지 않았다. 게임플레이 호출부(`
 
 # 테스트 결과
 
-* **Win64 Game(비에디터) 타깃 빌드 성공** — 에디터가 실행 중이라 에디터 타깃 DLL은 잠겨 있었다.
-  동일한 코드가 컴파일되므로 컴파일 오류는 이 경로로 확인했다.
+* **Win64 Game·Editor 타깃 빌드 모두 성공.**
+* **`Suwon.Core.Voice.SherpaKoreanDecode` 자동화 테스트 통과** (실제 모델 + 실제 wav).
+
+  ```text
+  Korean speech recognizer loaded in 1.96s (..., modified_beam_search, hotwords on, 2 threads).
+  Recognizer ready in 2.0s.
+  test_wavs/0.wav -> "걔는괜찮은척할려구애쓰는거같았다" (0.23s)
+  test_wavs/1.wav -> "지하철에서다리를벌리고앉지마라." (0.18s)
+  Result={Success}
+  ```
+
+  * 로그의 `modified_beam_search, hotwords on`으로 **`bpe.vocab`이 실제로 수락되었고**
+    폴백 경로가 아니라 의도한 설정으로 인식기가 만들어졌음을 확인했다
+  * **정확도가 오히려 개선됐다.** 이전 `greedy_search`에서 `1.wav`는
+    "벌리고**하진**마라"였는데 이번엔 "벌리고**앉지**마라"로 기준 문장과 일치한다.
+    마침 문제였던 파찰음/마찰음 계열이 개선된 사례다
+  * 비용 증가는 미미하다: 로드 1.6초 → 2.0초, 디코딩 0.20초 → 0.23초 (RTF ≈ 0.07)
+  * 단, 이 테스트는 `Keywords`를 넘기지 않으므로 **스트림 단위 hotwords 부스팅은 적용되지
+    않았다.** 위 개선은 순수하게 `modified_beam_search` 효과다
 * **`bpe.vocab` 생성·검증 완료**: 5000 pieces, 132KB.
   * 형식이 `piece<TAB>score`이고 UTF-8인 것을 확인
   * piece 순서가 `tokens.txt`와 **완전히 동일**함을 확인 (id 정렬이 어긋나면 hotwords가 엉뚱한
@@ -116,10 +133,11 @@ Blueprint·레벨·에셋은 건드리지 않았다. 게임플레이 호출부(`
 
 # 남은 문제
 
-* **마이크로 "신기전"이 실제로 얼마나 인식되는지 미측정.** 에디터가 실행 중이어서 에디터 타깃
-  빌드와 `Suwon.Core.Voice.SherpaKoreanDecode` 자동화 테스트를 돌리지 못했다.
-  에디터를 닫고 재빌드한 뒤 `L_VoiceKeywordTest`에서 사람이 직접 발화해 확인해야 한다.
-  헤더에 새 `UPROPERTY`가 추가되었으므로 Live Coding이 아니라 **에디터 재시작**이 필요하다.
+* **마이크로 "신기전"이 실제로 얼마나 인식되는지 미측정.** 자동화 테스트는 마이크를 열지 않고
+  hotwords 부스팅도 태우지 않으므로, `L_VoiceKeywordTest`에서 사람이 직접 발화해 확인해야 한다.
+  이것이 이 작업의 최종 검증이다.
+* 마이크 재오픈 제거(B)의 효과도 사람 발화로만 확인된다. 확인 지표: 예전에는 인식 1건마다
+  `Capture device: ...` 로그가 다시 찍혔지만, 이제 연속 리스닝 중에는 처음 1회만 찍혀야 한다.
 * `modified_beam_search`는 `greedy_search`보다 느리다. PC에서는 RTF 0.06이라 여유가 크지만,
   **Quest CPU에서의 디코딩 비용은 미측정**이다. 부담되면 `NumThreads`나 `max_active_paths`(현재 4)를
   조정한다.

@@ -53,6 +53,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Ongseong|Narration")
 	bool InitializeNarrationBindings();
 
+	/**
+	 * Skips only the active instructor line. Linked and queued Ongseong lines remain scheduled.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Ongseong|Narration")
+	bool SkipNarration();
+
 	/** True while a row this component queued is playing, or while more rows are waiting. */
 	UFUNCTION(BlueprintPure, Category="Ongseong|Narration")
 	bool IsNarrationBusy() const { return bOwnsCurrentNarration || !PendingRows.IsEmpty(); }

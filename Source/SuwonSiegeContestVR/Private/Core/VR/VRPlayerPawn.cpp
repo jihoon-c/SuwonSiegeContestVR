@@ -482,6 +482,7 @@ void AVRPlayerPawn::HandleTriggerReleasedRight(const FInputActionValue& Value)
 {
 	if (HeldComponentRight && HeldComponentRight->FindFunction(TEXT("TriggerReleased")))
 		InvokeGrabFunction(HeldComponentRight, TEXT("TriggerReleased"), MotionControllerRightGrip);
+}
 
 void AVRPlayerPawn::ConfigureLocomotionInput()
 {

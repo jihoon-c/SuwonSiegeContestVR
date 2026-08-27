@@ -135,6 +135,19 @@ bool UOngseongNarrationComponent::InitializeNarrationBindings()
 	return NarrationSequence != nullptr;
 }
 
+bool UOngseongNarrationComponent::SkipNarration()
+{
+	if (!NarrationSequence || !bOwnsCurrentNarration || !NarrationSequence->IsNarrationPlaying())
+	{
+		return false;
+	}
+
+	// FinishCurrentNarration preserves the current row's NextRow behavior, so an
+	// automatic instructor sequence advances by exactly one line per key press.
+	NarrationSequence->SkipCurrentNarration();
+	return true;
+}
+
 void UOngseongNarrationComponent::ReportScenarioEvent(const FName EventName, AActor* SourceActor)
 {
 	if (EventName.IsNone())

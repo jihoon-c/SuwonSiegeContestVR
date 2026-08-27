@@ -4,6 +4,7 @@
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Components/StaticMeshComponent.h"
 #include "Ongseong/ChongtongCannonActor.h"
 #include "Ongseong/ChongtongAutomaticFireComponent.h"
 #include "Ongseong/ChongtongLoadingItemActor.h"
@@ -24,9 +25,17 @@ bool FChongtongLoadingSequenceTest::RunTest(const FString& Parameters)
 	AChongtongLoadingItemActor* LoadingItem = World->SpawnActor<AChongtongLoadingItemActor>();
 	if (TestNotNull(TEXT("Loading item is spawned without constructor-helper crash"), LoadingItem))
 	{
+		UStaticMeshComponent* ItemMesh = LoadingItem->FindComponentByClass<UStaticMeshComponent>();
+		TestTrue(TEXT("The visible loading prop is a direct VR grab target"),
+			ItemMesh && ItemMesh->ComponentHasTag(TEXT("VRGrab")));
+		TestNotNull(TEXT("The visible-prop grab forwarding hook exists"),
+			LoadingItem->FindFunction(TEXT("HandleVRGrabbed")));
+		TestNotNull(TEXT("The visible-prop release forwarding hook exists"),
+			LoadingItem->FindFunction(TEXT("HandleVRReleased")));
 		LoadingItem->ConfigureItem(EChongtongLoadingItemType::Powder);
 		LoadingItem->ConfigureItem(EChongtongLoadingItemType::Rammer);
 		LoadingItem->ConfigureItem(EChongtongLoadingItemType::Cannonball);
+		TestFalse(TEXT("An ungrabbed loading prop cannot be inserted"), LoadingItem->IsHeldForInteraction());
 	}
 	if (TestNotNull(TEXT("Cannon is spawned"), Cannon))
 	{
